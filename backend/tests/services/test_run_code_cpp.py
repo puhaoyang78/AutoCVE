@@ -37,3 +37,59 @@ def test_asan_reports_memory_error():
     result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=20)
     assert result.returncode != 0
     assert "AddressSanitizer" in result.stderr or "runtime error" in result.stderr
+
+
+class _FakeSandbox:
+    is_available = True
+
+    async def initialize(self):
+        return None
+
+    async def execute_command(self, command: str, timeout: int):
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "ERROR: AddressSanitizer: heap-use-after-free",
+            "exit_code": 1,
+            "error": None,
+        }
+
+
+class _BrokenSandbox(_FakeSandbox):
+    async def execute_command(self, command: str, timeout: int):
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "",
+            "exit_code": -1,
+            "error": "sandbox timeout",
+        }
+
+
+def test_run_code_language_schema_mentions_cpp_alias():
+    assert "c++" in RunCodeTool().description
+
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_nonzero_program_exit_remains_visible_to_agent():
+    result = await RunCodeTool(sandbox_manager=_FakeSandbox())._execute(
+        code="int main(void) { return 1; }",
+        language="c",
+    )
+    assert result.success is True
+    assert result.metadata["exit_code"] == 1
+    assert "AddressSanitizer" in result.data
+    assert "AddressSanitizer" in result.to_string()
+
+
+@pytest.mark.asyncio
+async def test_sandbox_error_still_marks_run_code_failure():
+    result = await RunCodeTool(sandbox_manager=_BrokenSandbox())._execute(
+        code="int main(void) { return 0; }",
+        language="c",
+    )
+    assert result.success is False
+    assert result.error == "sandbox timeout"
