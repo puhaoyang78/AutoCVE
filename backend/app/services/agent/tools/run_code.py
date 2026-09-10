@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class RunCodeInput(BaseModel):
     """代码执行输入"""
     code: str = Field(..., description="要执行的代码")
-    language: str = Field(default="python", description="编程语言: python, php, javascript, ruby, go, java, c, cpp, bash")
+    language: str = Field(default="python", description="编程语言: python, php, javascript, ruby, go, java, c, cpp, c++, bash")
     timeout: int = Field(default=60, description="超时时间（秒），复杂测试可设置更长")
     description: str = Field(default="", description="简短描述这段代码的目的（用于日志）")
 
@@ -75,7 +75,7 @@ class RunCodeTool(AgentTool):
 
 输入：
 - code: 你编写的测试代码（完整可执行）
-- language: python, php, javascript, ruby, go, java, c, cpp, bash
+- language: python, php, javascript, ruby, go, java, c, cpp, c++, bash
 - timeout: 超时秒数（默认60，复杂测试可设更长）
 - description: 简短描述代码目的
 
@@ -162,7 +162,7 @@ for payload in payloads:
             return ToolResult(
                 success=False,
                 error=f"不支持的语言: {language}",
-                data=f"支持的语言: python, php, javascript, ruby, go, java, c, cpp, bash"
+                data=f"支持的语言: python, php, javascript, ruby, go, java, c, cpp, c++, bash"
             )
 
         # 在沙箱中执行
@@ -198,7 +198,10 @@ for payload in payloads:
         output_parts.append("请根据上述输出分析漏洞是否存在。")
 
         return ToolResult(
-            success=result.get("success", False),
+            # A non-zero target-process exit can be the expected vulnerability signal
+            # (for example ASan/UBSan). Only sandbox/infrastructure errors make the
+            # tool call itself fail; the exit code remains available in metadata.
+            success=result.get("error") is None,
             data="\n".join(output_parts),
             error=result.get("error"),
             metadata={
