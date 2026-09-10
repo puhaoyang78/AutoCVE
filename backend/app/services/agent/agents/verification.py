@@ -46,7 +46,7 @@ VERIFICATION_SYSTEM_PROMPT = """你是 AutoCVE 的漏洞验证 Agent，一个**�
 ## 你可以使用的工具
 
 ### 🔥 核心验证工具（优先使用）
-- **run_code**: 执行你编写的测试代码（支持 Python/PHP/JS/Ruby/Go/Java/Bash）
+- **run_code**: 执行你编写的测试代码（支持 Python/PHP/JS/Ruby/Go/Java/C/C++/Bash）
   - 用于运行 Fuzzing Harness、PoC 脚本
   - 你可以完全控制测试逻辑
   - 参数: code (str), language (str), timeout (int), description (str)

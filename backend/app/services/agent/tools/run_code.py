@@ -13,6 +13,7 @@
 """
 
 import asyncio
+import base64
 import logging
 import os
 import tempfile
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 class RunCodeInput(BaseModel):
     """代码执行输入"""
     code: str = Field(..., description="要执行的代码")
-    language: str = Field(default="python", description="编程语言: python, php, javascript, ruby, go, java, bash")
+    language: str = Field(default="python", description="编程语言: python, php, javascript, ruby, go, java, c, cpp, bash")
     timeout: int = Field(default=60, description="超时时间（秒），复杂测试可设置更长")
     description: str = Field(default="", description="简短描述这段代码的目的（用于日志）")
 
@@ -74,7 +75,7 @@ class RunCodeTool(AgentTool):
 
 输入：
 - code: 你编写的测试代码（完整可执行）
-- language: python, php, javascript, ruby, go, java, bash
+- language: python, php, javascript, ruby, go, java, c, cpp, bash
 - timeout: 超时秒数（默认60，复杂测试可设更长）
 - description: 简短描述代码目的
 
@@ -85,6 +86,8 @@ class RunCodeTool(AgentTool):
 - ruby: ruby -e 'code'
 - go: go run (需写完整 package main)
 - java: javac + java (需写完整 class)
+- c: gcc + ASan/UBSan (需写完整 main)
+- cpp/c++: g++ + ASan/UBSan (需写完整 main)
 - bash: bash -c 'code'
 
 示例 - 命令注入 Fuzzing Harness:
@@ -159,7 +162,7 @@ for payload in payloads:
             return ToolResult(
                 success=False,
                 error=f"不支持的语言: {language}",
-                data=f"支持的语言: python, php, javascript, ruby, go, java, bash"
+                data=f"支持的语言: python, php, javascript, ruby, go, java, c, cpp, bash"
             )
 
         # 在沙箱中执行
@@ -240,6 +243,18 @@ for payload in payloads:
         elif language == "bash":
             escaped = escape_for_shell(code)
             return f"bash -c '{escaped}'"
+
+        elif language in ["c", "cpp", "c++"]:
+            suffix = "c" if language == "c" else "cpp"
+            compiler = "gcc" if language == "c" else "g++"
+            standard = "-std=c11" if language == "c" else "-std=c++17"
+            encoded = base64.b64encode(code.encode("utf-8")).decode("ascii")
+            sanitizer_flags = "-fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g"
+            return (
+                f"printf '%s' '{encoded}' | base64 -d > /tmp/main.{suffix} && "
+                f"{compiler} {standard} {sanitizer_flags} /tmp/main.{suffix} -o /tmp/autocve_test && "
+                "ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 /tmp/autocve_test"
+            )
 
         elif language == "go":
             # Go 需要完整的 package main
