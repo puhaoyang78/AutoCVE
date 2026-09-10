@@ -247,6 +247,22 @@ export async function getAgentTasks(params?: {
   return response.data;
 }
 
+export async function getAllAgentTasks(params?: {
+  project_id?: string;
+  status?: string;
+}): Promise<AgentTask[]> {
+  const pageSize = 100;
+  const tasks: AgentTask[] = [];
+  let skip = 0;
+
+  while (true) {
+    const page = await getAgentTasks({ ...params, skip, limit: pageSize });
+    tasks.push(...page);
+    if (page.length < pageSize) return tasks;
+    skip += page.length;
+  }
+}
+
 /**
  * 鑾峰彇 Agent 浠诲姟璇︽儏
  */
@@ -268,6 +284,16 @@ export async function startAgentTask(taskId: string): Promise<{ message: string;
  */
 export async function cancelAgentTask(taskId: string): Promise<{ message: string; task_id: string }> {
   const response = await apiClient.post(`/agent-tasks/${taskId}/cancel`);
+  return response.data;
+}
+
+export async function resumeAgentTask(taskId: string): Promise<{ message: string; task_id: string }> {
+  const response = await apiClient.post(`/agent-tasks/${taskId}/resume`);
+  return response.data;
+}
+
+export async function deleteAgentTask(taskId: string): Promise<{ message: string; task_id: string }> {
+  const response = await apiClient.delete(`/agent-tasks/${taskId}`);
   return response.data;
 }
 

@@ -26,6 +26,8 @@ import {
 	Bot,
 	Download,
 	MessagesSquare,
+	RotateCcw,
+	Trash2,
 } from "lucide-react";
 import { api } from "@/shared/config/database";
 import { apiClient } from "@/shared/api/serverClient";
@@ -37,8 +39,10 @@ import TerminalProgressDialog from "@/components/audit/TerminalProgressDialog";
 import ExportReportDialog from "@/components/reports/ExportReportDialog";
 import { calculateTaskProgress } from "@/shared/utils/utils";
 import {
-	getAgentTasks,
+	getAllAgentTasks,
 	cancelAgentTask,
+	resumeAgentTask,
+	deleteAgentTask,
 	getAgentFindings,
 	type AgentTask,
 	type AgentFinding,
@@ -71,6 +75,8 @@ export default function AuditTasks() {
 	const [cancellingAgentTaskId, setCancellingAgentTaskId] = useState<
 		string | null
 	>(null);
+	const [resumingAgentTaskId, setResumingAgentTaskId] = useState<string | null>(null);
+	const [deletingAgentTaskId, setDeletingAgentTaskId] = useState<string | null>(null);
 	const [exportingTaskId, setExportingTaskId] = useState<string | null>(null);
 	const [showExportDialog, setShowExportDialog] = useState(false);
 	const [exportTask, setExportTask] = useState<AuditTask | null>(null);
@@ -100,7 +106,7 @@ export default function AuditTasks() {
 			if (!silent) {
 				setAgentLoading(true);
 			}
-			const data = await getAgentTasks();
+			const data = await getAllAgentTasks();
 			setAgentTasks(data);
 		} catch (error) {
 			console.error("Failed to load agent tasks:", error);
@@ -236,6 +242,35 @@ export default function AuditTasks() {
 			toast.error(error?.response?.data?.detail || "取消Agent任务失败");
 		} finally {
 			setCancellingAgentTaskId(null);
+		}
+	};
+
+	const handleResumeAgentTask = async (taskId: string) => {
+		if (resumingAgentTaskId) return;
+		try {
+			setResumingAgentTaskId(taskId);
+			await resumeAgentTask(taskId);
+			toast.success("Agent任务已恢复");
+			await loadAgentTasks(false);
+		} catch (error: any) {
+			toast.error(error?.response?.data?.detail || "恢复Agent任务失败");
+		} finally {
+			setResumingAgentTaskId(null);
+		}
+	};
+
+	const handleDeleteAgentTask = async (task: AgentTask) => {
+		if (deletingAgentTaskId) return;
+		if (!window.confirm(`确定删除审计记录“${task.name || "Agent审计任务"}”吗？关联审计会话也会一并删除。`)) return;
+		try {
+			setDeletingAgentTaskId(task.id);
+			await deleteAgentTask(task.id);
+			setAgentTasks((current) => current.filter((item) => item.id !== task.id));
+			toast.success("审计记录已删除");
+		} catch (error: any) {
+			toast.error(error?.response?.data?.detail || "删除审计记录失败");
+		} finally {
+			setDeletingAgentTaskId(null);
 		}
 	};
 
@@ -501,6 +536,13 @@ export default function AuditTasks() {
 						>
 							失败
 						</Button>
+						<Button
+							size="sm"
+							onClick={() => setStatusFilter("cancelled")}
+							className={`h-10 ${statusFilter === "cancelled" ? "bg-slate-500/90 border-slate-500/50 text-foreground hover:bg-slate-500" : "cyber-btn-outline"}`}
+						>
+							已取消
+						</Button>
 					</div>
 				</div>
 			</div>
@@ -716,7 +758,19 @@ export default function AuditTasks() {
 														: "导出报告"}
 												</Button>
 											)}
-											{task.runtime_session_id && (
+											{["failed", "cancelled", "paused"].includes(task.status) && (
+								<Button size="sm" className="cyber-btn-outline h-9" onClick={() => handleResumeAgentTask(task.id)} disabled={resumingAgentTaskId === task.id}>
+									<RotateCcw className="w-4 h-4 mr-2" />
+									{resumingAgentTaskId === task.id ? "恢复中..." : "继续审计"}
+								</Button>
+							)}
+							{["completed", "failed", "cancelled", "paused"].includes(task.status) && (
+								<Button size="sm" className="cyber-btn-outline h-9 text-rose-400 hover:text-rose-300" onClick={() => handleDeleteAgentTask(task)} disabled={deletingAgentTaskId === task.id}>
+									<Trash2 className="w-4 h-4 mr-2" />
+									{deletingAgentTaskId === task.id ? "删除中..." : "删除记录"}
+								</Button>
+							)}
+							{task.runtime_session_id && (
 												<Link to={`/audit-sessions/${task.runtime_session_id}`}>
 													<Button size="sm" className="cyber-btn-outline h-9">
 														<MessagesSquare className="w-4 h-4 mr-2" />

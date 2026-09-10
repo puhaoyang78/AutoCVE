@@ -2603,10 +2603,23 @@ async def list_agent_tasks(
     if project_id:
         query = query.where(AgentTask.project_id == project_id)
     if status:
-        try:
-            query = query.where(AgentTask.status == AgentTaskStatus(status))
-        except ValueError:
-            pass
+        valid_statuses = {
+            AgentTaskStatus.PENDING,
+            AgentTaskStatus.INITIALIZING,
+            AgentTaskStatus.RUNNING,
+            AgentTaskStatus.PLANNING,
+            AgentTaskStatus.INDEXING,
+            AgentTaskStatus.ANALYZING,
+            AgentTaskStatus.VERIFYING,
+            AgentTaskStatus.REPORTING,
+            AgentTaskStatus.COMPLETED,
+            AgentTaskStatus.FAILED,
+            AgentTaskStatus.CANCELLED,
+            AgentTaskStatus.PAUSED,
+        }
+        if status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid task status: {status}")
+        query = query.where(AgentTask.status == status)
 
     result = await db.execute(query.order_by(AgentTask.created_at.desc()).offset(skip).limit(limit))
     tasks = result.scalars().all()
@@ -2883,6 +2896,40 @@ async def cancel_agent_task(
     await db.commit()
     logger.info(f"[Cancel] Task {task_id} cancelled successfully")
     return {"message": "Task cancelled", "task_id": task_id}
+
+
+@router.delete("/{task_id}")
+async def delete_agent_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Delete a finished Agent audit record and its runtime sessions."""
+    task = await db.get(AgentTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    project = await db.get(Project, task.project_id)
+    if not project or project.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if task.status not in {
+        AgentTaskStatus.COMPLETED,
+        AgentTaskStatus.FAILED,
+        AgentTaskStatus.CANCELLED,
+        AgentTaskStatus.PAUSED,
+    }:
+        raise HTTPException(status_code=409, detail="Active task must be cancelled before deletion")
+
+    sessions_result = await db.execute(select(AuditSession).where(AuditSession.task_id == task_id))
+    for audit_session in sessions_result.scalars().all():
+        await db.delete(audit_session)
+
+    await db.delete(task)
+    await db.commit()
+    clear_task_cancellation(task_id)
+    logger.info("Deleted Agent task %s and its runtime sessions", task_id)
+    return {"message": "Task deleted", "task_id": task_id}
 
 
 @router.get("/{task_id}/events")
