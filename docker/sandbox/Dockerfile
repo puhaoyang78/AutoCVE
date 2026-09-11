@@ -6,6 +6,12 @@ FROM docker.m.daocloud.io/python:3.11-bookworm
 
 ARG SEMGREP_VERSION=1.161.0
 ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
 
 LABEL maintainer="XCodeReviewer Team"
 LABEL description="Secure sandbox environment for vulnerability verification and security scanning"
@@ -13,8 +19,7 @@ LABEL description="Secure sandbox environment for vulnerability verification and
 # 安装基本工具
 # 安装基本工具
 # 使用默认 Debian 源并开启 apt 重试，避免绑定单个不稳定镜像站
-RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
-    echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/99-retries && \
+RUN     echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/99-retries && \
     echo 'Acquire::http::Timeout "30";' >> /etc/apt/apt.conf.d/99-retries && \
     echo 'Acquire::https::Timeout "30";' >> /etc/apt/apt.conf.d/99-retries && \
     apt-get update && apt-get install -y --fix-missing --no-install-recommends \
@@ -43,8 +48,7 @@ RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
 # 使用 Node.js binary tarball，优先国内镜像并回退官方源
 ARG NODE_VERSION=20.20.2
 ARG TARGETARCH
-RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
-    case "${TARGETARCH}" in \
+RUN     case "${TARGETARCH}" in \
       amd64) NODE_ARCH="x64" ;; \
       arm64) NODE_ARCH="arm64" ;; \
       *) echo "Unsupported Node.js architecture: ${TARGETARCH}" && exit 1 ;; \
@@ -62,8 +66,7 @@ RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
 # 安装 Go (使用阿里云镜像)
 ENV PATH=$PATH:/usr/local/go/bin
 ENV GOPROXY=https://goproxy.cn,direct
-RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
-    case "${TARGETARCH}" in \
+RUN     case "${TARGETARCH}" in \
       amd64) GO_ARCH="amd64" ;; \
       arm64) GO_ARCH="arm64" ;; \
       *) echo "Unsupported Go architecture: ${TARGETARCH}" && exit 1 ;; \
@@ -76,8 +79,7 @@ RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
 RUN rustc --version && cargo --version
 
 # 安装 Python 安全工具
-RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
-    for index_url in "${PIP_INDEX_URL}" "https://pypi.org/simple"; do \
+RUN     for index_url in "${PIP_INDEX_URL}" "https://pypi.org/simple"; do \
       python -m pip install --no-cache-dir -i "${index_url}" \
       requests \
       httpx \
@@ -97,8 +99,7 @@ RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
     test "$(semgrep --version)" = "${SEMGREP_VERSION}"
 
 # 安装 Gitleaks
-RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
-    case "${TARGETARCH}" in \
+RUN     case "${TARGETARCH}" in \
       amd64) GITLEAKS_ARCH="x64" ;; \
       arm64) GITLEAKS_ARCH="arm64" ;; \
       *) echo "Unsupported Gitleaks architecture: ${TARGETARCH}" && exit 1 ;; \
@@ -109,12 +110,10 @@ RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
     rm gitleaks.tar.gz
 
 # 安装 TruffleHog
-RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
-    curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+RUN     curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
 
 # 安装 OSV-Scanner
-RUN unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY && \
-    case "${TARGETARCH}" in \
+RUN     case "${TARGETARCH}" in \
       amd64) OSV_ARCH="amd64" ;; \
       arm64) OSV_ARCH="arm64" ;; \
       *) echo "Unsupported OSV-Scanner architecture: ${TARGETARCH}" && exit 1 ;; \
