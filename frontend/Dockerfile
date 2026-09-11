@@ -10,15 +10,13 @@ WORKDIR /app
 ARG VITE_ENABLE_CHECKMARX_SCAN=false
 ARG VITE_APP_VERSION
 
-# 彻底清除代理设置
-ENV http_proxy=""
-ENV https_proxy=""
-ENV HTTP_PROXY=""
-ENV HTTPS_PROXY=""
-ENV all_proxy=""
-ENV ALL_PROXY=""
-ENV no_proxy="*"
-ENV NO_PROXY="*"
+# 代理仅用于镜像构建，不写入最终 Nginx 运行镜像。
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG NO_PROXY
+ARG no_proxy
 
 # 配置国内 npm 镜像�?
 RUN npm config set registry https://registry.npmmirror.com && \
