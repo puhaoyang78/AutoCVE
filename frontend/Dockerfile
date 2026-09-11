@@ -18,20 +18,21 @@ ARG https_proxy
 ARG NO_PROXY
 ARG no_proxy
 
-# 配置国内 npm 镜像�?
+# 锁定 pnpm 9，与 lockfileVersion 9.0 保持一致。
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm install -g pnpm && \
+    npm install -g pnpm@9 && \
     pnpm config set registry https://registry.npmmirror.com
 
 # 复制依赖文件
 COPY package.json pnpm-lock.yaml ./
 
-# 增加网络超时设置和并发数限制，防�?ARM 架构构建卡死
-RUN pnpm config set network-timeout 300000 && \
-    pnpm config set fetch-retries 5 && \
-    pnpm install --no-frozen-lockfile --network-concurrency 1
+# 网络重试/超时作为 install 参数传入，避免写入新版 pnpm 不支持的全局配置键。
+RUN pnpm install --frozen-lockfile \
+    --network-concurrency 1 \
+    --fetch-retries 5 \
+    --fetch-timeout 300000
 
-# 复制源代�?
+# 复制源码
 COPY . .
 
 # 🔥 构建时使用占位符 - 实现 Build Once Run Anywhere
