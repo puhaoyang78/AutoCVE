@@ -21,7 +21,9 @@ jobs:
         run: python .github/scripts/apply_build_proxy_only.py
 
       - name: Validate compose
-        run: docker compose config >/tmp/autocve-compose.yml
+        run: |
+          nl -ba docker-compose.yml | sed -n '190,225p'
+          docker compose config >/tmp/autocve-compose.yml
 
       - name: Assert runtime containers do not inherit proxy variables
         run: |
@@ -30,9 +32,7 @@ jobs:
           text = Path('docker-compose.yml').read_text()
           for service in ['backend:', 'agent-worker:', 'one-click-cve-worker:', 'frontend:']:
               assert service in text
-          runtime_bad = [
-              "HTTP_PROXY: ''", "HTTPS_PROXY: ''", "NO_PROXY: '*'",
-          ]
+          runtime_bad = ["HTTP_PROXY: ''", "HTTPS_PROXY: ''", "NO_PROXY: '*'"]
           for item in runtime_bad:
               assert item not in text, item
           for token in ['HTTP_PROXY: ${HTTP_PROXY:-}', 'HTTPS_PROXY: ${HTTPS_PROXY:-}', 'host.docker.internal:host-gateway']:
