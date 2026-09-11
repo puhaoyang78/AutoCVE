@@ -18,6 +18,14 @@ if text.count(old_args) != 2:
     raise RuntimeError(f"docker-compose.yml: expected two backend/frontend build arg blocks, found {text.count(old_args)}")
 text = text.replace(old_args, new_args)
 
+# Frontend already has Vite build args after the old proxy block. Keep them inside
+# build.args, before build.extra_hosts.
+text = text.replace(
+    '''      extra_hosts:\n        - "host.docker.internal:host-gateway"\n        VITE_ENABLE_CHECKMARX_SCAN: ${VITE_ENABLE_CHECKMARX_SCAN:-false}\n        VITE_APP_VERSION: ${VITE_APP_VERSION:-}\n''',
+    '''        VITE_ENABLE_CHECKMARX_SCAN: ${VITE_ENABLE_CHECKMARX_SCAN:-false}\n        VITE_APP_VERSION: ${VITE_APP_VERSION:-}\n      extra_hosts:\n        - "host.docker.internal:host-gateway"\n''',
+    1,
+)
+
 old_runtime_proxy = '''      HTTP_PROXY: ''\n      HTTPS_PROXY: ''\n      http_proxy: ''\n      https_proxy: ''\n      NO_PROXY: '*'\n'''
 if text.count(old_runtime_proxy) != 4:
     raise RuntimeError(f"docker-compose.yml: expected four runtime proxy blocks, found {text.count(old_runtime_proxy)}")
@@ -30,8 +38,6 @@ if old_sandbox not in text:
 text = text.replace(old_sandbox, new_sandbox, 1)
 compose.write_text(text, encoding="utf-8")
 
-# Backend Dockerfile: accept build-time proxy args in both stages, do not persist them
-# into the runtime image, and stop forcing apt/pip to bypass proxy settings.
 path = "backend/Dockerfile"
 text = Path(path).read_text(encoding="utf-8")
 old_builder_env = '''ENV PYTHONDONTWRITEBYTECODE=1\nENV PYTHONUNBUFFERED=1\nENV http_proxy=""\nENV https_proxy=""\nENV HTTP_PROXY=""\nENV HTTPS_PROXY=""\nENV all_proxy=""\nENV ALL_PROXY=""\nENV no_proxy="*"\nENV NO_PROXY="*"\nENV PIP_INDEX_URL=https://pypi.org/simple\n'''
@@ -54,7 +60,6 @@ if 'Proxy "false"' in text or 'ENV HTTP_PROXY=""' in text:
     raise RuntimeError("backend Dockerfile still forces proxy bypass")
 Path(path).write_text(text, encoding="utf-8")
 
-# Frontend builder: use build args only; final nginx image gets no proxy env.
 path = "frontend/Dockerfile"
 text = Path(path).read_text(encoding="utf-8")
 old_frontend_proxy = '''# 彻底清除代理设置\nENV http_proxy=""\nENV https_proxy=""\nENV HTTP_PROXY=""\nENV HTTPS_PROXY=""\nENV all_proxy=""\nENV ALL_PROXY=""\nENV no_proxy="*"\nENV NO_PROXY="*"\n'''
@@ -64,7 +69,6 @@ if old_frontend_proxy not in text:
 text = text.replace(old_frontend_proxy, new_frontend_proxy, 1)
 Path(path).write_text(text, encoding="utf-8")
 
-# Sandbox image: accept build-time proxy args and stop unsetting them in download steps.
 path = "docker/sandbox/Dockerfile"
 text = Path(path).read_text(encoding="utf-8")
 needle = '''ARG SEMGREP_VERSION=1.161.0\nARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/\n'''
