@@ -141,11 +141,12 @@ def _seed_v2_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dic
 def _migrate_v2_fingerprint_on_load(target: Any, context: Any) -> None:
     del context
     metadata = dict(getattr(target, "finding_metadata", None) or {})
-    if metadata.get("fingerprint_version") == FINGERPRINT_VERSION:
+    previous_version = str(metadata.get("fingerprint_version") or "legacy").strip() or "legacy"
+    if previous_version == FINGERPRINT_VERSION:
         return
     target.fingerprint = build_finding_fingerprint(target)
     metadata["fingerprint_version"] = FINGERPRINT_VERSION
-    metadata["fingerprint_migrated_from"] = metadata.get("fingerprint_version") or "legacy"
+    metadata["fingerprint_migrated_from"] = previous_version
     target.finding_metadata = metadata
 
 
