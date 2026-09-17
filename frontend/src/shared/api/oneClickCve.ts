@@ -66,6 +66,10 @@ export async function getOneClickCveBatch(batchId: string): Promise<OneClickCveB
   return response.data;
 }
 
+export async function deleteOneClickCveBatch(batchId: string): Promise<void> {
+  await apiClient.delete(`/one-click-cve/batches/${batchId}`);
+}
+
 export async function cancelOneClickCveBatch(batchId: string): Promise<OneClickCveBatch> {
   const response = await apiClient.post(`/one-click-cve/batches/${batchId}/cancel`);
   return response.data;
