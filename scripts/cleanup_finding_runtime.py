@@ -159,6 +159,16 @@ text = text.replace('            "origin": "direct_finding",\n            "evide
 assert "evidence_type" not in text
 save(path, text)
 
+# OneClick always uses the current Finding runtime; remove its old selector.
+path = "backend/app/services/one_click_cve/runner.py"
+text = load(path)
+text = text.replace(
+    '        agent_config={\n            "finding_runtime_stack": getattr(settings, "FINDING_RUNTIME_STACK_DEFAULT", "runtime"),\n            "one_click_cve_batch_id": batch_id,\n        },',
+    '        agent_config={"one_click_cve_batch_id": batch_id},',
+)
+assert "finding_runtime_stack" not in text
+save(path, text)
+
 # Settings and removed runtime selector.
 path = "backend/app/core/config.py"
 text = load(path)
