@@ -1,4 +1,4 @@
-﻿from .user import User
+from .user import User
 from .user_config import UserConfig
 from .project import Project, ProjectMember
 from .audit import AuditTask, AuditIssue
@@ -41,7 +41,3 @@ from .one_click_cve import (
     OneClickCveBatchStatus,
     OneClickCveProjectStatus,
 )
-
-from app.services.finding_runtime.fingerprint import install_agent_finding_fingerprint_hooks
-
-install_agent_finding_fingerprint_hooks(AgentFinding)
