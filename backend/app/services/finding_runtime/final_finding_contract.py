@@ -32,7 +32,7 @@ class ExploitChainStep(_StrictModel):
         return _clean_text(value)
 
 
-class EvidenceNode(_StrictModel):
+class FlowNode(_StrictModel):
     id: str = Field(min_length=1)
     kind: Literal[
         "entry_point",
@@ -54,7 +54,7 @@ class EvidenceNode(_StrictModel):
         return _clean_text(value)
 
 
-class EvidenceEdge(_StrictModel):
+class FlowEdge(_StrictModel):
     source_id: str = Field(min_length=1)
     target_id: str = Field(min_length=1)
     relation: str = Field(min_length=1)
@@ -65,7 +65,7 @@ class EvidenceEdge(_StrictModel):
         return _clean_text(value)
 
 
-class EvidenceControl(_StrictModel):
+class SecurityControl(_StrictModel):
     kind: Literal[
         "authentication",
         "authorization",
@@ -90,28 +90,28 @@ class EvidenceControl(_StrictModel):
         return _clean_text(value)
 
 
-class EvidenceGraph(_StrictModel):
-    nodes: list[EvidenceNode] = Field(min_length=2)
-    edges: list[EvidenceEdge] = Field(min_length=1)
-    controls: list[EvidenceControl] = Field(default_factory=list)
+class FindingFlow(_StrictModel):
+    nodes: list[FlowNode] = Field(min_length=2)
+    edges: list[FlowEdge] = Field(min_length=1)
+    controls: list[SecurityControl] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_source_to_sink_path(self):
         node_ids = [node.id for node in self.nodes]
         if len(node_ids) != len(set(node_ids)):
-            raise ValueError("evidence_graph node ids must be unique")
+            raise ValueError("finding_flow node ids must be unique")
 
         known_ids = set(node_ids)
         for edge in self.edges:
             if edge.source_id not in known_ids or edge.target_id not in known_ids:
-                raise ValueError("evidence_graph edges must reference existing node ids")
+                raise ValueError("finding_flow edges must reference existing node ids")
 
         source_ids = {node.id for node in self.nodes if node.kind == "source"}
         sink_ids = {node.id for node in self.nodes if node.kind == "sink"}
         if not source_ids:
-            raise ValueError("evidence_graph must contain at least one source node")
+            raise ValueError("finding_flow must contain at least one source node")
         if not sink_ids:
-            raise ValueError("evidence_graph must contain at least one sink node")
+            raise ValueError("finding_flow must contain at least one sink node")
 
         adjacency: dict[str, set[str]] = {}
         for edge in self.edges:
@@ -127,10 +127,10 @@ class EvidenceGraph(_StrictModel):
                 if target not in visited:
                     visited.add(target)
                     pending.append(target)
-        raise ValueError("evidence_graph must contain a directed path from source to sink")
+        raise ValueError("finding_flow must contain a directed path from source to sink")
 
 
-class VerificationEvidence(_StrictModel):
+class VerificationRecord(_StrictModel):
     method: Literal[
         "static_review",
         "asan",
@@ -145,9 +145,9 @@ class VerificationEvidence(_StrictModel):
     success: bool
     tool: str = Field(min_length=1)
     summary: str = Field(min_length=1)
-    evidence: str = Field(min_length=1)
+    details: str = Field(min_length=1)
 
-    @field_validator("tool", "summary", "evidence", mode="before")
+    @field_validator("tool", "summary", "details", mode="before")
     @classmethod
     def _strip_text_fields(cls, value: Any) -> str:
         return _clean_text(value)
@@ -159,7 +159,7 @@ class RejectedCandidate(_StrictModel):
     title: str = Field(min_length=1)
     file_path: str = ""
     reason: str = Field(min_length=1)
-    blocking_evidence: list[EvidenceControl] = Field(min_length=1)
+    blocking_controls: list[SecurityControl] = Field(min_length=1)
     confidence: float = Field(ge=0.0, le=1.0)
 
     @field_validator("candidate_id", "vulnerability_type", "title", "file_path", "reason", mode="before")
@@ -169,7 +169,7 @@ class RejectedCandidate(_StrictModel):
 
     @model_validator(mode="after")
     def _must_have_effective_block(self):
-        if not any(item.status == "effective" for item in self.blocking_evidence):
+        if not any(item.status == "effective" for item in self.blocking_controls):
             raise ValueError("rejected candidates must include at least one effective blocking control")
         return self
 
@@ -223,8 +223,8 @@ class FinalizedFinding(_StrictModel):
     needs_verification: bool
     verdict: Literal["candidate", "confirmed"]
     exploit_chain: list[ExploitChainStep] = Field(min_length=1)
-    evidence_graph: EvidenceGraph | None = None
-    verification_evidence: list[VerificationEvidence] = Field(default_factory=list)
+    finding_flow: FindingFlow | None = None
+    verification_records: list[VerificationRecord] = Field(default_factory=list)
     poc: PocPayload
     impact: str = Field(min_length=1)
     cve_justification: str = Field(min_length=1)
@@ -268,30 +268,21 @@ class FinalizedFinding(_StrictModel):
         if self.verdict == "candidate" and not self.needs_verification:
             raise ValueError("candidate findings must remain marked as needing verification")
 
-        if self.evidence_graph is not None:
-            effective_controls = [
-                control
-                for control in self.evidence_graph.controls
-                if control.status == "effective"
-            ]
-            if effective_controls:
-                raise ValueError(
-                    "reportable findings cannot contain an effective blocking control; "
-                    "move the candidate to rejected_candidates"
-                )
+        if self.finding_flow is not None and any(
+            control.status == "effective" for control in self.finding_flow.controls
+        ):
+            raise ValueError(
+                "reportable findings cannot contain an effective blocking control; "
+                "move the candidate to rejected_candidates"
+            )
 
         if self.verdict == "confirmed":
-            if self.evidence_graph is None:
-                raise ValueError("confirmed findings require an evidence_graph")
-            unresolved_controls = [
-                control
-                for control in self.evidence_graph.controls
-                if control.status == "unknown"
-            ]
-            if unresolved_controls:
+            if self.finding_flow is None:
+                raise ValueError("confirmed findings require finding_flow")
+            if any(control.status == "unknown" for control in self.finding_flow.controls):
                 raise ValueError("confirmed findings cannot retain unknown security controls")
-            if not any(item.dynamic and item.success for item in self.verification_evidence):
-                raise ValueError("confirmed findings require successful dynamic verification evidence")
+            if not any(item.dynamic and item.success for item in self.verification_records):
+                raise ValueError("confirmed findings require a successful dynamic verification record")
         return self
 
 
