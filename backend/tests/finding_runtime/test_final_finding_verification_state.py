@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from app.services.finding_runtime.final_finding_contract import FinalizedFinding, FinalizedFindingPayload
 
 
-def evidence_graph(*, control_status: str = "absent") -> dict:
+def finding_flow(*, control_status: str = "absent") -> dict:
     return {
         "nodes": [
             {
@@ -24,13 +24,7 @@ def evidence_graph(*, control_status: str = "absent") -> dict:
                 "data_state": "unsanitized path",
             },
         ],
-        "edges": [
-            {
-                "source_id": "source",
-                "target_id": "sink",
-                "relation": "flows_to",
-            }
-        ],
+        "edges": [{"source_id": "source", "target_id": "sink", "relation": "flows_to"}],
         "controls": [
             {
                 "kind": "validation",
@@ -89,34 +83,34 @@ def test_candidate_must_still_need_verification():
 
 def test_confirmed_must_not_still_need_verification():
     payload = finding_payload(verdict="confirmed", needs_verification=True)
-    payload["evidence_graph"] = evidence_graph()
+    payload["finding_flow"] = finding_flow()
     with pytest.raises(ValidationError):
         FinalizedFinding.model_validate(payload)
 
 
-def test_candidate_remains_backward_compatible_without_evidence_graph():
+def test_candidate_can_remain_static():
     candidate = FinalizedFinding.model_validate(finding_payload(verdict="candidate", needs_verification=True))
     assert candidate.verdict == "candidate"
-    assert candidate.evidence_graph is None
+    assert candidate.finding_flow is None
 
 
-def test_confirmed_requires_evidence_graph_and_successful_dynamic_verification():
+def test_confirmed_requires_flow_and_successful_dynamic_verification():
     payload = finding_payload(verdict="confirmed", needs_verification=False)
     with pytest.raises(ValidationError):
         FinalizedFinding.model_validate(payload)
 
-    payload["evidence_graph"] = evidence_graph()
+    payload["finding_flow"] = finding_flow()
     with pytest.raises(ValidationError):
         FinalizedFinding.model_validate(payload)
 
-    payload["verification_evidence"] = [
+    payload["verification_records"] = [
         {
             "method": "sandbox_poc",
             "dynamic": True,
             "success": True,
             "tool": "sandbox",
             "summary": "Traversal reproduced in the isolated target harness.",
-            "evidence": "Request ../secret returned content outside the intended base directory.",
+            "details": "Request ../secret returned content outside the intended base directory.",
         }
     ]
     confirmed = FinalizedFinding.model_validate(payload)
@@ -125,15 +119,15 @@ def test_confirmed_requires_evidence_graph_and_successful_dynamic_verification()
 
 def test_effective_control_blocks_reportable_finding():
     payload = finding_payload(verdict="candidate", needs_verification=True)
-    payload["evidence_graph"] = evidence_graph(control_status="effective")
+    payload["finding_flow"] = finding_flow(control_status="effective")
     with pytest.raises(ValidationError, match="effective blocking control"):
         FinalizedFinding.model_validate(payload)
 
 
-def test_rejected_candidate_requires_effective_blocking_evidence():
+def test_rejected_candidate_requires_effective_blocking_control():
     base = {
         "findings": [],
-        "summary": "Candidate was disproved by direct source evidence.",
+        "summary": "Candidate was disproved by direct source review.",
         "rejected_candidates": [
             {
                 "candidate_id": "path-1",
@@ -142,7 +136,7 @@ def test_rejected_candidate_requires_effective_blocking_evidence():
                 "file_path": "src/download.py",
                 "reason": "Canonical path containment dominates the filesystem read.",
                 "confidence": 0.98,
-                "blocking_evidence": [
+                "blocking_controls": [
                     {
                         "kind": "validation",
                         "status": "bypassable",
@@ -157,7 +151,7 @@ def test_rejected_candidate_requires_effective_blocking_evidence():
     with pytest.raises(ValidationError, match="effective blocking control"):
         FinalizedFindingPayload.model_validate(base)
 
-    base["rejected_candidates"][0]["blocking_evidence"][0]["status"] = "effective"
-    base["rejected_candidates"][0]["blocking_evidence"][0]["bypass_reason"] = ""
+    base["rejected_candidates"][0]["blocking_controls"][0]["status"] = "effective"
+    base["rejected_candidates"][0]["blocking_controls"][0]["bypass_reason"] = ""
     parsed = FinalizedFindingPayload.model_validate(base)
     assert len(parsed.rejected_candidates) == 1
