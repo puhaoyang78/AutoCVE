@@ -23,6 +23,7 @@ jobs:
             backend/app/services/finding_runtime/query_loop.py \
             backend/app/services/finding_runtime/models.py \
             backend/app/services/finding_runtime/fingerprint.py \
+            backend/app/services/direct_audit_vulnerability_service.py \
             backend/app/api/v1/endpoints/agent_tasks.py \
             backend/app/models/agent_task.py \
             backend/app/core/config.py
