@@ -38,11 +38,6 @@ DEFAULT_AGENT_SKILLS: Dict[str, List[Dict[str, Any]]] = {
     ]
 }
 
-DEPRECATED_FINDING_SKILLS = (
-    "skill-dfyx-code-security-review",
-    "code-security",
-)
-
 AUDIT_CHAT_AGENT_TYPE = "audit_chat"
 
 DEFAULT_REPORT_TEMPLATE_SLUG = "report-template"
@@ -60,7 +55,7 @@ def _binding_exists(agent_type: str, slug: str) -> bool:
 
 
 async def init_skill_bindings() -> List[str]:
-    slugs: List[str] = []
+    created: List[str] = []
     for agent_type in AGENT_TYPES:
         SkillFileService.ensure_agent_bindings(agent_type)
 
@@ -69,6 +64,8 @@ async def init_skill_bindings() -> List[str]:
             slug = SkillFileService.slugify(skill_spec["slug"])
             if not SkillFileService.skill_file(slug).exists():
                 logger.warning("Bundled skill '%s' is missing from local skill_library; skipping default binding.", slug)
+                continue
+            if _binding_exists(agent_type, slug):
                 continue
             SkillFileService.upsert_binding(
                 agent_type,
@@ -79,28 +76,25 @@ async def init_skill_bindings() -> List[str]:
                 match_keywords=list(skill_spec.get("match_keywords", [])),
                 match_config=dict(skill_spec.get("match_config", {})),
             )
-            slugs.append(slug)
-
-    for slug in DEPRECATED_FINDING_SKILLS:
-        if _binding_exists("finding", slug):
-            SkillFileService.delete_binding("finding", slug)
+            created.append(slug)
 
     for slug in SkillFileService.list_skill_slugs():
         normalized_slug = SkillFileService.slugify(slug)
-        if not _binding_exists(AUDIT_CHAT_AGENT_TYPE, normalized_slug):
-            SkillFileService.upsert_binding(
-                AUDIT_CHAT_AGENT_TYPE,
-                normalized_slug,
-                enabled=True,
-                always_include=False,
-                sort_order=10,
-                match_keywords=[],
-                match_config={},
-            )
-            slugs.append(normalized_slug)
+        if _binding_exists(AUDIT_CHAT_AGENT_TYPE, normalized_slug):
+            continue
+        SkillFileService.upsert_binding(
+            AUDIT_CHAT_AGENT_TYPE,
+            normalized_slug,
+            enabled=True,
+            always_include=False,
+            sort_order=10,
+            match_keywords=[],
+            match_config={},
+        )
+        created.append(normalized_slug)
 
     SkillFileService.sync_all()
-    return slugs
+    return created
 
 
 async def init_report_templates() -> str:
@@ -127,36 +121,31 @@ async def init_report_templates() -> str:
         logger.info("Created default filesystem report template")
         return DEFAULT_REPORT_TEMPLATE_SLUG
 
-    default_slug = None
-    for item in items:
-        if item.get("is_default"):
-            default_slug = item["slug"]
-            break
+    default_slug = next((item["slug"] for item in items if item.get("is_default")), None)
+    if default_slug is not None:
+        return default_slug
 
-    if default_slug is None:
-        ReportTemplateFileService.clear_default_flags()
-        ReportTemplateFileService.write_template(
-            slug=DEFAULT_REPORT_TEMPLATE_SLUG,
-            name=DEFAULT_REPORT_TEMPLATE_NAME,
-            description=DEFAULT_REPORT_TEMPLATE_DESCRIPTION,
-            content=DEFAULT_REPORT_TEMPLATE,
-            report_type="final_vulnerability_report",
-            output_format="markdown",
-            variables={
-                "summary": "Execution summary",
-                "findings": "Findings",
-                "remediation": "Remediation",
-            },
-            metadata_json={"seeded_by": "init_agent_assets"},
-            is_default=True,
-            is_system=True,
-            is_active=True,
-            sort_order=0,
-        )
-        logger.info("Refreshed default filesystem report template")
-        return DEFAULT_REPORT_TEMPLATE_SLUG
-
-    return default_slug
+    ReportTemplateFileService.clear_default_flags()
+    ReportTemplateFileService.write_template(
+        slug=DEFAULT_REPORT_TEMPLATE_SLUG,
+        name=DEFAULT_REPORT_TEMPLATE_NAME,
+        description=DEFAULT_REPORT_TEMPLATE_DESCRIPTION,
+        content=DEFAULT_REPORT_TEMPLATE,
+        report_type="final_vulnerability_report",
+        output_format="markdown",
+        variables={
+            "summary": "Execution summary",
+            "findings": "Findings",
+            "remediation": "Remediation",
+        },
+        metadata_json={"seeded_by": "init_agent_assets"},
+        is_default=True,
+        is_system=True,
+        is_active=True,
+        sort_order=0,
+    )
+    logger.info("Created default filesystem report template")
+    return DEFAULT_REPORT_TEMPLATE_SLUG
 
 
 async def init_agent_assets(db: Any = None) -> None:
