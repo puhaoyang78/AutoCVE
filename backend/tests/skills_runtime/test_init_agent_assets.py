@@ -6,21 +6,19 @@ from app.services.init_agent_assets import init_agent_assets
 from app.services.skill_file_service import SkillFileService
 
 
+def write_skill(tmp_path, slug: str) -> None:
+    skill_dir = tmp_path / "skill_library" / slug
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        f"---\nname: {slug}\ndescription: test skill\n---\n\n# {slug}\n",
+        encoding="utf-8",
+    )
+
+
 @pytest.mark.asyncio
 async def test_init_agent_assets_stays_local_and_binds_canonical_skill(tmp_path, monkeypatch):
     monkeypatch.setattr(SkillFileService, "project_root", classmethod(lambda cls: tmp_path))
-
-    skill_dir = tmp_path / "skill_library" / "code-audit-finding"
-    skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "---\n"
-        "name: code-audit-finding\n"
-        "description: Local bundled finding skill\n"
-        "tags: [finding, code-audit]\n"
-        "---\n\n"
-        "# code-audit-finding\n",
-        encoding="utf-8",
-    )
+    write_skill(tmp_path, "code-audit-finding")
 
     async def fail_import(*args, **kwargs):
         raise AssertionError("init_agent_assets should not import GitHub skills")
@@ -43,21 +41,10 @@ async def test_init_agent_assets_stays_local_and_binds_canonical_skill(tmp_path,
 
 
 @pytest.mark.asyncio
-async def test_init_agent_assets_migrates_finding_bindings_to_phased_defaults(tmp_path, monkeypatch):
+async def test_init_agent_assets_creates_missing_defaults_without_overwriting_existing_binding(tmp_path, monkeypatch):
     monkeypatch.setattr(SkillFileService, "project_root", classmethod(lambda cls: tmp_path))
-
-    for slug in (
-        "code-audit-finding",
-        "secknowledge-skill",
-        "cve-report-writer",
-        "code-security",
-    ):
-        skill_dir = tmp_path / "skill_library" / slug
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(
-            f"---\nname: {slug}\ndescription: test skill\n---\n\n# {slug}\n",
-            encoding="utf-8",
-        )
+    for slug in ("code-audit-finding", "secknowledge-skill", "cve-report-writer"):
+        write_skill(tmp_path, slug)
 
     SkillFileService.ensure_agent_bindings("finding")
     SkillFileService.upsert_binding(
@@ -65,21 +52,8 @@ async def test_init_agent_assets_migrates_finding_bindings_to_phased_defaults(tm
         "secknowledge-skill",
         enabled=True,
         always_include=True,
-        sort_order=0,
-    )
-    SkillFileService.upsert_binding(
-        "finding",
-        "cve-report-writer",
-        enabled=True,
-        always_include=True,
-        sort_order=0,
-    )
-    SkillFileService.upsert_binding(
-        "finding",
-        "code-security",
-        enabled=True,
-        always_include=True,
-        sort_order=1,
+        sort_order=3,
+        match_keywords=["custom"],
     )
 
     await init_agent_assets()
@@ -87,14 +61,11 @@ async def test_init_agent_assets_migrates_finding_bindings_to_phased_defaults(tm
     bindings = SkillFileService.get_agent_bindings("finding")["skills"]
     by_slug = {item["slug"]: item for item in bindings}
 
-    assert set(by_slug) == {
-        "code-audit-finding",
-        "secknowledge-skill",
-        "cve-report-writer",
-    }
+    assert set(by_slug) == {"code-audit-finding", "secknowledge-skill", "cve-report-writer"}
     assert by_slug["code-audit-finding"]["always_include"] is True
     assert by_slug["code-audit-finding"]["sort_order"] == 0
-    assert by_slug["secknowledge-skill"]["always_include"] is False
-    assert by_slug["secknowledge-skill"]["sort_order"] == 10
+    assert by_slug["secknowledge-skill"]["always_include"] is True
+    assert by_slug["secknowledge-skill"]["sort_order"] == 3
+    assert by_slug["secknowledge-skill"]["match_keywords"] == ["custom"]
     assert by_slug["cve-report-writer"]["always_include"] is False
     assert by_slug["cve-report-writer"]["sort_order"] == 20
