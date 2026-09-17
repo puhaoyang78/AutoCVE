@@ -73,6 +73,28 @@ def _entry_paths(raw: dict[str, Any]) -> str:
     return ",".join(values[:8])
 
 
+def _hash_components(components: list[str]) -> str:
+    canonical = "|".join(components)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
+
+
+def build_payload_fingerprint(finding: dict[str, Any]) -> str:
+    """Build a stable fingerprint directly from a finalized finding payload."""
+
+    payload = dict(finding or {})
+    components = [
+        FINGERPRINT_VERSION,
+        _normalize_text(payload.get("vulnerability_type")),
+        _normalize_path(payload.get("file_path")),
+        _normalize_text(payload.get("function_name") or payload.get("class_name")),
+        _normalize_text(payload.get("source")),
+        _normalize_text(payload.get("sink")),
+        _evidence_graph_shape(payload),
+        _entry_paths(payload),
+    ]
+    return _hash_components(components)
+
+
 def build_finding_fingerprint(record: Any) -> str:
     """Build a location-stable semantic fingerprint for an AgentFinding-like object.
 
@@ -93,8 +115,7 @@ def build_finding_fingerprint(record: Any) -> str:
         _evidence_graph_shape(raw),
         _entry_paths(raw),
     ]
-    canonical = "|".join(components)
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
+    return _hash_components(components)
 
 
 def fingerprint_version(record: Any) -> str | None:
