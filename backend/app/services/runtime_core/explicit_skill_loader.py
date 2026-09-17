@@ -14,7 +14,10 @@ _BODY_STAGES = {"body", "references", "examples", "scripts", "full"}
 EXPLICIT_SKILL_REMINDER = (
     "显式技能加载提醒：以下技能是由用户提示词、系统提示词或路由消息显式提及后自动加载的完整 SKILL.md。"
     "开始执行任务前必须先阅读并遵守其中的启动流程、必读资源和工具调用要求；"
-    "如果 SKILL.md 要求继续读取 references、examples 或 scripts，请通过 Skill(action=\"read_resource\") 继续读取并留下审计记录。"
+    "如果当前运行时提供 Skill 工具，优先通过 Skill(action=\"read_resource\") 读取 references、examples 或 scripts 并留下审计记录。"
+    "如果当前阶段刻意不暴露 Skill 工具（例如受限的报告生成阶段），使用 Read 从已批准的技能库共享根目录读取资源，"
+    "路径写成 `<skill_ref>/<resource_name>`，例如 `cve-report-writer/references/report-rules.md`。"
+    "不要因为 Skill 工具不可见就跳过 SKILL.md 明确要求的必读资源。"
 )
 
 
