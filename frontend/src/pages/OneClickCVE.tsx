@@ -17,6 +17,7 @@ import {
   Square,
   Star,
   Target,
+  Trash2,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   cancelOneClickCveBatch,
   createOneClickCveBatch,
+  deleteOneClickCveBatch,
   getOneClickCveBatch,
   listOneClickCveBatches,
   resumeOneClickCveProject,
@@ -128,6 +130,17 @@ function vulnerabilityLink(project: OneClickCveProject) {
   return `/vulnerabilities?${params.toString()}`;
 }
 
+function isBatchActive(batch: OneClickCveBatch) {
+  if (ACTIVE_STATUSES.has(batch.status)) return true;
+  return batch.projects.some(
+    (project) =>
+      project.status === "importing" ||
+      project.status === "auditing" ||
+      project.resume_status === "queued" ||
+      project.resume_status === "running",
+  );
+}
+
 export default function OneClickCVE() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -142,12 +155,10 @@ export default function OneClickCVE() {
   const [starting, setStarting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [deletingBatchId, setDeletingBatchId] = useState("");
   const [resumingProjectId, setResumingProjectId] = useState("");
 
-  const hasActiveResume = Boolean(
-    selectedBatch?.projects.some((project) => project.resume_status === "queued" || project.resume_status === "running"),
-  );
-  const active = selectedBatch ? ACTIVE_STATUSES.has(selectedBatch.status) || hasActiveResume : false;
+  const active = selectedBatch ? isBatchActive(selectedBatch) : false;
   const progress = selectedBatch?.requested_count ? Math.min(100, Math.round((selectedBatch.found_count / selectedBatch.requested_count) * 100)) : 0;
   const batchStats = useMemo(() => {
     const projects = selectedBatch?.projects || [];
@@ -229,6 +240,33 @@ export default function OneClickCVE() {
       toast.error(errorMessage(error, "取消一键 CVE 失败"));
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function deleteBatch(batch: OneClickCveBatch) {
+    if (isBatchActive(batch)) {
+      toast.error("请先停止正在运行的一键 CVE 任务后再删除");
+      return;
+    }
+    if (!window.confirm(`确定删除 ${formatTime(batch.created_at)} 的扫描记录吗？\n已生成的项目、审计任务和漏洞结果不会被删除。`)) {
+      return;
+    }
+
+    try {
+      setDeletingBatchId(batch.id);
+      await deleteOneClickCveBatch(batch.id);
+      const remaining = batches.filter((item) => item.id !== batch.id);
+      setBatches(remaining);
+      if (selectedBatchId === batch.id) {
+        const next = remaining[0] || null;
+        setSelectedBatchId(next?.id || "");
+        setSelectedBatch(next);
+      }
+      toast.success("扫描记录已删除");
+    } catch (error) {
+      toast.error(errorMessage(error, "删除扫描记录失败"));
+    } finally {
+      setDeletingBatchId("");
     }
   }
 
@@ -325,31 +363,47 @@ export default function OneClickCVE() {
                 )}
                 {batches.map((batch) => {
                   const activeItem = batch.id === selectedBatchId;
+                  const batchActive = isBatchActive(batch);
+                  const deleting = deletingBatchId === batch.id;
                   return (
-                    <button
+                    <div
                       key={batch.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedBatchId(batch.id);
-                        refreshBatch(batch.id);
-                      }}
-                      className={`w-full rounded-2xl border px-4 py-3 text-left transition duration-200 ${
+                      className={`flex w-full items-stretch overflow-hidden rounded-2xl border text-left transition duration-200 ${
                         activeItem
                           ? "border-emerald-300 bg-[linear-gradient(135deg,#ecfbf2,#f7fdf9)] shadow-[0_12px_28px_rgba(94,122,99,0.12)]"
                           : "border-[#e2ebe6] bg-white hover:border-[#b9cec2] hover:bg-[#fbfdfb]"
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="truncate text-sm font-bold text-slate-950">{formatTime(batch.created_at)}</span>
-                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${statusClass(batch.status)}`}>
-                          {statusLabel(batch.status)}
-                        </span>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
-                        <span>目标 {batch.requested_count}</span>
-                        <span className="text-right">发现 {batch.found_count}</span>
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBatchId(batch.id);
+                          refreshBatch(batch.id);
+                        }}
+                        className="min-w-0 flex-1 px-4 py-3 text-left"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="truncate text-sm font-bold text-slate-950">{formatTime(batch.created_at)}</span>
+                          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${statusClass(batch.status)}`}>
+                            {statusLabel(batch.status)}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                          <span>目标 {batch.requested_count}</span>
+                          <span className="text-right">发现 {batch.found_count}</span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="删除扫描记录"
+                        title={batchActive ? "运行中的任务请先停止" : "删除扫描记录"}
+                        disabled={batchActive || deleting}
+                        onClick={() => void deleteBatch(batch)}
+                        className="my-2 mr-2 flex w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
