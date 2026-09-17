@@ -124,3 +124,31 @@ def fingerprint_version(record: Any) -> str | None:
         return None
     value = str(metadata.get("fingerprint_version") or "").strip()
     return value or None
+
+
+def _seed_v2_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+    del target, args
+    metadata = kwargs.get("finding_metadata")
+    if not isinstance(metadata, dict):
+        return
+    raw = metadata.get("raw_finding")
+    if not isinstance(raw, dict):
+        return
+    stable_fingerprint = str(raw.get("stable_fingerprint") or "").strip()
+    version = str(raw.get("fingerprint_version") or "").strip()
+    if not stable_fingerprint or version != FINGERPRINT_VERSION:
+        return
+    kwargs.setdefault("fingerprint", stable_fingerprint)
+    normalized_metadata = dict(metadata)
+    normalized_metadata["fingerprint_version"] = FINGERPRINT_VERSION
+    kwargs["finding_metadata"] = normalized_metadata
+
+
+def install_agent_finding_fingerprint_hooks(model: Any) -> None:
+    """Seed finalized v2 fingerprints before AgentFinding deduplication runs."""
+
+    from sqlalchemy import event
+
+    if event.contains(model, "init", _seed_v2_fingerprint_on_init):
+        return
+    event.listen(model, "init", _seed_v2_fingerprint_on_init, propagate=True)
