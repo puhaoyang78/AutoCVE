@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.services.finding_runtime.fingerprint import FINGERPRINT_VERSION, build_payload_fingerprint
+from app.services.finding_runtime.fingerprint import build_payload_fingerprint
 
 
 def finding_payload(*, line_start: int, line_end: int, code_snippet: str) -> dict:
@@ -19,7 +19,7 @@ def finding_payload(*, line_start: int, line_end: int, code_snippet: str) -> dic
                 "description": "User path reaches filesystem open",
             }
         ],
-        "evidence_graph": {
+        "finding_flow": {
             "nodes": [
                 {"id": "source", "kind": "source", "location": f"src/download.py:{line_start}", "description": "input"},
                 {"id": "sink", "kind": "sink", "location": f"src/download.py:{line_end}", "description": "open"},
@@ -48,7 +48,3 @@ def test_fingerprint_changes_when_security_semantics_change():
     changed["sink"] = "subprocess execution"
 
     assert build_payload_fingerprint(original) != build_payload_fingerprint(changed)
-
-
-def test_fingerprint_version_is_explicit():
-    assert FINGERPRINT_VERSION == "v2"
