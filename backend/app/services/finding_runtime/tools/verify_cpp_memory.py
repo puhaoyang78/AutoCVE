@@ -28,8 +28,8 @@ class VerifyCppMemoryTool(RuntimeTool):
     description = (
         "Conditionally verify a concrete C/C++ memory-safety candidate with an isolated standalone harness. "
         "The harness is compiled with AddressSanitizer and UndefinedBehaviorSanitizer by the existing RunCode backend. "
-        "Use this only after static evidence has identified a specific source/sink or lifetime/bounds candidate and a local harness can faithfully reproduce it. "
-        "A sanitizer diagnostic is positive dynamic evidence; a clean run does not by itself prove the production path safe."
+        "Use this only after source review has identified a specific source/sink, lifetime, or bounds candidate and a local harness can faithfully reproduce it. "
+        "A sanitizer diagnostic supports confirmation; a clean run does not by itself prove the production path safe."
     )
     input_model = VerifyCppMemoryInput
     search_hint = "verify C C++ memory corruption with ASan UBSan sanitizer harness"
@@ -53,15 +53,11 @@ class VerifyCppMemoryTool(RuntimeTool):
         rendered = str(result.data or "")
         sanitizer_types = [name for name, pattern in _SANITIZER_PATTERNS.items() if pattern.search(rendered)]
         sanitizer_detected = bool(sanitizer_types)
-
-        # RunCode reports infrastructure failures through result.success=False.
-        # A target process exiting non-zero because ASan/UBSan fired is still a
-        # successful verification execution and is represented in exit_code.
         infrastructure_ok = bool(result.success)
         dynamic_success = infrastructure_ok and sanitizer_detected
         verification_method = "+".join(sanitizer_types) if sanitizer_types else "asan+ubsan"
         summary = (
-            f"Dynamic sanitizer evidence detected ({verification_method})."
+            f"Dynamic sanitizer failure detected ({verification_method})."
             if dynamic_success
             else "Harness executed without a recognized ASan/UBSan diagnostic."
             if infrastructure_ok
@@ -73,8 +69,8 @@ class VerifyCppMemoryTool(RuntimeTool):
                 [
                     summary,
                     rendered,
-                    "Use dynamic_success=true as verification evidence for a confirmed memory-safety finding. "
-                    "If dynamic_success=false, keep the result as candidate unless other direct dynamic evidence exists.",
+                    "Use dynamic_success=true to create a successful verification record for a confirmed memory-safety finding. "
+                    "If dynamic_success=false, keep the result as candidate unless another direct dynamic result confirms it.",
                 ]
             ).strip(),
             output_payload={
@@ -83,7 +79,7 @@ class VerifyCppMemoryTool(RuntimeTool):
                 "method": verification_method,
                 "tool": self.name,
                 "summary": summary,
-                "evidence": rendered,
+                "details": rendered,
                 "sanitizer_detected": sanitizer_detected,
                 "sanitizers": sanitizer_types,
                 "exit_code": metadata.get("exit_code"),
