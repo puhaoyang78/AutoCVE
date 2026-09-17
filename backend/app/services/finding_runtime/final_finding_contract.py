@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 
 def _clean_text(value: Any) -> str:
@@ -116,6 +116,14 @@ class FinalizedFinding(_StrictModel):
         if isinstance(line_start, int) and value < line_start:
             raise ValueError("line_end must be greater than or equal to line_start")
         return value
+
+    @model_validator(mode="after")
+    def _verification_state_must_be_consistent(self):
+        if self.verdict == "confirmed" and self.needs_verification:
+            raise ValueError("confirmed findings cannot still require verification")
+        if self.verdict == "candidate" and not self.needs_verification:
+            raise ValueError("candidate findings must remain marked as needing verification")
+        return self
 
 
 class FinalizedFindingPayload(BaseModel):
