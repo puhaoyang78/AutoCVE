@@ -151,6 +151,14 @@ text, count = re.subn(
 assert count == 1
 save(path, text)
 
+# Direct-audit projection: use only the current finding payload/metadata fields.
+path = "backend/app/services/direct_audit_vulnerability_service.py"
+text = load(path)
+text = text.replace('                "origin": "direct_finding",\n                "evidence_type": "direct_audit_report_bundle",\n', "")
+text = text.replace('            "origin": "direct_finding",\n            "evidence_type": "direct_audit_report_bundle",\n', "")
+assert "evidence_type" not in text
+save(path, text)
+
 # Settings and removed runtime selector.
 path = "backend/app/core/config.py"
 text = load(path)
