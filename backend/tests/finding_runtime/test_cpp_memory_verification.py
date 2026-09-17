@@ -62,7 +62,7 @@ def context() -> ToolExecutionContext:
     )
 
 
-def test_cpp_memory_verifier_marks_asan_signal_as_dynamic_success():
+def test_cpp_memory_verifier_marks_asan_signal_as_success():
     tool = VerifyCppMemoryTool(
         run_code_tool=FakeRunCodeTool(
             output="ERROR: AddressSanitizer: heap-buffer-overflow on address 0x1234",
