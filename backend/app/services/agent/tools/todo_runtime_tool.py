@@ -11,7 +11,8 @@ from app.services.runtime_core.tool_runtime import RuntimeTool, ToolExecutionCon
 
 
 class TodoWriteInput(BaseModel):
-    title: str = Field(..., min_length=1)
+    action: Literal["write", "list"] = "write"
+    title: str = ""
     details: str | None = None
     category: Literal["todo", "candidate_decision"] = "todo"
     candidate_id: str | None = None
@@ -19,7 +20,11 @@ class TodoWriteInput(BaseModel):
     evidence: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _validate_candidate_decision(self):
+    def _validate_payload(self):
+        if self.action == "list":
+            return self
+        if not str(self.title or "").strip():
+            raise ValueError("write action requires title")
         if self.category != "candidate_decision":
             return self
         if not str(self.candidate_id or "").strip():
@@ -36,16 +41,17 @@ class TodoWriteInput(BaseModel):
 class TodoWriteRuntimeTool(RuntimeTool):
     name = "TodoWrite"
     description = (
-        "记录当前 Agent 的普通待办或候选漏洞状态。"
-        "普通计划使用 category=todo。"
-        "对已经检查过的漏洞候选，使用 category=candidate_decision 并提供 candidate_id、disposition 和证据；"
-        "特别是 rejected/verified 必须记录直接源码或动态验证证据，这些状态会持久化到运行时会话，"
-        "用于恢复任务时避免重复审计同一候选。"
+        "记录或读取当前 Agent 的普通待办与候选漏洞状态。"
+        "普通计划使用 action=write, category=todo。"
+        "候选状态使用 action=write, category=candidate_decision，并提供 candidate_id、disposition 和证据；"
+        "rejected/verified 必须记录直接源码或动态验证证据。"
+        "恢复审计或准备重新检查候选前，使用 action=list, category=candidate_decision 读取既有候选决策，"
+        "避免重复审计已经被有效控制阻断或已经验证的候选。"
     )
     input_model = TodoWriteInput
     should_defer = True
     always_load = True
-    search_hint = "记录待办、候选漏洞状态或排除证据"
+    search_hint = "记录或读取待办、候选漏洞状态、排除证据"
 
     def __init__(self, session_store):
         super().__init__()
@@ -54,6 +60,23 @@ class TodoWriteRuntimeTool(RuntimeTool):
 
     async def execute(self, parsed_input: TodoWriteInput, context: ToolExecutionContext) -> ToolExecutionPayload:
         runtime_state = self._session_store.load_runtime_state(context.session_id)
+
+        if parsed_input.action == "list":
+            if parsed_input.category == "candidate_decision":
+                decisions = dict(runtime_state.metadata.get("candidate_decisions") or {})
+                return ToolExecutionPayload(
+                    content=f"Loaded {len(decisions)} persisted candidate decisions.",
+                    output_payload={"candidate_decisions": decisions},
+                    metadata={"interaction": "candidate_decision_list", "count": len(decisions)},
+                )
+            agent_state = runtime_state.ensure_agent_state(context.agent_type)
+            todos = [dict(item) for item in agent_state.pending_todos]
+            return ToolExecutionPayload(
+                content=f"Loaded {len(todos)} pending todos.",
+                output_payload={"todos": todos},
+                metadata={"interaction": "todo_list", "count": len(todos)},
+            )
+
         if parsed_input.category == "candidate_decision":
             candidate_id = str(parsed_input.candidate_id or "").strip()
             candidate_decisions = runtime_state.metadata.setdefault("candidate_decisions", {})
