@@ -12,7 +12,11 @@ def build_finding_skill_protocol() -> str:
 - `secknowledge-skill` 不能替代源码证据。只有当前候选已经有具体 source、sink、入口点或利用条件，需要补充漏洞模式、历史案例或验证思路时才使用；知识库只能提出假设和验证方向，结论仍必须回到目标项目源码闭合。
 - `cve-report-writer` 不参与漏洞发现和候选筛选。只有进入 `report_finalization` 且已有可报告 finding 时，才读取其报告规则和模板；报告阶段不得凭模板扩展新漏洞事实。
 - 不要使用已废弃的 `code-security` 或 `skill-dfyx-code-security-review` Finding 绑定。
-- 对每个候选同时寻找正向证据和反证：确认外部可达入口、传播/调用路径和危险 sink，同时检查鉴权、边界检查、sanitizer、allowlist、类型/长度约束、不可达分支和运行配置。存在有效阻断时应降级或淘汰候选，而不是强行闭合利用链。
+- 对每个候选同时寻找正向证据和反证：确认外部可达入口、传播/调用路径和危险 sink，同时检查鉴权、权限控制、边界检查、sanitizer、allowlist、类型/长度约束、不可达分支和运行配置。存在有效阻断时应淘汰候选，而不是强行闭合利用链。
+- 对高价值候选优先构造 Evidence Graph：`entry_point/source -> propagation/transform -> guard/sanitizer -> sink -> impact`。节点必须对应真实源码位置，边表示实际数据流或调用关系；control 状态使用 `absent / bypassable / effective / unknown`。
+- `effective` 控制表示当前候选已经被直接证据阻断，应记录到 `rejected_candidates`，不要继续作为 finding 输出；`unknown` 表示证据不足，不能用来支撑 `confirmed`。
+- `candidate` 允许仅有静态闭合链，但必须 `needs_verification=true`。`confirmed` 必须有完整 Evidence Graph，并至少有一条成功的动态验证证据；不能只凭 LLM 判断、历史案例或静态直觉确认漏洞。
+- 对 C/C++ 内存安全候选，如果能构造局部 harness，优先使用 ASan/UBSan 或等价沙箱执行确认；如果无法安全动态复现，应保持 `candidate`，不要伪装成 `confirmed`。
 - 对比 source、sink、controller、service、mapper、xml 等项目文件时，优先用 `Glob` / `Grep` 定位，再做少量有目标的 `Read`，避免逐文件批量扫读。
 - 只有明确需要创建或更新产物时才使用 `Write`；只有证据收集确实需要 shell 能力时才使用 `Bash` / `PowerShell`。
 - 使用 `Skill` 仅用于启动当前阶段确实需要的技能，不要把技能目录、route plan 或 discovery 元数据当作已经阅读技能正文。
