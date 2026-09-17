@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import Any, Dict, List
 
 from app.services.report_template_file_service import ReportTemplateFileService
@@ -22,20 +22,26 @@ DEFAULT_AGENT_SKILLS: Dict[str, List[Dict[str, Any]]] = {
                 "security",
                 "source-review",
             ],
-        }
+        },
+        {
+            "slug": "secknowledge-skill",
+            "always_include": False,
+            "sort_order": 10,
+            "match_keywords": [],
+        },
+        {
+            "slug": "cve-report-writer",
+            "always_include": False,
+            "sort_order": 20,
+            "match_keywords": [],
+        },
     ]
 }
 
-LEGACY_FINDING_SKILLS: List[Dict[str, Any]] = [
-    {
-        "slug": "skill-dfyx-code-security-review",
-        "match_keywords": ["auth", "idor", "access-control", "business-logic", "ssrf"],
-    },
-    {
-        "slug": "code-security",
-        "match_keywords": ["security", "injection", "auth", "idor", "ssrf", "deserialization"],
-    },
-]
+DEPRECATED_FINDING_SKILLS = (
+    "skill-dfyx-code-security-review",
+    "code-security",
+)
 
 AUDIT_CHAT_AGENT_TYPE = "audit_chat"
 
@@ -76,19 +82,9 @@ async def init_skill_bindings() -> List[str]:
                 )
             slugs.append(slug)
 
-    for skill_spec in LEGACY_FINDING_SKILLS:
-        slug = SkillFileService.slugify(skill_spec["slug"])
-        if SkillFileService.skill_file(slug).exists() and not _binding_exists("finding", slug):
-            SkillFileService.upsert_binding(
-                "finding",
-                slug,
-                enabled=True,
-                always_include=True,
-                sort_order=1,
-                match_keywords=list(skill_spec.get("match_keywords", [])),
-                match_config={},
-            )
-            slugs.append(slug)
+    for slug in DEPRECATED_FINDING_SKILLS:
+        if _binding_exists("finding", slug):
+            SkillFileService.delete_binding("finding", slug)
 
     for slug in SkillFileService.list_skill_slugs():
         normalized_slug = SkillFileService.slugify(slug)
