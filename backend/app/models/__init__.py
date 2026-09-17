@@ -41,3 +41,7 @@ from .one_click_cve import (
     OneClickCveBatchStatus,
     OneClickCveProjectStatus,
 )
+
+from app.services.finding_runtime.fingerprint import install_agent_finding_fingerprint_hooks
+
+install_agent_finding_fingerprint_hooks(AgentFinding)
