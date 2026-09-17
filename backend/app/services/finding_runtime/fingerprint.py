@@ -96,13 +96,7 @@ def build_payload_fingerprint(finding: dict[str, Any]) -> str:
 
 
 def build_finding_fingerprint(record: Any) -> str:
-    """Build a location-stable semantic fingerprint for an AgentFinding-like object.
-
-    Unlike the legacy fingerprint, this intentionally excludes line numbers and
-    code snippets so harmless edits do not turn the same vulnerability into a
-    new finding. Evidence-graph shape and stable path references are used when
-    available, with source/sink text as a backward-compatible fallback.
-    """
+    """Build a location-stable semantic fingerprint for an AgentFinding-like object."""
 
     raw = _raw_finding(record)
     components = [
@@ -144,11 +138,23 @@ def _seed_v2_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dic
     kwargs["finding_metadata"] = normalized_metadata
 
 
+def _migrate_v2_fingerprint_on_load(target: Any, context: Any) -> None:
+    del context
+    metadata = dict(getattr(target, "finding_metadata", None) or {})
+    if metadata.get("fingerprint_version") == FINGERPRINT_VERSION:
+        return
+    target.fingerprint = build_finding_fingerprint(target)
+    metadata["fingerprint_version"] = FINGERPRINT_VERSION
+    metadata["fingerprint_migrated_from"] = metadata.get("fingerprint_version") or "legacy"
+    target.finding_metadata = metadata
+
+
 def install_agent_finding_fingerprint_hooks(model: Any) -> None:
-    """Seed finalized v2 fingerprints before AgentFinding deduplication runs."""
+    """Seed new v2 fingerprints and lazily migrate legacy persisted rows on load."""
 
     from sqlalchemy import event
 
-    if event.contains(model, "init", _seed_v2_fingerprint_on_init):
-        return
-    event.listen(model, "init", _seed_v2_fingerprint_on_init, propagate=True)
+    if not event.contains(model, "init", _seed_v2_fingerprint_on_init):
+        event.listen(model, "init", _seed_v2_fingerprint_on_init, propagate=True)
+    if not event.contains(model, "load", _migrate_v2_fingerprint_on_load):
+        event.listen(model, "load", _migrate_v2_fingerprint_on_load, propagate=True)
