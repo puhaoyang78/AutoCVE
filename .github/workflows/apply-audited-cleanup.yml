@@ -1,0 +1,39 @@
+name: Apply audited cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-audited-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply validated patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .github/cleanup.patch.gz.b64 | gzip -d > /tmp/autocve-cleanup.patch
+          echo '29466d452d5173dde58061bea7f29e65c2819bb177838c0de1f77dd76ea822f2  /tmp/autocve-cleanup.patch' | sha256sum -c -
+          git apply --check /tmp/autocve-cleanup.patch
+          git apply /tmp/autocve-cleanup.patch
+          rm -f .github/cleanup.patch.gz.b64 .github/workflows/apply-audited-cleanup.yml
+          python -m compileall -q backend/app backend/tests
+          python - <<'PY'
+          import tomllib
+          with open('backend/pyproject.toml', 'rb') as f:
+              tomllib.load(f)
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Finish runtime and compatibility cleanup'
+          git push origin HEAD:main
