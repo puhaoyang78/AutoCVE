@@ -51,7 +51,6 @@ dependencies = [
     # ============ Vector Database ============
     "chromadb>=0.4.22",
     # ============ Code Parsing ============
-    # 使用 tree-sitter-language-pack 替代已弃用的 tree-sitter-languages
     "tree-sitter>=0.23.0",
     "tree-sitter-language-pack>=0.4.0",
     "pygments>=2.17.0",
@@ -62,7 +61,6 @@ dependencies = [
     "safety>=2.3.0",
     "pip-audit>=2.6.0",
     # ============ Kunlun-M Dependencies (MIT License) ============
-    # https://github.com/LoRexxar/Kunlun-M
     "pyjsparser>=2.7.1",
     "phply>=1.2.6",
     "esprima>=4.0.1",
@@ -77,10 +75,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# MySQL support for Kunlun-M web mode
 mysql = ["mysqlclient>=2.2.0"]
-
-# Development tools
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
@@ -89,9 +84,8 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.5.0",
     "pre-commit>=3.5.0",
+    "aiosqlite>=0.22.1",
 ]
-
-# Documentation
 docs = [
     "mkdocs>=1.5.0",
     "mkdocs-material>=9.4.0",
@@ -104,8 +98,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
-
-# ============ Tool Configurations ============
 
 [tool.black]
 line-length = 100
@@ -143,18 +135,18 @@ exclude = [
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # Pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "E",
+    "W",
+    "F",
+    "I",
+    "B",
+    "C4",
+    "UP",
 ]
 ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
+    "E501",
+    "B008",
+    "C901",
 ]
 
 [tool.mypy]
@@ -170,7 +162,7 @@ exclude = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "-v --tb=short --import-mode=importlib --ignore=tests/api/test_agent_direct_audit_api.py --ignore=tests/finding_runtime --ignore=tests/runtime_core -k 'not test_finding_system_prompt_includes_code_audit_skill_overlay and not test_finding_initial_message_requires_loading_skill_and_project_specific_references and not test_auto_generate_managed_reports_when_verification_disabled'"
+addopts = "-v --tb=short --import-mode=importlib"
 
 [tool.coverage.run]
 source = ["app"]
@@ -182,17 +174,4 @@ exclude_lines = [
     "def __repr__",
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
-]
-
-# ============ Dependency Groups (PEP 735) ============
-
-[dependency-groups]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.5.0",
-    "aiosqlite>=0.22.1",
 ]
