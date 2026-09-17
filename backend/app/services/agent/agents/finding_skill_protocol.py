@@ -15,6 +15,7 @@ def build_finding_skill_protocol() -> str:
 - 对每个候选同时寻找正向证据和反证：确认外部可达入口、传播/调用路径和危险 sink，同时检查鉴权、权限控制、边界检查、sanitizer、allowlist、类型/长度约束、不可达分支和运行配置。存在有效阻断时应淘汰候选，而不是强行闭合利用链。
 - 对高价值候选优先构造 Evidence Graph：`entry_point/source -> propagation/transform -> guard/sanitizer -> sink -> impact`。节点必须对应真实源码位置，边表示实际数据流或调用关系；control 状态使用 `absent / bypassable / effective / unknown`。
 - `effective` 控制表示当前候选已经被直接证据阻断，应记录到 `rejected_candidates`，不要继续作为 finding 输出；`unknown` 表示证据不足，不能用来支撑 `confirmed`。
+- 对已经检查过的高价值候选及时调用 `TodoWrite(category="candidate_decision", ...)` 记录状态。`rejected` 必须写入直接阻断证据，`verified` 必须写入动态或等价直接证据；恢复任务时优先复用这些持久化 decision，不要重复从头审计同一候选。
 - `candidate` 允许仅有静态闭合链，但必须 `needs_verification=true`。`confirmed` 必须有完整 Evidence Graph，并至少有一条成功的动态验证证据；不能只凭 LLM 判断、历史案例或静态直觉确认漏洞。
 - 对 C/C++ 内存安全候选，如果能构造局部 harness，优先使用 ASan/UBSan 或等价沙箱执行确认；如果无法安全动态复现，应保持 `candidate`，不要伪装成 `confirmed`。
 - 对比 source、sink、controller、service、mapper、xml 等项目文件时，优先用 `Glob` / `Grep` 定位，再做少量有目标的 `Read`，避免逐文件批量扫读。
