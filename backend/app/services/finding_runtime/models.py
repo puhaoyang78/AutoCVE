@@ -24,7 +24,6 @@ class RuntimeMessageRole(StrEnum):
 class RuntimeContinueReason(StrEnum):
     NEXT_TURN = "next_turn"
     TERMINAL_ACTION_NUDGE = "terminal_action_nudge"
-    LEGACY_TOOL_SYNTAX_NUDGE = "legacy_tool_syntax_nudge"
     MAX_OUTPUT_TOKENS_ESCALATE = "max_output_tokens_escalate"
     MAX_OUTPUT_TOKENS_RECOVERY = "max_output_tokens_recovery"
     REACTIVE_COMPACT_RETRY = "reactive_compact_retry"
@@ -63,7 +62,6 @@ class RuntimeTerminalAction(StrEnum):
 
 class RuntimeCompletionMode(StrEnum):
     FINALIZE_TOOL = "finalize_tool"
-    LEGACY_FINAL_JSON = "legacy_final_json"
     FALLBACK_RECOVERED = "fallback_recovered"
     INCOMPLETE = "incomplete"
 
