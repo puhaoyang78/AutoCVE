@@ -57,7 +57,7 @@ def test_interaction_runtime_tools_update_session_runtime_state_via_orchestrator
     assert runtime_state.permission_mode == "default"
 
 
-def test_todo_write_persists_rejected_candidate_evidence():
+def test_todo_write_persists_rejected_candidate_facts():
     store = build_store()
     session_id = store.create_session(project_id="project-1")
     turn_id = store.open_turn(session_id, model_name="gpt-test")
@@ -78,7 +78,7 @@ def test_todo_write_persists_rejected_candidate_evidence():
                         "candidate_id": "path-download-1",
                         "disposition": "rejected",
                         "details": "Resolved path is constrained under the configured download root.",
-                        "evidence": [
+                        "supporting_facts": [
                             "src/download.py:41 resolves the canonical path",
                             "src/download.py:42 rejects paths outside DOWNLOAD_ROOT",
                         ],
@@ -93,11 +93,11 @@ def test_todo_write_persists_rejected_candidate_evidence():
 
     assert records[0].status == "completed"
     assert decision["disposition"] == "rejected"
-    assert len(decision["evidence"]) == 2
+    assert len(decision["supporting_facts"]) == 2
     assert decision["updated_at"]
 
 
-def test_todo_write_rejects_evidence_free_terminal_candidate_decision():
+def test_todo_write_rejects_fact_free_terminal_candidate_decision():
     store = build_store()
     session_id = store.create_session(project_id="project-1")
     turn_id = store.open_turn(session_id, model_name="gpt-test")
@@ -113,11 +113,11 @@ def test_todo_write_rejects_evidence_free_terminal_candidate_decision():
                     id="tool-candidate-2",
                     name="TodoWrite",
                     input={
-                        "title": "Reject candidate without evidence",
+                        "title": "Reject candidate without facts",
                         "category": "candidate_decision",
                         "candidate_id": "candidate-2",
                         "disposition": "rejected",
-                        "evidence": [],
+                        "supporting_facts": [],
                     },
                 )
             ],
@@ -125,4 +125,4 @@ def test_todo_write_rejects_evidence_free_terminal_candidate_decision():
     )
 
     assert records[0].status == "invalid"
-    assert "require direct evidence" in records[0].error_message
+    assert "require supporting facts" in records[0].error_message
