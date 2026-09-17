@@ -17,7 +17,7 @@ class TodoWriteInput(BaseModel):
     category: Literal["todo", "candidate_decision"] = "todo"
     candidate_id: str | None = None
     disposition: Literal["active", "rejected", "verified", "deferred"] | None = None
-    evidence: list[str] = Field(default_factory=list)
+    supporting_facts: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_payload(self):
@@ -31,10 +31,10 @@ class TodoWriteInput(BaseModel):
             raise ValueError("candidate_decision requires candidate_id")
         if self.disposition is None:
             raise ValueError("candidate_decision requires disposition")
-        normalized_evidence = [str(item or "").strip() for item in self.evidence if str(item or "").strip()]
-        self.evidence = normalized_evidence
-        if self.disposition in {"rejected", "verified"} and not normalized_evidence:
-            raise ValueError(f"{self.disposition} candidate decisions require direct evidence")
+        facts = [str(item or "").strip() for item in self.supporting_facts if str(item or "").strip()]
+        self.supporting_facts = facts
+        if self.disposition in {"rejected", "verified"} and not facts:
+            raise ValueError(f"{self.disposition} candidate decisions require supporting facts")
         return self
 
 
@@ -43,15 +43,15 @@ class TodoWriteRuntimeTool(RuntimeTool):
     description = (
         "记录或读取当前 Agent 的普通待办与候选漏洞状态。"
         "普通计划使用 action=write, category=todo。"
-        "候选状态使用 action=write, category=candidate_decision，并提供 candidate_id、disposition 和证据；"
-        "rejected/verified 必须记录直接源码或动态验证证据。"
+        "候选状态使用 action=write, category=candidate_decision，并提供 candidate_id、disposition 和 supporting_facts；"
+        "rejected/verified 必须记录直接源码事实或动态验证结果。"
         "恢复审计或准备重新检查候选前，使用 action=list, category=candidate_decision 读取既有候选决策，"
         "避免重复审计已经被有效控制阻断或已经验证的候选。"
     )
     input_model = TodoWriteInput
     should_defer = True
     always_load = True
-    search_hint = "记录或读取待办、候选漏洞状态、排除证据"
+    search_hint = "记录或读取待办、候选漏洞状态和排除事实"
 
     def __init__(self, session_store):
         super().__init__()
@@ -85,7 +85,7 @@ class TodoWriteRuntimeTool(RuntimeTool):
                 "title": parsed_input.title.strip(),
                 "details": str(parsed_input.details or "").strip() or None,
                 "disposition": parsed_input.disposition,
-                "evidence": list(parsed_input.evidence),
+                "supporting_facts": list(parsed_input.supporting_facts),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
             candidate_decisions[candidate_id] = decision
