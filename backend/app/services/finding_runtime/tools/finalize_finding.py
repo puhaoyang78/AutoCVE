@@ -111,7 +111,7 @@ class FinalizeFindingTool(RuntimeTool):
 
         final_payload = parsed_input.model_dump(mode="json", exclude_none=True)
         for finding in final_payload.get("findings") or []:
-            finding["stable_fingerprint"] = build_payload_fingerprint(finding)
+            finding["fingerprint"] = build_payload_fingerprint(finding)
         return ToolExecutionPayload(
             content="Received final vulnerability findings.",
             output_payload={
