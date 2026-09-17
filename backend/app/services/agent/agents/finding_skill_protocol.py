@@ -17,7 +17,7 @@ def build_finding_skill_protocol() -> str:
 - `effective` 控制表示当前候选已经被直接证据阻断，应记录到 `rejected_candidates`，不要继续作为 finding 输出；`unknown` 表示证据不足，不能用来支撑 `confirmed`。
 - 对已经检查过的高价值候选及时调用 `TodoWrite(category="candidate_decision", ...)` 记录状态。`rejected` 必须写入直接阻断证据，`verified` 必须写入动态或等价直接证据；恢复任务时优先复用这些持久化 decision，不要重复从头审计同一候选。
 - `candidate` 允许仅有静态闭合链，但必须 `needs_verification=true`。`confirmed` 必须有完整 Evidence Graph，并至少有一条成功的动态验证证据；不能只凭 LLM 判断、历史案例或静态直觉确认漏洞。
-- 对 C/C++ 内存安全候选，如果能构造局部 harness，优先使用 ASan/UBSan 或等价沙箱执行确认；如果无法安全动态复现，应保持 `candidate`，不要伪装成 `confirmed`。
+- 对 C/C++ 内存安全候选，只有在已经有具体静态候选且能够构造忠实的局部 harness 时才调用 `VerifyCppMemory`。该工具使用现有 RunCode 后端以 ASan/UBSan 编译执行；识别到 sanitizer 诊断可作为 `verification_evidence` 的动态成功证据。没有 sanitizer 诊断并不能证明生产路径安全，无法可靠动态复现时仍保持 `candidate`。
 - 对比 source、sink、controller、service、mapper、xml 等项目文件时，优先用 `Glob` / `Grep` 定位，再做少量有目标的 `Read`，避免逐文件批量扫读。
 - 只有明确需要创建或更新产物时才使用 `Write`；只有证据收集确实需要 shell 能力时才使用 `Bash` / `PowerShell`。
 - 使用 `Skill` 仅用于启动当前阶段确实需要的技能，不要把技能目录、route plan 或 discovery 元数据当作已经阅读技能正文。
