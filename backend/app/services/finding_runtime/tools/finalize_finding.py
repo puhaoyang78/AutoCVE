@@ -8,6 +8,7 @@ from app.services.finding_runtime.final_finding_contract import (
     FinalizedFindingPayload,
     format_validation_errors,
 )
+from app.services.finding_runtime.fingerprint import FINGERPRINT_VERSION, build_payload_fingerprint
 from app.services.finding_runtime.models import ToolExecutionPayload
 from app.services.runtime_core.tool_runtime import RuntimeTool, ToolExecutionContext
 
@@ -117,6 +118,9 @@ class FinalizeFindingTool(RuntimeTool):
             )
 
         final_payload = parsed_input.model_dump(mode="json", exclude_none=True)
+        for finding in final_payload.get("findings") or []:
+            finding["stable_fingerprint"] = build_payload_fingerprint(finding)
+            finding["fingerprint_version"] = FINGERPRINT_VERSION
         return ToolExecutionPayload(
             content="Received final evidence-backed vulnerability findings.",
             output_payload={
@@ -128,5 +132,6 @@ class FinalizeFindingTool(RuntimeTool):
                 "finalize_finding": True,
                 "findings_count": len(final_payload.get("findings") or []),
                 "rejected_candidates_count": len(final_payload.get("rejected_candidates") or []),
+                "fingerprint_version": FINGERPRINT_VERSION,
             },
         )
