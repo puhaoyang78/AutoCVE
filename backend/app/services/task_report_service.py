@@ -139,7 +139,7 @@ def serialize_finding(finding: AgentFinding | Dict[str, Any]) -> Dict[str, Any]:
         "exploit_chain": filter_meaningful_exploit_chain(raw_finding.get("exploit_chain", [])),
         "finding_flow": raw_finding.get("finding_flow"),
         "verification_records": raw_finding.get("verification_records", []),
-        "stable_fingerprint": raw_finding.get("stable_fingerprint") or finding.fingerprint,
+        "fingerprint": finding.fingerprint,
         "impact": raw_finding.get("impact", ""),
         "cve_justification": raw_finding.get("cve_justification", ""),
         "verification_notes": raw_finding.get("verification_notes", ""),
