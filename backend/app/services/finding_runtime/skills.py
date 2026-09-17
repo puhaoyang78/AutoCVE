@@ -11,6 +11,13 @@ from app.services.finding_runtime.tooling import RuntimeTool, ToolExecutionConte
 from app.services.runtime_core.skill_runtime import SkillInvocationRuntime
 
 
+FINDING_AUDIT_SKILL = "code-audit-finding"
+FINDING_KNOWLEDGE_SKILL = "secknowledge-skill"
+FINDING_REPORT_SKILL = "cve-report-writer"
+FINDING_PHASE_AUDIT = "audit"
+FINDING_PHASE_REPORT = "report_finalization"
+
+
 class RuntimeSkillCatalog:
     def __init__(self, *, skill_service: Any = SkillService):
         self._skill_service = skill_service
@@ -35,7 +42,7 @@ class RuntimeSkillCatalog:
 
 
 class InvokeSkillInput(BaseModel):
-    skill_ref: str = Field(default="code-audit-finding", description="Skill slug, id, or display name.")
+    skill_ref: str = Field(default=FINDING_AUDIT_SKILL, description="Skill slug, id, or display name.")
     action: str = Field(default="body", description="One of: body, list_resources, read_resource.")
     resource_name: str | None = Field(default=None, description="Relative resource path for resource reads.")
 
@@ -44,11 +51,10 @@ class RuntimeSkillTool(RuntimeTool):
     name = "Skill"
     description = (
         "Load instructions and resources from the local skill library. "
-        "When a skill matches the user's task or is explicitly named in the prompt, invoking this tool is a blocking requirement: "
-        "you must call Skill(action=\"body\") for the relevant skill before producing any other task-specific answer, audit, or plan. "
-        "After reading the SKILL.md body, follow its startup protocol and mandatory reads by calling "
-        "Skill(action=\"read_resource\", resource_name=...) for each referenced checklist, coverage matrix, guide, example, or script that it requires. "
-        "Use list_resources only for discovery; do not treat discovery metadata as a substitute for reading the required skill body and resources."
+        "Finding uses phased skills: code-audit-finding is the audit skill, secknowledge-skill is an on-demand "
+        "knowledge helper, and cve-report-writer is report-finalization only. "
+        "When a skill matches the active phase, call Skill(action=\"body\") before relying on its rules. "
+        "After reading SKILL.md, read only the concrete references needed for the current task."
     )
     input_model = InvokeSkillInput
 
@@ -74,7 +80,7 @@ class RuntimeSkillTool(RuntimeTool):
     def validate_input(self, raw_input: dict[str, Any]) -> InvokeSkillInput:
         payload = dict(raw_input or {})
         normalized = {
-            "skill_ref": payload.get("skill_ref") or payload.get("skill") or payload.get("name") or "code-audit-finding",
+            "skill_ref": payload.get("skill_ref") or payload.get("skill") or payload.get("name") or FINDING_AUDIT_SKILL,
             "action": payload.get("action") or payload.get("mode") or payload.get("operation") or "body",
             "resource_name": payload.get("resource_name") or payload.get("resource") or payload.get("path"),
         }
@@ -84,6 +90,23 @@ class RuntimeSkillTool(RuntimeTool):
         return True
 
     async def execute(self, parsed_input: InvokeSkillInput, context: ToolExecutionContext) -> ToolExecutionPayload:
+        phase_error = self._phase_error(parsed_input.skill_ref, context.session_id)
+        if phase_error:
+            return ToolExecutionPayload(
+                content=phase_error,
+                output_payload={
+                    "skill": parsed_input.skill_ref,
+                    "blocked": True,
+                    "reason": "finding_skill_phase_mismatch",
+                },
+                metadata={
+                    "skill_ref": parsed_input.skill_ref,
+                    "action": parsed_input.action,
+                    "blocked": True,
+                },
+                is_error=True,
+            )
+
         data = await self._runtime.invoke(
             session_id=context.session_id,
             turn_id=context.turn_id,
@@ -97,3 +120,23 @@ class RuntimeSkillTool(RuntimeTool):
             output_payload=data,
             metadata={"skill_ref": parsed_input.skill_ref, "action": parsed_input.action},
         )
+
+    def _phase_error(self, skill_ref: str, session_id: str) -> str:
+        if self._agent_type != "finding":
+            return ""
+        normalized = str(skill_ref or "").strip().lower()
+        runtime_state = self._session_store.load_runtime_state(session_id)
+        report_mode = bool(runtime_state.metadata.get("report_generation_mode"))
+
+        if report_mode and normalized != FINDING_REPORT_SKILL:
+            return (
+                f"Finding 当前处于 {FINDING_PHASE_REPORT}，只允许使用 {FINDING_REPORT_SKILL}。"
+                "漏洞发现和知识扩展应在进入报告阶段前完成。"
+            )
+        if not report_mode and normalized == FINDING_REPORT_SKILL:
+            return (
+                f"{FINDING_REPORT_SKILL} 仅允许在 {FINDING_PHASE_REPORT} 使用。"
+                f"当前仍是 {FINDING_PHASE_AUDIT}；请继续使用 {FINDING_AUDIT_SKILL}，"
+                f"必要时按需使用 {FINDING_KNOWLEDGE_SKILL}。"
+            )
+        return ""
