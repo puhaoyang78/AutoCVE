@@ -105,36 +105,16 @@ def build_finding_fingerprint(record: Any) -> str:
     )
 
 
-def _generate_fingerprint(record: Any) -> str:
-    return build_finding_fingerprint(record)
-
-
-def _seed_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
-    del target, args
-    metadata = kwargs.get("finding_metadata")
-    if not isinstance(metadata, dict):
-        return
-    raw = metadata.get("raw_finding")
-    if not isinstance(raw, dict):
-        return
-    fingerprint = str(raw.get("stable_fingerprint") or "").strip()
-    if fingerprint:
-        kwargs.setdefault("fingerprint", fingerprint)
-
-
 def _persist_fingerprint(mapper: Any, connection: Any, target: Any) -> None:
     del mapper, connection
     target.fingerprint = build_finding_fingerprint(target)
 
 
 def install_agent_finding_fingerprint_hooks(model: Any) -> None:
-    """Use one semantic fingerprint implementation for creation and persistence."""
+    """Keep the stored fingerprint synchronized with the current finding fields."""
 
     from sqlalchemy import event
 
-    model.generate_fingerprint = _generate_fingerprint
-    if not event.contains(model, "init", _seed_fingerprint_on_init):
-        event.listen(model, "init", _seed_fingerprint_on_init, propagate=True)
     if not event.contains(model, "before_insert", _persist_fingerprint):
         event.listen(model, "before_insert", _persist_fingerprint, propagate=True)
     if not event.contains(model, "before_update", _persist_fingerprint):
