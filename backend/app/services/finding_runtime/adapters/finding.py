@@ -7,7 +7,12 @@ from app.services.agent.skill_service import SkillService
 from app.services.runtime_core.memory_runtime import RuntimeMemoryManager, build_runtime_memory_prompt
 from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptItem
 from app.services.finding_runtime.query_transitions import hydrate_query_loop_state
-from app.services.finding_runtime.skills import RuntimeSkillCatalog
+from app.services.finding_runtime.skills import (
+    FINDING_AUDIT_SKILL,
+    FINDING_KNOWLEDGE_SKILL,
+    FINDING_REPORT_SKILL,
+    RuntimeSkillCatalog,
+)
 from app.services.runtime_core.explicit_skill_loader import load_explicit_skill_injections
 from app.services.runtime_core.skill_discovery import SkillDiscoveryScheduler
 from app.services.runtime_core.skill_mentions import collect_explicit_skill_mentions
@@ -186,6 +191,7 @@ class FindingRuntimeAdapter:
             },
         )
         runtime_state = self._session_store.load_runtime_state(session_id)
+        report_generation_mode = bool(runtime_state.metadata.get("report_generation_mode"))
         discovery_snapshot = self._discovery_scheduler.discover(
             agent_type="finding",
             runtime_state=runtime_state,
@@ -195,7 +201,11 @@ class FindingRuntimeAdapter:
             latest_user_message=user_message,
             recon_payload=recon_payload,
         )
-        self._apply_discovery_snapshot(skill_context, discovery_snapshot)
+        self._apply_discovery_snapshot(
+            skill_context,
+            discovery_snapshot,
+            report_generation_mode=report_generation_mode,
+        )
         explicit_mentions = collect_explicit_skill_mentions(
             mention_sources=[
                 ("user", user_message),
@@ -203,6 +213,11 @@ class FindingRuntimeAdapter:
                 ("route", skill_context.route_message),
             ],
             available_skills=skill_context.available_skills,
+        )
+        explicit_mentions = self._filter_explicit_mentions_for_phase(
+            explicit_mentions,
+            report_generation_mode=report_generation_mode,
+            discovery_snapshot=discovery_snapshot,
         )
         explicit_skill_injection_text = await load_explicit_skill_injections(
             session_store=self._session_store,
@@ -213,41 +228,116 @@ class FindingRuntimeAdapter:
         )
         return skill_context, explicit_skill_injection_text, discovery_snapshot
 
-    def _apply_discovery_snapshot(self, skill_context, discovery_snapshot: dict[str, object]) -> None:
+    def _apply_discovery_snapshot(
+        self,
+        skill_context,
+        discovery_snapshot: dict[str, object],
+        *,
+        report_generation_mode: bool = False,
+    ) -> None:
         route_plan = dict(skill_context.route_plan or {})
         ranked = list(discovery_snapshot.get("ranked_candidates") or [])
-        selected_skill = str(discovery_snapshot.get("selected_skill") or route_plan.get("primary_skill") or "").strip() or None
         available_by_ref = {
             self._skill_ref(item): item
             for item in skill_context.available_skills
             if self._skill_ref(item)
         }
+
+        if report_generation_mode:
+            selected_skill = FINDING_REPORT_SKILL if FINDING_REPORT_SKILL in available_by_ref else None
+            secondary_refs: list[str] = []
+        else:
+            selected_skill = FINDING_AUDIT_SKILL if FINDING_AUDIT_SKILL in available_by_ref else None
+            knowledge_candidate = next(
+                (
+                    item
+                    for item in ranked
+                    if str(item.get("skill_ref") or "").strip() == FINDING_KNOWLEDGE_SKILL
+                    and self._should_offer_knowledge_skill(item)
+                ),
+                None,
+            )
+            secondary_refs = [FINDING_KNOWLEDGE_SKILL] if knowledge_candidate is not None else []
+            if selected_skill is None:
+                selected_skill = str(discovery_snapshot.get("selected_skill") or "").strip() or None
+                if selected_skill == FINDING_REPORT_SKILL:
+                    selected_skill = None
+
         ranked_refs = [
             str(item.get("skill_ref") or "").strip()
             for item in ranked
             if str(item.get("skill_ref") or "").strip()
         ]
-        positive_refs = [
-            str(item.get("skill_ref") or "").strip()
-            for item in ranked
-            if int(item.get("score") or 0) > 0 and str(item.get("skill_ref") or "").strip()
+        deferred_refs = [
+            ref
+            for ref in available_by_ref.keys()
+            if ref not in ([selected_skill] if selected_skill else []) and ref not in secondary_refs
         ]
-        secondary_refs = [ref for ref in positive_refs if ref != selected_skill]
-        deferred_refs = [ref for ref in available_by_ref.keys() if ref not in ([selected_skill] if selected_skill else []) and ref not in secondary_refs]
         if selected_skill:
             route_plan["primary_skill"] = selected_skill
             skill_file_path = ((available_by_ref.get(selected_skill) or {}).get("paths") or {}).get("skill_file_path")
             route_plan["startup_reads"] = [skill_file_path] if skill_file_path else route_plan.get("startup_reads", [])
+        else:
+            route_plan["primary_skill"] = None
+            route_plan["startup_reads"] = []
         route_plan["secondary_skills"] = secondary_refs
         route_plan["deferred_skills"] = deferred_refs
         route_plan["discovery_ranked_skills"] = ranked_refs
         route_plan["discovery_selected_skill"] = selected_skill
-        route_plan["selection_reason"] = list(route_plan.get("selection_reason") or []) + self._selection_reason_lines(ranked)
+        route_plan["skill_phase"] = "report_finalization" if report_generation_mode else "audit"
+        route_plan["selection_reason"] = list(route_plan.get("selection_reason") or []) + self._phase_selection_reason(
+            report_generation_mode=report_generation_mode,
+            knowledge_enabled=FINDING_KNOWLEDGE_SKILL in secondary_refs,
+        )
         skill_context.route_plan = route_plan
         discovery_message = self._build_discovery_message(ranked, selected_skill)
         if discovery_message:
             base_route_message = str(skill_context.route_message or "").strip()
             skill_context.route_message = "\n\n".join(part for part in [base_route_message, discovery_message] if part)
+
+    @staticmethod
+    def _should_offer_knowledge_skill(candidate: dict[str, Any]) -> bool:
+        reasons = {str(item) for item in candidate.get("trigger_reasons") or []}
+        score = int(candidate.get("score") or 0)
+        return score >= 12 and bool(reasons.intersection({"direct_user_mention", "ai_context_alignment", "path_overlap"}))
+
+    @staticmethod
+    def _filter_explicit_mentions_for_phase(
+        mentions,
+        *,
+        report_generation_mode: bool,
+        discovery_snapshot: dict[str, object],
+    ):
+        if report_generation_mode:
+            return [mention for mention in mentions if mention.skill_ref == FINDING_REPORT_SKILL]
+
+        knowledge_enabled = any(
+            str(item.get("skill_ref") or "").strip() == FINDING_KNOWLEDGE_SKILL
+            and FindingRuntimeAdapter._should_offer_knowledge_skill(item)
+            for item in (discovery_snapshot.get("ranked_candidates") or [])
+        )
+        filtered = []
+        for mention in mentions:
+            if mention.skill_ref == FINDING_AUDIT_SKILL:
+                filtered.append(mention)
+                continue
+            if mention.skill_ref == FINDING_KNOWLEDGE_SKILL and (
+                mention.source == "user" or knowledge_enabled
+            ):
+                filtered.append(mention)
+        return filtered
+
+    @staticmethod
+    def _phase_selection_reason(*, report_generation_mode: bool, knowledge_enabled: bool) -> list[str]:
+        if report_generation_mode:
+            return ["Finding report phase selects cve-report-writer and suppresses discovery skills."]
+        reasons = ["Finding audit phase keeps code-audit-finding as the primary source-review skill."]
+        if knowledge_enabled:
+            reasons.append("secknowledge-skill is available as targeted knowledge support for the current candidate.")
+        else:
+            reasons.append("secknowledge-skill remains deferred until a concrete candidate needs knowledge support.")
+        reasons.append("cve-report-writer remains deferred until report finalization.")
+        return reasons
 
     @staticmethod
     def _skill_ref(item: dict) -> str:
@@ -330,5 +420,5 @@ class FindingRuntimeAdapter:
             top_lines.append(
                 f"- {item.get('skill_ref')}: score={item.get('score')}, stage={item.get('suggested_stage')}, reasons={', '.join(item.get('trigger_reasons') or []) or 'none'}"
             )
-        header = f"Discovery scheduler selected: {selected_skill}" if selected_skill else "Discovery scheduler found no strong skill candidate."
-        return "\n".join([header, "Top skill candidates:", *top_lines])
+        header = f"Phase-aware skill selection: {selected_skill}" if selected_skill else "Phase-aware skill selection found no active primary skill."
+        return "\n".join([header, "Top discovery candidates (advisory only):", *top_lines])
