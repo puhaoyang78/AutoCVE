@@ -138,6 +138,17 @@ def _seed_v2_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dic
     kwargs["finding_metadata"] = normalized_metadata
 
 
+def _persist_v2_fingerprint(mapper: Any, connection: Any, target: Any) -> None:
+    del mapper, connection
+    metadata = dict(getattr(target, "finding_metadata", None) or {})
+    previous_version = str(metadata.get("fingerprint_version") or "legacy").strip() or "legacy"
+    target.fingerprint = build_finding_fingerprint(target)
+    metadata["fingerprint_version"] = FINGERPRINT_VERSION
+    if previous_version != FINGERPRINT_VERSION:
+        metadata.setdefault("fingerprint_migrated_from", previous_version)
+    target.finding_metadata = metadata
+
+
 def _migrate_v2_fingerprint_on_load(target: Any, context: Any) -> None:
     del context
     metadata = dict(getattr(target, "finding_metadata", None) or {})
@@ -151,7 +162,7 @@ def _migrate_v2_fingerprint_on_load(target: Any, context: Any) -> None:
 
 
 def install_agent_finding_fingerprint_hooks(model: Any) -> None:
-    """Seed new v2 fingerprints and lazily migrate legacy persisted rows on load."""
+    """Seed, migrate, and persist v2 fingerprints for AgentFinding rows."""
 
     from sqlalchemy import event
 
@@ -159,3 +170,7 @@ def install_agent_finding_fingerprint_hooks(model: Any) -> None:
         event.listen(model, "init", _seed_v2_fingerprint_on_init, propagate=True)
     if not event.contains(model, "load", _migrate_v2_fingerprint_on_load):
         event.listen(model, "load", _migrate_v2_fingerprint_on_load, propagate=True)
+    if not event.contains(model, "before_insert", _persist_v2_fingerprint):
+        event.listen(model, "before_insert", _persist_v2_fingerprint, propagate=True)
+    if not event.contains(model, "before_update", _persist_v2_fingerprint):
+        event.listen(model, "before_update", _persist_v2_fingerprint, propagate=True)
