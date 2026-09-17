@@ -103,19 +103,3 @@ def build_finding_fingerprint(record: Any) -> str:
             _entry_paths(raw),
         ]
     )
-
-
-def _persist_fingerprint(mapper: Any, connection: Any, target: Any) -> None:
-    del mapper, connection
-    target.fingerprint = build_finding_fingerprint(target)
-
-
-def install_agent_finding_fingerprint_hooks(model: Any) -> None:
-    """Keep the stored fingerprint synchronized with the current finding fields."""
-
-    from sqlalchemy import event
-
-    if not event.contains(model, "before_insert", _persist_fingerprint):
-        event.listen(model, "before_insert", _persist_fingerprint, propagate=True)
-    if not event.contains(model, "before_update", _persist_fingerprint):
-        event.listen(model, "before_update", _persist_fingerprint, propagate=True)
