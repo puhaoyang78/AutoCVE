@@ -8,7 +8,6 @@ from sqlalchemy import select
 
 from app.models.audit_rule import AuditRule, AuditRuleSet
 from app.models.audit_session import AuditMemoryKind
-from app.services.agent.agents.finding_skill_router import resolve_finding_skill_routes
 from app.services.finding_runtime.models import RuntimeMemoryBundle, RuntimeMemoryRecord
 from app.services.skill_file_service import SkillFileService
 
@@ -20,6 +19,41 @@ RUNTIME_RULE_SET_ALLOWLIST = {"owasp top 10"}
 PROJECT_MEMORY_FILES = ("CLAUDE.md", "CLAW.md", "CLAUDE.local.md", "CLAW.local.md")
 PROJECT_MEMORY_DIRS = ((".claude", "CLAUDE.md"), (".claw", "CLAW.md"))
 PROJECT_RULE_DIRS = ((".claude", "rules"), (".claw", "rules"))
+LANGUAGE_REFERENCES = {
+    "c": ("references/checklists/c_cpp.md", "references/languages/c_cpp.md"),
+    "c++": ("references/checklists/c_cpp.md", "references/languages/c_cpp.md"),
+    "cpp": ("references/checklists/c_cpp.md", "references/languages/c_cpp.md"),
+    "c#": ("references/checklists/dotnet.md", "references/languages/dotnet.md"),
+    ".net": ("references/checklists/dotnet.md", "references/languages/dotnet.md"),
+    "dotnet": ("references/checklists/dotnet.md", "references/languages/dotnet.md"),
+    "go": ("references/checklists/go.md", "references/languages/go.md"),
+    "golang": ("references/checklists/go.md", "references/languages/go.md"),
+    "java": ("references/checklists/java.md", "references/languages/java.md"),
+    "javascript": ("references/checklists/javascript.md", "references/languages/javascript.md"),
+    "node": ("references/checklists/javascript.md", "references/languages/javascript.md"),
+    "node.js": ("references/checklists/javascript.md", "references/languages/javascript.md"),
+    "php": ("references/checklists/php.md", "references/languages/php.md"),
+    "python": ("references/checklists/python.md", "references/languages/python.md"),
+    "ruby": ("references/checklists/ruby.md", "references/languages/ruby.md"),
+    "rust": ("references/checklists/rust.md", "references/languages/rust.md"),
+}
+FRAMEWORK_REFERENCES = {
+    "django": "references/frameworks/django.md",
+    "asp.net": "references/frameworks/dotnet.md",
+    "express": "references/frameworks/express.md",
+    "fastapi": "references/frameworks/fastapi.md",
+    "flask": "references/frameworks/flask.md",
+    "gin": "references/frameworks/gin.md",
+    "java web": "references/frameworks/java_web_framework.md",
+    "koa": "references/frameworks/koa.md",
+    "laravel": "references/frameworks/laravel.md",
+    "mybatis": "references/frameworks/mybatis_security.md",
+    "nest": "references/frameworks/nest_fastify.md",
+    "fastify": "references/frameworks/nest_fastify.md",
+    "rails": "references/frameworks/rails.md",
+    "rust web": "references/frameworks/rust_web.md",
+    "spring": "references/frameworks/spring.md",
+}
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "in", "is", "it", "of", "on",
     "or", "that", "the", "to", "with", "this", "these", "those", "into", "out", "api", "code", "repo", "project",
@@ -49,23 +83,69 @@ class RuntimeMemoryManager:
         skill_context: dict[str, Any] | None = None,
     ) -> RuntimeMemoryBundle:
         instructions = self._load_instruction_memories(system_prompt=system_prompt)
-        instructions.extend(self._load_project_instruction_memories(recon_payload=recon_payload, system_prompt=system_prompt))
+        instructions.extend(
+            self._load_project_instruction_memories(
+                recon_payload=recon_payload,
+                system_prompt=system_prompt,
+            )
+        )
 
         recalls: list[RuntimeMemoryRecord] = []
         if agent_type == "finding":
-            context = {
-                "recon_data": recon_payload,
-                "project_info": recon_payload.get("project_info", {}),
-                "task": user_message,
-                "config": {},
-            }
-            route = resolve_finding_skill_routes(context, skill_context)
+            route = self._build_recall_route(recon_payload=recon_payload, skill_context=skill_context)
             recalls = self._load_recalled_memories(
                 recon_payload=recon_payload,
                 user_message=user_message,
                 route=route,
             )
         return RuntimeMemoryBundle(instructions=instructions, recalls=recalls)
+
+    @staticmethod
+    def _build_recall_route(
+        *,
+        recon_payload: dict[str, Any],
+        skill_context: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        route_plan = dict((skill_context or {}).get("route_plan") or {})
+        mandatory = list(route_plan.get("mandatory_reads") or [])
+        recommended = list(route_plan.get("recommended_reads") or [])
+
+        project_info = dict(recon_payload.get("project_info") or {})
+        project_profile = dict(recon_payload.get("project_profile") or {})
+        languages = [
+            *list(project_info.get("languages") or []),
+            *list(project_profile.get("languages") or []),
+        ]
+        frameworks = [
+            *list(project_info.get("frameworks") or []),
+            *list(project_profile.get("frameworks") or []),
+        ]
+
+        def append_unique(target: list[str], values: tuple[str, ...] | list[str]) -> None:
+            for value in values:
+                if value not in target:
+                    target.append(value)
+
+        for language in languages:
+            refs = LANGUAGE_REFERENCES.get(str(language).strip().lower())
+            if refs:
+                append_unique(mandatory, refs)
+
+        for framework in frameworks:
+            ref = FRAMEWORK_REFERENCES.get(str(framework).strip().lower())
+            if ref:
+                append_unique(mandatory, [ref])
+
+        if mandatory:
+            append_unique(recommended, ["references/checklists/universal.md"])
+
+        return {
+            **route_plan,
+            "mandatory_reads": mandatory,
+            "recommended_reads": recommended,
+            "case_candidates": list(route_plan.get("case_candidates") or []),
+            "progressive_disclosure": list(route_plan.get("progressive_disclosure") or []),
+        }
 
     def _load_instruction_memories(self, *, system_prompt: str) -> list[RuntimeMemoryRecord]:
         memories: list[RuntimeMemoryRecord] = []
@@ -94,7 +174,7 @@ class RuntimeMemoryManager:
                 )
                 if not rules:
                     continue
-                lines = []
+                lines: list[str] = []
                 if rule_set.description:
                     lines.append(str(rule_set.description).strip())
                 for rule in rules[:10]:
@@ -113,7 +193,7 @@ class RuntimeMemoryManager:
                     if rule.reference_url:
                         lines.append(f"Reference: {str(rule.reference_url).strip()}")
                     lines.append("")
-                content = "\n".join(line for line in lines if line is not None).strip()
+                content = "\n".join(lines).strip()
                 if not content:
                     continue
                 memories.append(
@@ -134,7 +214,12 @@ class RuntimeMemoryManager:
                 )
         return memories
 
-    def _load_project_instruction_memories(self, *, recon_payload: dict[str, Any], system_prompt: str) -> list[RuntimeMemoryRecord]:
+    def _load_project_instruction_memories(
+        self,
+        *,
+        recon_payload: dict[str, Any],
+        system_prompt: str,
+    ) -> list[RuntimeMemoryRecord]:
         project_root = self._resolve_project_root(recon_payload)
         if project_root is None or not project_root.exists():
             return []
@@ -157,7 +242,7 @@ class RuntimeMemoryManager:
             base = project_root / folder_name / rules_dir
             if not base.exists() or not base.is_dir():
                 continue
-            for candidate in sorted(base.rglob('*.md')):
+            for candidate in sorted(base.rglob("*.md")):
                 if candidate.is_file() and candidate not in seen:
                     seen.add(candidate)
                     discovered.append(candidate)
@@ -199,7 +284,6 @@ class RuntimeMemoryManager:
             user_message,
             recon_payload.get("summary"),
             recon_payload.get("entry_points", []),
-
             recon_payload.get("priority_paths", []),
             recon_payload.get("project_info", {}),
             recon_payload.get("project_profile", {}),
@@ -209,17 +293,21 @@ class RuntimeMemoryManager:
             text = self._read_text(candidate.path)
             if not text:
                 continue
-            score = self._score_candidate(query_tokens=query_tokens, relative_ref=candidate.relative_ref, text=text, bonus=candidate.bonus)
+            score = self._score_candidate(
+                query_tokens=query_tokens,
+                relative_ref=candidate.relative_ref,
+                text=text,
+                bonus=candidate.bonus,
+            )
             ranked.append((score, candidate.relative_ref, candidate, text))
 
         ranked.sort(key=lambda item: (-item[0], item[1]))
         memories: list[RuntimeMemoryRecord] = []
         for score, _, candidate, text in ranked[:MAX_RECALLS]:
-            title = candidate.relative_ref.split("/")[-1]
             memories.append(
                 RuntimeMemoryRecord(
                     memory_kind=AuditMemoryKind.RECALL.value,
-                    title=title,
+                    title=candidate.relative_ref.rsplit("/", 1)[-1],
                     source_type="skill_reference",
                     source_ref=candidate.relative_ref,
                     content=text[:MAX_CONTENT_CHARS],
@@ -246,13 +334,20 @@ class RuntimeMemoryManager:
         seen: set[str] = set()
         candidates: list[MemoryCandidate] = []
         for relative_ref, category, bonus in ordered_paths:
-            normalized = relative_ref.replace('\\', '/').lstrip('/')
-            if normalized in seen:
+            normalized = str(relative_ref).replace("\\", "/").lstrip("/")
+            if not normalized or normalized in seen or ".." in PurePosixPath(normalized).parts:
                 continue
             seen.add(normalized)
-            path = root / normalized.replace('/', '\\')
+            path = root.joinpath(*PurePosixPath(normalized).parts)
             if path.exists() and path.is_file():
-                candidates.append(MemoryCandidate(path=path, relative_ref=normalized, category=category, bonus=bonus))
+                candidates.append(
+                    MemoryCandidate(
+                        path=path,
+                        relative_ref=normalized,
+                        category=category,
+                        bonus=bonus,
+                    )
+                )
         return candidates
 
     @staticmethod
@@ -263,10 +358,9 @@ class RuntimeMemoryManager:
             if not value:
                 continue
             try:
-                candidate = Path(str(value)).expanduser().resolve(strict=False)
+                return Path(str(value)).expanduser().resolve(strict=False)
             except OSError:
                 continue
-            return candidate
         return None
 
     def _read_project_memory(self, path: Path, project_root: Path, seen_files: set[Path]) -> str:
@@ -293,7 +387,8 @@ class RuntimeMemoryManager:
                 if include_target is not None:
                     included = self._read_project_memory(include_target, project_root, seen_files)
                     if included:
-                        parts.append(f"\n[Included from {include_target.relative_to(project_root).as_posix()}]\n{included}\n")
+                        relative = include_target.relative_to(project_root).as_posix()
+                        parts.append(f"\n[Included from {relative}]\n{included}\n")
                 continue
             parts.append(line)
         return "\n".join(parts).strip()
@@ -307,7 +402,7 @@ class RuntimeMemoryManager:
             candidate = Path(normalized).resolve(strict=False)
         else:
             include_rel = normalized[2:] if normalized.startswith("./") else normalized
-            if ".." in PurePosixPath(include_rel.replace('\\', '/')).parts:
+            if ".." in PurePosixPath(include_rel.replace("\\", "/")).parts:
                 return None
             candidate = (base_dir / include_rel).resolve(strict=False)
         try:
@@ -338,34 +433,57 @@ class RuntimeMemoryManager:
                 stack.extend(value)
                 continue
             lowered = str(value).lower()
-            for piece in lowered.replace("/", " ").replace("\\", " ").replace("-", " ").replace("_", " ").split():
+            for piece in (
+                lowered.replace("/", " ")
+                .replace("\\", " ")
+                .replace("-", " ")
+                .replace("_", " ")
+                .split()
+            ):
                 token = piece.strip(".,:;()[]{}'\"")
                 if token and token not in STOPWORDS:
                     tokens.add(token)
         return tokens
 
     @classmethod
-    def _score_candidate(cls, *, query_tokens: set[str], relative_ref: str, text: str, bonus: int) -> int:
+    def _score_candidate(
+        cls,
+        *,
+        query_tokens: set[str],
+        relative_ref: str,
+        text: str,
+        bonus: int,
+    ) -> int:
         path_tokens = cls._tokenize(relative_ref)
         sample_tokens = cls._tokenize(text[:4000])
-        overlap = len(query_tokens.intersection(path_tokens)) * 8 + len(query_tokens.intersection(sample_tokens))
+        overlap = (
+            len(query_tokens.intersection(path_tokens)) * 8
+            + len(query_tokens.intersection(sample_tokens))
+        )
         return bonus + overlap
 
 
 def build_memory_message(record: RuntimeMemoryRecord) -> str:
-    heading = "指令记忆" if record.memory_kind == AuditMemoryKind.INSTRUCTION.value else "相关召回记忆"
+    heading = (
+        "指令记忆"
+        if record.memory_kind == AuditMemoryKind.INSTRUCTION.value
+        else "相关召回记忆"
+    )
     return "\n".join(
         [
             f"{heading}: {record.title}",
             f"来源：{record.source_type} :: {record.source_ref}",
-            "将其作为范围化指南和证据辅助，不要替代项目自身证据。",
+            "将其作为范围化指南，不要替代项目自身代码和运行结果。",
             "",
             record.content,
         ]
     ).strip()
 
 
-def build_runtime_memory_prompt(base_prompt: str, memories: list[RuntimeMemoryRecord] | None) -> str:
+def build_runtime_memory_prompt(
+    base_prompt: str,
+    memories: list[RuntimeMemoryRecord] | None,
+) -> str:
     base = strip_runtime_memory_section(base_prompt)
     rendered: list[str] = []
     seen: set[tuple[str, str, str, str]] = set()
@@ -384,7 +502,9 @@ def build_runtime_memory_prompt(base_prompt: str, memories: list[RuntimeMemoryRe
             rendered.append(message)
     if not rendered:
         return base
-    return "\n\n".join(section for section in [base, RUNTIME_MEMORY_HEADER, *rendered] if section)
+    return "\n\n".join(
+        section for section in [base, RUNTIME_MEMORY_HEADER, *rendered] if section
+    )
 
 
 def strip_runtime_memory_section(prompt: str) -> str:
@@ -396,4 +516,7 @@ def strip_runtime_memory_section(prompt: str) -> str:
 
 
 def _is_runtime_rule_set_allowed(rule_set: AuditRuleSet) -> bool:
-    return str(getattr(rule_set, "name", "") or "").strip().lower() in RUNTIME_RULE_SET_ALLOWLIST
+    return (
+        str(getattr(rule_set, "name", "") or "").strip().lower()
+        in RUNTIME_RULE_SET_ALLOWLIST
+    )
