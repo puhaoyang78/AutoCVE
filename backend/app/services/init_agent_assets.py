@@ -70,16 +70,15 @@ async def init_skill_bindings() -> List[str]:
             if not SkillFileService.skill_file(slug).exists():
                 logger.warning("Bundled skill '%s' is missing from local skill_library; skipping default binding.", slug)
                 continue
-            if not _binding_exists(agent_type, slug):
-                SkillFileService.upsert_binding(
-                    agent_type,
-                    slug,
-                    enabled=True,
-                    always_include=bool(skill_spec.get("always_include", False)),
-                    sort_order=int(skill_spec.get("sort_order", 0)),
-                    match_keywords=list(skill_spec.get("match_keywords", [])),
-                    match_config=dict(skill_spec.get("match_config", {})),
-                )
+            SkillFileService.upsert_binding(
+                agent_type,
+                slug,
+                enabled=True,
+                always_include=bool(skill_spec.get("always_include", False)),
+                sort_order=int(skill_spec.get("sort_order", 0)),
+                match_keywords=list(skill_spec.get("match_keywords", [])),
+                match_config=dict(skill_spec.get("match_config", {})),
+            )
             slugs.append(slug)
 
     for slug in DEPRECATED_FINDING_SKILLS:
