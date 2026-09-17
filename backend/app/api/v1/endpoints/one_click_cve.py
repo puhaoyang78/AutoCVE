@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -258,6 +258,21 @@ async def get_one_click_cve_batch(
     batch = await _get_owned_batch(batch_id, db, current_user)
     await _decorate_batch_resume_state(db, batch)
     return _batch_response(batch)
+
+
+@router.delete("/batches/{batch_id}", status_code=204)
+async def delete_one_click_cve_batch(
+    batch_id: str,
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Response:
+    batch = await _get_owned_batch(batch_id, db, current_user)
+    has_active_project = any(project.status in ACTIVE_ONE_CLICK_CVE_PROJECT_STATUSES for project in batch.projects)
+    if batch.status in {OneClickCveBatchStatus.PENDING, OneClickCveBatchStatus.RUNNING} or has_active_project:
+        raise HTTPException(status_code=409, detail="请先停止正在运行的一键 CVE 任务后再删除")
+    await db.delete(batch)
+    await db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/batches/{batch_id}/cancel", response_model=OneClickCveBatchResponse)
