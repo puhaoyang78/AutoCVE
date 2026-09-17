@@ -12,6 +12,7 @@ from app.models.report_template import AgentTaskReport
 from app.services.finding_runtime.final_finding_contract import filter_meaningful_exploit_chain, has_meaningful_poc
 from app.services.report_template_file_service import ReportTemplateFileService
 
+
 DEFAULT_REPORT_TEMPLATE = """# AutoCVE 最终漏洞报告
 
 ## 基本信息
@@ -20,17 +21,14 @@ DEFAULT_REPORT_TEMPLATE = """# AutoCVE 最终漏洞报告
 - 任务名称: {{ task.name or '未命名任务' }}
 - 任务 ID: {{ task.id }}
 - 当前状态: {{ task.status }}
-- 使用模板: {{ template.name if template else '系统默认模板' }}
 
 ## 审计流程
-- 编排模式: 固定 DAG / 显式状态机
-- 执行链路: Orchestrator -> Recon -> (Scan -> Triage || Finding) -> Verification
+- 执行链路: Orchestrator -> Recon -> Finding
 
 ## 执行摘要
-- 安全评分: {{ summary.security_score if summary.security_score is not none else 'N/A' }}
 - 发现总数: {{ summary.total_findings }}
-- 已验证漏洞: {{ summary.verified_findings }}
-- 误报数量: {{ summary.false_positive_count }}
+- 已确认漏洞: {{ summary.confirmed_findings }}
+- 待验证候选: {{ summary.candidate_findings }}
 - 分析文件数: {{ summary.total_files_analyzed }}
 
 ## 严重等级分布
@@ -39,27 +37,14 @@ DEFAULT_REPORT_TEMPLATE = """# AutoCVE 最终漏洞报告
 - Medium: {{ summary.severity_distribution.medium }}
 - Low: {{ summary.severity_distribution.low }}
 
-## 来源分布
-- Scan/Triage: {{ summary.origin_distribution.scan_triage }}
-- Direct Finding: {{ summary.origin_distribution.direct_finding }}
-- Other: {{ summary.origin_distribution.other }}
-
-## 运行统计
-- 总迭代数: {{ summary.total_iterations }}
-- 工具调用数: {{ summary.tool_calls_count }}
-- Token 用量: {{ summary.tokens_used }}
-- 总耗时(ms): {{ summary.duration_ms if summary.duration_ms is not none else 'N/A' }}
-
 ## 漏洞清单
 {% if findings %}
 {% for finding in findings %}
 ### {{ loop.index }}. [{{ finding.severity|upper }}] {{ finding.title }}
 - 漏洞类型: {{ finding.vulnerability_type }}
-- 来源: {{ finding.origin or 'unknown' }}
-- 证据类型: {{ finding.evidence_type or 'unknown' }}
+- 状态: {{ finding.report_status }}
 - 位置: {{ finding.file_path or 'N/A' }}{% if finding.line_start %}:{{ finding.line_start }}{% endif %}{% if finding.line_end and finding.line_end != finding.line_start %}-{{ finding.line_end }}{% endif %}
 - 置信度: {{ finding.confidence if finding.confidence is not none else 'N/A' }}
-- 是否验证: {{ '是' if finding.is_verified else '否' }}
 - 描述: {{ finding.description or '无' }}
 {% if finding.source %}- Source: {{ finding.source }}
 {% endif %}{% if finding.sink %}- Sink: {{ finding.sink }}
@@ -68,20 +53,11 @@ DEFAULT_REPORT_TEMPLATE = """# AutoCVE 最终漏洞报告
 {{ finding.code_snippet }}
 ```
 {% endif %}{% if finding.suggestion %}- 修复建议: {{ finding.suggestion }}
-{% endif %}{% if finding.poc_code %}- PoC:
-```text
-{{ finding.poc_code }}
-```
 {% endif %}
 {% endfor %}
 {% else %}
-本次任务未生成可输出的漏洞结果。
+本次审计未生成可报告漏洞。
 {% endif %}
-
-## 修复优先级建议
-1. 优先修复 Critical / High 严重等级问题。
-2. 结合 Scan/Triage 与 Finding 两条线索统一排期。
-3. 对已验证漏洞优先补充修复与回归验证。
 """
 
 
@@ -95,9 +71,9 @@ def _severity_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
 
 
 def _origin_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
-    counts = {"scan_triage": 0, "direct_finding": 0, "other": 0}
+    counts = {"direct_finding": 0, "other": 0}
     for finding in findings:
-        origin = str(finding.get("origin") or "other").lower()
+        origin = str(finding.get("origin") or "direct_finding").lower()
         if origin not in counts:
             origin = "other"
         counts[origin] += 1
@@ -107,9 +83,7 @@ def _origin_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
 def _report_status_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
     counts = {"confirmed": 0, "candidate": 0, "false_positive": 0}
     for finding in findings:
-        report_status = str(finding.get("report_status") or finding.get("verdict") or "").lower()
-        if report_status == "likely":
-            report_status = "candidate"
+        report_status = str(finding.get("report_status") or finding.get("verdict") or "candidate").lower()
         if report_status not in counts:
             report_status = "candidate"
         counts[report_status] += 1
@@ -121,9 +95,12 @@ def serialize_finding(finding: AgentFinding | Dict[str, Any]) -> Dict[str, Any]:
         item = dict(finding)
         item.setdefault("report_status", str(item.get("verdict") or "candidate").lower())
         return item
+
     metadata = finding.finding_metadata or {}
     raw_finding = metadata.get("raw_finding", {}) if isinstance(metadata, dict) else {}
-    raw_poc = raw_finding.get("poc", {}) if isinstance(raw_finding, dict) else {}
+    raw_finding = raw_finding if isinstance(raw_finding, dict) else {}
+    raw_poc = raw_finding.get("poc", {}) if isinstance(raw_finding.get("poc"), dict) else {}
+
     poc = {}
     if has_meaningful_poc(raw_poc) or finding.poc_description or finding.poc_steps:
         poc = {
@@ -133,7 +110,8 @@ def serialize_finding(finding: AgentFinding | Dict[str, Any]) -> Dict[str, Any]:
             "impact": raw_poc.get("impact", ""),
             "cve_justification": raw_poc.get("cve_justification", ""),
         }
-    exploit_chain = filter_meaningful_exploit_chain(raw_finding.get("exploit_chain", []))
+
+    verdict = str(raw_finding.get("verdict") or "candidate").lower()
     return {
         "id": finding.id,
         "task_id": finding.task_id,
@@ -154,22 +132,23 @@ def serialize_finding(finding: AgentFinding | Dict[str, Any]) -> Dict[str, Any]:
         "poc_code": getattr(finding, "poc_code", None),
         "fix_code": getattr(finding, "fix_code", None),
         "ai_explanation": finding.ai_explanation,
-        "origin": metadata.get("origin") or raw_finding.get("origin"),
-        "evidence_type": metadata.get("evidence_type") or raw_finding.get("evidence_type"),
+        "origin": metadata.get("origin") or raw_finding.get("origin") or "direct_finding",
         "source": finding.source,
         "sink": finding.sink,
         "poc": poc,
-        "exploit_chain": exploit_chain,
+        "exploit_chain": filter_meaningful_exploit_chain(raw_finding.get("exploit_chain", [])),
+        "finding_flow": raw_finding.get("finding_flow"),
+        "verification_records": raw_finding.get("verification_records", []),
+        "stable_fingerprint": raw_finding.get("stable_fingerprint") or finding.fingerprint,
         "impact": raw_finding.get("impact", ""),
         "cve_justification": raw_finding.get("cve_justification", ""),
         "verification_notes": raw_finding.get("verification_notes", ""),
-        "verdict": raw_finding.get("verdict", "candidate"),
-        "report_status": raw_finding.get("report_status", raw_finding.get("verdict", "candidate")),
+        "verdict": verdict,
+        "report_status": verdict,
         "references": finding.references or raw_finding.get("references", []),
         "entry_point_refs": raw_finding.get("entry_point_refs", []),
         "priority_path_refs": raw_finding.get("priority_path_refs", []),
         "business_flow_notes": raw_finding.get("business_flow_notes", []),
-        "evidence_gaps": raw_finding.get("evidence_gaps", []),
         "created_at": finding.created_at.isoformat() if finding.created_at else None,
     }
 
@@ -178,10 +157,7 @@ def get_default_report_template() -> Optional[Dict[str, Any]]:
     items = ReportTemplateFileService.list_templates()
     if not items:
         return None
-    user_default = next((item for item in items if item.get("is_default")), None)
-    if user_default:
-        return user_default
-    return items[0]
+    return next((item for item in items if item.get("is_default")), items[0])
 
 
 async def get_task_report(db: AsyncSession, task_id: str) -> Optional[AgentTaskReport]:
@@ -198,14 +174,7 @@ async def build_report_payload(
 ) -> Dict[str, Any]:
     del db
     finding_items = [serialize_finding(item) for item in findings]
-    severity_distribution = _severity_counts(finding_items)
-    origin_distribution = _origin_counts(finding_items)
-    report_status_distribution = _report_status_counts(finding_items)
-    verified_count = sum(1 for item in finding_items if item.get("is_verified"))
-    final_conclusions = [
-        item for item in finding_items
-        if item.get("report_status") in {"confirmed", "candidate"}
-    ]
+    status_counts = _report_status_counts(finding_items)
     return {
         "report": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -226,21 +195,24 @@ async def build_report_payload(
             "security_score": task.security_score,
             "total_files_analyzed": task.analyzed_files,
             "total_findings": len(finding_items),
-            "verified_findings": verified_count,
-            "confirmed_findings": report_status_distribution["confirmed"],
-            "candidate_findings": report_status_distribution["candidate"],
-            "false_positive_findings": report_status_distribution["false_positive"],
+            "verified_findings": sum(1 for item in finding_items if item.get("is_verified")),
+            "confirmed_findings": status_counts["confirmed"],
+            "candidate_findings": status_counts["candidate"],
+            "false_positive_findings": status_counts["false_positive"],
             "false_positive_count": task.false_positive_count or 0,
-            "severity_distribution": severity_distribution,
-            "origin_distribution": origin_distribution,
-            "report_status_distribution": report_status_distribution,
+            "severity_distribution": _severity_counts(finding_items),
+            "origin_distribution": _origin_counts(finding_items),
+            "report_status_distribution": status_counts,
             "total_iterations": task.total_iterations or 0,
             "tool_calls_count": task.tool_calls_count or 0,
             "tokens_used": task.tokens_used or 0,
             "duration_ms": getattr(task, "duration_ms", None),
         },
         "findings": finding_items,
-        "final_conclusions": final_conclusions,
+        "final_conclusions": [
+            item for item in finding_items
+            if item.get("report_status") in {"confirmed", "candidate"}
+        ],
         "template": {
             "id": template["slug"] if template else None,
             "name": template["name"] if template else None,
