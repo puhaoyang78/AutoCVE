@@ -17,12 +17,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - run: python scripts/cleanup_finding_bridge.py
       - run: python scripts/cleanup_finding_runtime.py
       - run: |
           python -m py_compile \
             backend/app/services/finding_runtime/query_loop.py \
             backend/app/services/finding_runtime/models.py \
             backend/app/services/finding_runtime/fingerprint.py \
+            backend/app/services/finding_runtime/bridge.py \
             backend/app/services/direct_audit_vulnerability_service.py \
             backend/app/api/v1/endpoints/agent_tasks.py \
             backend/app/models/agent_task.py \
