@@ -54,11 +54,11 @@ class VerifyCppMemoryTool(RuntimeTool):
         sanitizer_types = [name for name, pattern in _SANITIZER_PATTERNS.items() if pattern.search(rendered)]
         sanitizer_detected = bool(sanitizer_types)
         infrastructure_ok = bool(result.success)
-        dynamic_success = infrastructure_ok and sanitizer_detected
-        verification_method = "+".join(sanitizer_types) if sanitizer_types else "asan+ubsan"
+        success = infrastructure_ok and sanitizer_detected
+        method = "+".join(sanitizer_types) if sanitizer_types else "asan+ubsan"
         summary = (
-            f"Dynamic sanitizer failure detected ({verification_method})."
-            if dynamic_success
+            f"Dynamic sanitizer failure detected ({method})."
+            if success
             else "Harness executed without a recognized ASan/UBSan diagnostic."
             if infrastructure_ok
             else f"Dynamic verification could not run: {result.error or 'sandbox execution failed'}"
@@ -69,14 +69,14 @@ class VerifyCppMemoryTool(RuntimeTool):
                 [
                     summary,
                     rendered,
-                    "Use dynamic_success=true to create a successful verification record for a confirmed memory-safety finding. "
-                    "If dynamic_success=false, keep the result as candidate unless another direct dynamic result confirms it.",
+                    "Use success=true to create a successful verification record for a confirmed memory-safety finding. "
+                    "If success=false, keep the result as candidate unless another direct dynamic result confirms it.",
                 ]
             ).strip(),
             output_payload={
                 "dynamic": True,
-                "success": dynamic_success,
-                "method": verification_method,
+                "success": success,
+                "method": method,
                 "tool": self.name,
                 "summary": summary,
                 "details": rendered,
@@ -87,7 +87,7 @@ class VerifyCppMemoryTool(RuntimeTool):
             },
             metadata={
                 "verification": "cpp_memory_sanitizer",
-                "dynamic_success": dynamic_success,
+                "success": success,
                 "sanitizers": sanitizer_types,
                 **metadata,
             },
