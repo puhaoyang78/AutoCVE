@@ -120,6 +120,10 @@ def fingerprint_version(record: Any) -> str | None:
     return value or None
 
 
+def _semantic_generate_fingerprint(record: Any) -> str:
+    return build_finding_fingerprint(record)
+
+
 def _seed_v2_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
     del target, args
     metadata = kwargs.get("finding_metadata")
@@ -162,9 +166,14 @@ def _migrate_v2_fingerprint_on_load(target: Any, context: Any) -> None:
 
 
 def install_agent_finding_fingerprint_hooks(model: Any) -> None:
-    """Seed, migrate, and persist v2 fingerprints for AgentFinding rows."""
+    """Use v2 fingerprints for deduplication and persist them without a schema migration."""
 
     from sqlalchemy import event
+
+    # The legacy persistence path calls AgentFinding.generate_fingerprint() before
+    # SQLAlchemy insert hooks run. Replacing that method here keeps old and new
+    # save paths on the same semantic fingerprint implementation.
+    model.generate_fingerprint = _semantic_generate_fingerprint
 
     if not event.contains(model, "init", _seed_v2_fingerprint_on_init):
         event.listen(model, "init", _seed_v2_fingerprint_on_init, propagate=True)
