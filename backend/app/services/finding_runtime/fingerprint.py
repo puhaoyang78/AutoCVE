@@ -5,7 +5,6 @@ import re
 from typing import Any
 
 
-FINGERPRINT_VERSION = "v2"
 _LINE_SUFFIX_RE = re.compile(r":\d+(?:[-:]\d+)?(?:-\d+)?$")
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -24,9 +23,7 @@ def _normalize_path(value: Any) -> str:
 
 def _location_path(value: Any) -> str:
     text = str(value or "").strip()
-    if not text:
-        return ""
-    return _normalize_path(text)
+    return _normalize_path(text) if text else ""
 
 
 def _raw_finding(record: Any) -> dict[str, Any]:
@@ -37,11 +34,11 @@ def _raw_finding(record: Any) -> dict[str, Any]:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
-def _evidence_graph_shape(raw: dict[str, Any]) -> str:
-    graph = raw.get("evidence_graph")
-    if not isinstance(graph, dict):
+def _flow_shape(raw: dict[str, Any]) -> str:
+    flow = raw.get("finding_flow")
+    if not isinstance(flow, dict):
         return ""
-    nodes = graph.get("nodes")
+    nodes = flow.get("nodes")
     if not isinstance(nodes, list):
         return ""
     kinds = [
@@ -79,52 +76,40 @@ def _hash_components(components: list[str]) -> str:
 
 
 def build_payload_fingerprint(finding: dict[str, Any]) -> str:
-    """Build a stable fingerprint directly from a finalized finding payload."""
-
     payload = dict(finding or {})
-    components = [
-        FINGERPRINT_VERSION,
-        _normalize_text(payload.get("vulnerability_type")),
-        _normalize_path(payload.get("file_path")),
-        _normalize_text(payload.get("function_name") or payload.get("class_name")),
-        _normalize_text(payload.get("source")),
-        _normalize_text(payload.get("sink")),
-        _evidence_graph_shape(payload),
-        _entry_paths(payload),
-    ]
-    return _hash_components(components)
+    return _hash_components(
+        [
+            _normalize_text(payload.get("vulnerability_type")),
+            _normalize_path(payload.get("file_path")),
+            _normalize_text(payload.get("function_name") or payload.get("class_name")),
+            _normalize_text(payload.get("source")),
+            _normalize_text(payload.get("sink")),
+            _flow_shape(payload),
+            _entry_paths(payload),
+        ]
+    )
 
 
 def build_finding_fingerprint(record: Any) -> str:
-    """Build a location-stable semantic fingerprint for an AgentFinding-like object."""
-
     raw = _raw_finding(record)
-    components = [
-        FINGERPRINT_VERSION,
-        _normalize_text(getattr(record, "vulnerability_type", "")),
-        _normalize_path(getattr(record, "file_path", "")),
-        _normalize_text(getattr(record, "function_name", "") or getattr(record, "class_name", "")),
-        _normalize_text(getattr(record, "source", "")),
-        _normalize_text(getattr(record, "sink", "")),
-        _evidence_graph_shape(raw),
-        _entry_paths(raw),
-    ]
-    return _hash_components(components)
+    return _hash_components(
+        [
+            _normalize_text(getattr(record, "vulnerability_type", "")),
+            _normalize_path(getattr(record, "file_path", "")),
+            _normalize_text(getattr(record, "function_name", "") or getattr(record, "class_name", "")),
+            _normalize_text(getattr(record, "source", "")),
+            _normalize_text(getattr(record, "sink", "")),
+            _flow_shape(raw),
+            _entry_paths(raw),
+        ]
+    )
 
 
-def fingerprint_version(record: Any) -> str | None:
-    metadata = getattr(record, "finding_metadata", None)
-    if not isinstance(metadata, dict):
-        return None
-    value = str(metadata.get("fingerprint_version") or "").strip()
-    return value or None
-
-
-def _semantic_generate_fingerprint(record: Any) -> str:
+def _generate_fingerprint(record: Any) -> str:
     return build_finding_fingerprint(record)
 
 
-def _seed_v2_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+def _seed_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
     del target, args
     metadata = kwargs.get("finding_metadata")
     if not isinstance(metadata, dict):
@@ -132,54 +117,25 @@ def _seed_v2_fingerprint_on_init(target: Any, args: tuple[Any, ...], kwargs: dic
     raw = metadata.get("raw_finding")
     if not isinstance(raw, dict):
         return
-    stable_fingerprint = str(raw.get("stable_fingerprint") or "").strip()
-    version = str(raw.get("fingerprint_version") or "").strip()
-    if not stable_fingerprint or version != FINGERPRINT_VERSION:
-        return
-    kwargs.setdefault("fingerprint", stable_fingerprint)
-    normalized_metadata = dict(metadata)
-    normalized_metadata["fingerprint_version"] = FINGERPRINT_VERSION
-    kwargs["finding_metadata"] = normalized_metadata
+    fingerprint = str(raw.get("stable_fingerprint") or "").strip()
+    if fingerprint:
+        kwargs.setdefault("fingerprint", fingerprint)
 
 
-def _persist_v2_fingerprint(mapper: Any, connection: Any, target: Any) -> None:
+def _persist_fingerprint(mapper: Any, connection: Any, target: Any) -> None:
     del mapper, connection
-    metadata = dict(getattr(target, "finding_metadata", None) or {})
-    previous_version = str(metadata.get("fingerprint_version") or "legacy").strip() or "legacy"
     target.fingerprint = build_finding_fingerprint(target)
-    metadata["fingerprint_version"] = FINGERPRINT_VERSION
-    if previous_version != FINGERPRINT_VERSION:
-        metadata.setdefault("fingerprint_migrated_from", previous_version)
-    target.finding_metadata = metadata
-
-
-def _migrate_v2_fingerprint_on_load(target: Any, context: Any) -> None:
-    del context
-    metadata = dict(getattr(target, "finding_metadata", None) or {})
-    previous_version = str(metadata.get("fingerprint_version") or "legacy").strip() or "legacy"
-    if previous_version == FINGERPRINT_VERSION:
-        return
-    target.fingerprint = build_finding_fingerprint(target)
-    metadata["fingerprint_version"] = FINGERPRINT_VERSION
-    metadata["fingerprint_migrated_from"] = previous_version
-    target.finding_metadata = metadata
 
 
 def install_agent_finding_fingerprint_hooks(model: Any) -> None:
-    """Use v2 fingerprints for deduplication and persist them without a schema migration."""
+    """Use one semantic fingerprint implementation for creation and persistence."""
 
     from sqlalchemy import event
 
-    # The legacy persistence path calls AgentFinding.generate_fingerprint() before
-    # SQLAlchemy insert hooks run. Replacing that method here keeps old and new
-    # save paths on the same semantic fingerprint implementation.
-    model.generate_fingerprint = _semantic_generate_fingerprint
-
-    if not event.contains(model, "init", _seed_v2_fingerprint_on_init):
-        event.listen(model, "init", _seed_v2_fingerprint_on_init, propagate=True)
-    if not event.contains(model, "load", _migrate_v2_fingerprint_on_load):
-        event.listen(model, "load", _migrate_v2_fingerprint_on_load, propagate=True)
-    if not event.contains(model, "before_insert", _persist_v2_fingerprint):
-        event.listen(model, "before_insert", _persist_v2_fingerprint, propagate=True)
-    if not event.contains(model, "before_update", _persist_v2_fingerprint):
-        event.listen(model, "before_update", _persist_v2_fingerprint, propagate=True)
+    model.generate_fingerprint = _generate_fingerprint
+    if not event.contains(model, "init", _seed_fingerprint_on_init):
+        event.listen(model, "init", _seed_fingerprint_on_init, propagate=True)
+    if not event.contains(model, "before_insert", _persist_fingerprint):
+        event.listen(model, "before_insert", _persist_fingerprint, propagate=True)
+    if not event.contains(model, "before_update", _persist_fingerprint):
+        event.listen(model, "before_update", _persist_fingerprint, propagate=True)
