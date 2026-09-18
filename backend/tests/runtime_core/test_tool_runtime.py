@@ -274,7 +274,9 @@ def test_shared_tool_runtime_converts_ask_permission_rules_into_denied_tool_reco
     snapshot = store.load_session_snapshot(session_id)
 
     assert records[0].status == AuditToolCallStatus.DENIED.value
-    assert "批准" in (records[0].error_message or "")
+    assert records[0].error_message == "Need human approval before write actions."
+    assert records[0].result.output_payload["permission_mode"] == "ask"
+    assert records[0].result.output_payload["permission_source"] == "permission_rule"
     assert snapshot.tool_calls[0].status == AuditToolCallStatus.DENIED.value
     assert snapshot.checkpoints[0].state_payload["event"] == "PermissionDenied"
     assert snapshot.checkpoints[0].state_payload["source"] == "permission_rule"
@@ -505,7 +507,8 @@ def test_canonical_write_tool_requires_approval_for_source_tree_writes():
         snapshot = store.load_session_snapshot(session_id)
 
         assert records[0].status == AuditToolCallStatus.DENIED.value
-        assert "approval" in (records[0].error_message or "").lower()
+        assert records[0].result.output_payload["permission_mode"] == "ask"
+        assert records[0].result.output_payload["guardrail_code"] == "source_write_requires_approval"
         assert snapshot.tool_calls[0].output_payload["permission_mode"] == "ask"
         assert snapshot.tool_calls[0].output_payload["guardrail_code"] == "source_write_requires_approval"
     finally:
