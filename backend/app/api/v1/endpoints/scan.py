@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, Form, Depends, BackgroundTasks,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import Any, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime, timezone
 import uuid
 import shutil
@@ -30,7 +30,7 @@ router = APIRouter()
 def normalize_path(path: str) -> str:
     """
     统一路径分隔符为正斜杠，确保跨平台兼容性
-    Windows 使用反斜杠 (\)，Unix/Mac 使用正斜杠 (/)
+    Windows 使用反斜杠 (\\)，Unix/Mac 使用正斜杠 (/)
     统一转换为正斜杠以保证一致性
     """
     return path.replace("\\", "/")
@@ -385,8 +385,7 @@ class InstantAnalysisResponse(BaseModel):
     analysis_result: str  # JSON字符串，包含完整的分析结果
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 async def get_user_config_dict(db: AsyncSession, user_id: str) -> dict:

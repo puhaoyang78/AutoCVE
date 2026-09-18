@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import case, func
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api import deps
 from app.api.v1.endpoints.config import _normalize_workflow_config, WORKFLOW_AGENT_TYPES, WORKFLOW_LOCKED_AGENTS
@@ -225,8 +225,7 @@ class AgentTaskResponse(BaseModel):
     handoff_ready: bool = False
     recovered_candidates: List[Dict[str, Any]] = Field(default_factory=list)
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 

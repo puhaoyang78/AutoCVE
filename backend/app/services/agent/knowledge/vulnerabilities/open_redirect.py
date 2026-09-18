@@ -9,7 +9,7 @@ OPEN_REDIRECT = KnowledgeDocument(
     title="开放重定向",
     category=KnowledgeCategory.VULNERABILITY,
     tags=["open-redirect", "url", "phishing", "unvalidated-redirect"],
-    content="""
+    content=r"""
 # 开放重定向漏洞
 
 ## 概述

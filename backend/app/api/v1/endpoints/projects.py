@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime, timezone
 from pathlib import Path
 import shutil
@@ -87,8 +87,7 @@ class OwnerSchema(BaseModel):
     avatar_url: Optional[str] = None
     role: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ProjectResponse(BaseModel):
     id: str
@@ -107,8 +106,7 @@ class ProjectResponse(BaseModel):
     updated_at: Optional[datetime] = None
     owner: Optional[OwnerSchema] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class StatsResponse(BaseModel):
     total_projects: int

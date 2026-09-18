@@ -1,14 +1,16 @@
 from pathlib import Path
 from typing import List, Optional, Union
 
-from pydantic import AnyHttpUrl, validator
-from pydantic_settings import BaseSettings
+from pydantic import AnyHttpUrl, ValidationInfo, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 DEFAULT_MANAGED_PROJECTS_ROOT = str(Path(__file__).resolve().parents[3] / "projects")
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
+
     PROJECT_NAME: str = "AutoCVE"
     API_V1_STR: str = "/api/v1"
 
@@ -18,7 +20,8 @@ class Settings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
-    @validator("BACKEND_CORS_ORIGINS", pre=True)
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
         if isinstance(v, str) and not v.startswith("["):
             return [item.strip() for item in v.split(",")]
@@ -32,10 +35,12 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "autocve"
     DATABASE_URL: str | None = None
 
-    @validator("DATABASE_URL", pre=True)
-    def assemble_db_connection(cls, v: str | None, values: dict[str, object]) -> str:
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: str | None, info: ValidationInfo) -> str:
         if isinstance(v, str):
             return v
+        values = info.data
         return (
             f"postgresql+asyncpg://{values.get('POSTGRES_USER')}:{values.get('POSTGRES_PASSWORD')}"
             f"@{values.get('POSTGRES_SERVER')}/{values.get('POSTGRES_DB')}"
@@ -156,10 +161,6 @@ class Settings(BaseSettings):
     RAG_CHUNK_OVERLAP: int = 50
     RAG_TOP_K: int = 10
 
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
-        extra = "ignore"
 
 
 settings = Settings()
