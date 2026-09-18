@@ -100,7 +100,7 @@ def validate_path(
         if not resolved_path.startswith(resolved_root + os.sep) and resolved_path != resolved_root:
             raise PathTraversalError(f"Path escapes project root: {path}")
     except (OSError, ValueError) as e:
-        raise InputValidationError(f"Invalid path: {path} - {e}")
+        raise InputValidationError(f"Invalid path: {path} - {e}") from e
 
     return abs_path
 
@@ -156,7 +156,7 @@ def validate_file_size(
             )
         return size
     except OSError as e:
-        raise InputValidationError(f"Cannot check file size: {e}")
+        raise InputValidationError(f"Cannot check file size: {e}") from e
 
 
 # ============ Input Schemas ============
@@ -233,7 +233,7 @@ class FileSearchInput(ToolInput):
         try:
             re.compile(v)
         except re.error as e:
-            raise ValueError(f'Invalid regex pattern: {e}')
+            raise ValueError(f'Invalid regex pattern: {e}') from e
         return v
 
 

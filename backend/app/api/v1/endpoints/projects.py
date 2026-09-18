@@ -865,7 +865,7 @@ async def get_project_files(
                         files.append({"path": name, "size": file_info.file_size})
         except Exception as e:
             print(f"Error reading zip file: {e}")
-            raise HTTPException(status_code=500, detail="无法读取项目文件")
+            raise HTTPException(status_code=500, detail="无法读取项目文件") from e
 
     elif project.source_type == "local_directory":
         if not project.local_path:
@@ -956,7 +956,7 @@ async def get_project_files(
             raise
         except Exception as e:
              print(f"Error fetching repo files: {e}")
-             raise HTTPException(status_code=500, detail=f"无法获取仓库文件: {str(e)}")
+             raise HTTPException(status_code=500, detail=f"无法获取仓库文件: {str(e)}") from e
 
     return files
 
@@ -1000,7 +1000,7 @@ async def get_project_file_content(
         try:
             content = await asyncio.to_thread(_read_local_text_file, file_path)
         except UnicodeDecodeError:
-            raise HTTPException(status_code=400, detail="file is not valid UTF-8 text")
+            raise HTTPException(status_code=400, detail="file is not valid UTF-8 text") from None
 
         return _build_file_content_response(relative_path=relative_path, content=content)
 

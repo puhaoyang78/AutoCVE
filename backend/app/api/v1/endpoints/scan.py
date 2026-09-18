@@ -469,7 +469,7 @@ async def instant_analysis(
         raise HTTPException(
             status_code=500,
             detail=f"代码分析失败: {error_msg}"
-        )
+        ) from e
 
     end_time = datetime.now(UTC)
     duration = (end_time - start_time).total_seconds()

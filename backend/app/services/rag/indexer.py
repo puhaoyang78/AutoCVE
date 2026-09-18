@@ -279,7 +279,7 @@ class ChromaVectorStore(VectorStore):
                 logger.info(f"✨ 创建新 collection '{self.collection_name}'")
 
         except ImportError:
-            raise ImportError("chromadb is required. Install with: pip install chromadb")
+            raise ImportError("chromadb is required. Install with: pip install chromadb") from None
 
     @property
     def is_new_collection(self) -> bool:

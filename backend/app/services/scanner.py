@@ -409,7 +409,7 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
                     actual_branch = branch
                     print(f"✅ 通过SSH成功获取 {len(files)} 个文件")
                 except Exception as e:
-                    raise Exception(f"SSH方式获取仓库文件失败: {str(e)}")
+                    raise Exception(f"SSH方式获取仓库文件失败: {str(e)}") from e
             else:
                 # 使用API方式获取文件（原有逻辑）
                 # 构建分支尝试顺序（分支降级机制）

@@ -2754,7 +2754,7 @@ async def get_agent_task(
         return AgentTaskResponse(**response_data)
     except Exception as exc:
         logger.error(f"Error serializing task {task_id}: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to serialize task data: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to serialize task data: {exc}") from exc
 
 
 @router.get("/{task_id}/debug-trace", response_model=DebugTraceResponse)

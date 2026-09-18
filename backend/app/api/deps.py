@@ -29,7 +29,7 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="无法验证凭据",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from None
 
     result = await db.execute(select(User).where(User.id == token_data.sub))
     user = result.scalars().first()

@@ -190,7 +190,7 @@ async def export_database(
 
     except Exception as e:
         print(f"导出数据失败: {e}")
-        raise HTTPException(status_code=500, detail=f"导出数据失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"导出数据失败: {str(e)}") from e
 
 
 class DatabaseImportRequest(BaseModel):
@@ -363,11 +363,11 @@ async def import_database(
         }
 
     except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="无效的 JSON 文件格式")
+        raise HTTPException(status_code=400, detail="无效的 JSON 文件格式") from None
     except Exception as e:
         print(f"导入数据失败: {e}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"导入数据失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"导入数据失败: {str(e)}") from e
 
 
 @router.delete("/clear")
@@ -460,7 +460,7 @@ async def clear_database(
     except Exception as e:
         print(f"清空数据失败: {e}")
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"清空数据失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"清空数据失败: {str(e)}") from e
 
 
 class DatabaseStatsResponse(BaseModel):
@@ -583,7 +583,7 @@ async def get_database_stats(
 
     except Exception as e:
         print(f"获取统计信息失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}") from e
 
 
 class DatabaseHealthResponse(BaseModel):
@@ -690,5 +690,5 @@ async def check_database_health(
 
     except Exception as e:
         print(f"健康检查失败: {e}")
-        raise HTTPException(status_code=500, detail=f"健康检查失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"健康检查失败: {str(e)}") from e
 

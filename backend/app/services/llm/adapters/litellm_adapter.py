@@ -281,30 +281,30 @@ class LiteLLMAdapter(BaseLLMAdapter):
             response = await litellm.acompletion(**kwargs)
         except litellm.exceptions.AuthenticationError as e:
             api_response = self._extract_api_response(e)
-            raise LLMError("API Key 无效或已过期", self.config.provider, 401, api_response=api_response)
+            raise LLMError("API Key 无效或已过期", self.config.provider, 401, api_response=api_response) from e
         except litellm.exceptions.RateLimitError as e:
             error_msg = str(e)
             api_response = self._extract_api_response(e)
             # 区分"余额不足"和"频率超限"
             if any(keyword in error_msg for keyword in ["余额不足", "资源包", "充值", "quota", "insufficient", "balance"]):
-                raise LLMError("账户余额不足或配额已用尽，请充值后重试", self.config.provider, 402, api_response=api_response)
-            raise LLMError("API 调用频率超限，请稍后重试", self.config.provider, 429, api_response=api_response)
+                raise LLMError("账户余额不足或配额已用尽，请充值后重试", self.config.provider, 402, api_response=api_response) from e
+            raise LLMError("API 调用频率超限，请稍后重试", self.config.provider, 429, api_response=api_response) from e
         except litellm.exceptions.APIConnectionError as e:
             api_response = self._extract_api_response(e)
-            raise LLMError("无法连接到 API 服务", self.config.provider, api_response=api_response)
+            raise LLMError("无法连接到 API 服务", self.config.provider, api_response=api_response) from e
         except litellm.exceptions.APIError as e:
             api_response = self._extract_api_response(e)
-            raise LLMError("API 错误", self.config.provider, getattr(e, 'status_code', None), api_response=api_response)
+            raise LLMError("API 错误", self.config.provider, getattr(e, 'status_code', None), api_response=api_response) from e
         except Exception as e:
             # 捕获其他异常并重新抛出
             error_msg = str(e)
             api_response = self._extract_api_response(e)
             if "invalid_api_key" in error_msg.lower() or "incorrect api key" in error_msg.lower():
-                raise LLMError("API Key 无效", self.config.provider, 401, api_response=api_response)
+                raise LLMError("API Key 无效", self.config.provider, 401, api_response=api_response) from e
             elif "authentication" in error_msg.lower():
-                raise LLMError("认证失败", self.config.provider, 401, api_response=api_response)
+                raise LLMError("认证失败", self.config.provider, 401, api_response=api_response) from e
             elif any(keyword in error_msg for keyword in ["余额不足", "资源包", "充值", "quota", "insufficient", "balance"]):
-                raise LLMError("账户余额不足或配额已用尽", self.config.provider, 402, api_response=api_response)
+                raise LLMError("账户余额不足或配额已用尽", self.config.provider, 402, api_response=api_response) from e
             raise
 
         # 解析响应

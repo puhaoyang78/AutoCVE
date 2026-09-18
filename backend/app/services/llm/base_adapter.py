@@ -56,7 +56,7 @@ class BaseLLMAdapter(ABC):
             raise LLMError(
                 f"请求超时 ({timeout}s)",
                 self.config.provider
-            )
+            ) from None
 
     def handle_error(self, error: Any, context: str = "", api_response: str = None) -> None:
         """处理API错误

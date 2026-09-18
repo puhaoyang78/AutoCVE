@@ -97,7 +97,7 @@ async def generate_ssh_key(
 
     except Exception as e:
         logger.error(f"Failed to generate SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="生成SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="生成SSH密钥失败，请稍后重试") from e
 
 
 @router.get("/", response_model=SSHKeyResponse)
@@ -135,7 +135,7 @@ async def get_ssh_key(
 
     except Exception as e:
         logger.error(f"Failed to get SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="获取SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="获取SSH密钥失败，请稍后重试") from e
 
 
 @router.delete("/")
@@ -175,7 +175,7 @@ async def delete_ssh_key(
         raise
     except Exception as e:
         logger.error(f"Failed to delete SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="删除SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="删除SSH密钥失败，请稍后重试") from e
 
 
 @router.post("/test", response_model=SSHKeyTestResponse)
@@ -231,7 +231,7 @@ async def test_ssh_key(
         raise
     except Exception as e:
         logger.error(f"Failed to test SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="测试SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="测试SSH密钥失败，请稍后重试") from e
 
 
 @router.delete("/known-hosts")
@@ -259,4 +259,4 @@ async def clear_known_hosts_file(
         raise
     except Exception as e:
         logger.error(f"Failed to clear known_hosts for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="清理失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="清理失败，请稍后重试") from e
