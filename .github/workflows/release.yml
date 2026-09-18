@@ -32,13 +32,13 @@ jobs:
     steps:
       # 1. 检出代码
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       
       # 2. 设置 Node.js 环境（用于前端构建）
       - name: 设置 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
       
@@ -56,7 +56,7 @@ jobs:
       
       # 5. 设置 pnpm 缓存
       - name: 设置 pnpm 缓存
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -94,7 +94,7 @@ jobs:
       
       # 8. 设置 Python 环境（用于后端）
       - name: 设置 Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
       
@@ -107,27 +107,23 @@ jobs:
           # 打包前端构建产物
           tar -czf release/autocve-frontend-${{ steps.version.outputs.VERSION }}.tar.gz -C frontend/dist .
           
-          # 打包后端源码
+          # 打包后端源码和运行时资产。skill/report 目录是唯一的 canonical 资产源。
           tar -czf release/autocve-backend-${{ steps.version.outputs.VERSION }}.tar.gz \
             --exclude=backend/.venv \
             --exclude=backend/.env \
             --exclude=backend/__pycache__ \
             --exclude=backend/uploads \
-            backend/
+            backend/ \
+            skill_library/ \
+            report_template_library/
           
-          # 打包 Docker 配置文件（包含 Agent 模式配置）
+          # 打包基于预构建 GHCR 镜像的生产部署配置。
           tar -czf release/autocve-docker-${{ steps.version.outputs.VERSION }}.tar.gz \
-            docker-compose.yml \
-            backend/Dockerfile \
-            backend/.dockerignore \
-            frontend/Dockerfile \
-            frontend/.dockerignore \
-            frontend/docker-entrypoint.sh \
+            docker-compose.prod.yml \
+            docker-compose.prod.cn.yml \
             backend/env.example \
-            frontend/.env.example \
-            docker/sandbox/
-          
-          # 打包完整源码（包括配置文件）
+            frontend/.env.example
+                    # 打包完整源码（包括配置文件）
           tar -czf release/autocve-source-${{ steps.version.outputs.VERSION }}.tar.gz \
             --exclude=frontend/node_modules \
             --exclude=frontend/dist \
@@ -184,8 +180,8 @@ jobs:
           echo "" >> CHANGELOG.md
           echo "### 快速部署" >> CHANGELOG.md
           echo "\`\`\`bash" >> CHANGELOG.md
-          echo "# 部署" >> CHANGELOG.md
-          echo "docker compose up -d" >> CHANGELOG.md
+          echo "# 使用本次发布的预构建镜像部署" >> CHANGELOG.md
+          echo "AUTOCVE_IMAGE_OWNER=${{ github.repository_owner }} AUTOCVE_IMAGE_TAG=${{ steps.version.outputs.VERSION }} docker compose -f docker-compose.prod.yml up -d" >> CHANGELOG.md
           echo "\`\`\`" >> CHANGELOG.md
       
       # 12. 创建 GitHub Release
@@ -205,7 +201,7 @@ jobs:
       
       # 13. 登录 GitHub Container Registry
       - name: 登录到 GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -213,15 +209,15 @@ jobs:
       
       # 14. 设置 QEMU（用于多架构构建）
       - name: 设置 QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       
       # 15. 设置 Docker Buildx
       - name: 设置 Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       
       # 16. 构建并推送前端 Docker 镜像
       - name: 构建并推送前端 Docker 镜像
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -237,7 +233,7 @@ jobs:
       
       # 17. 构建并推送后端 Docker 镜像
       - name: 构建并推送后端 Docker 镜像
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./backend/Dockerfile
@@ -251,7 +247,7 @@ jobs:
       
       # 18. 构建并推送沙箱 Docker 镜像
       - name: 构建并推送沙箱 Docker 镜像
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./docker/sandbox
           file: ./docker/sandbox/Dockerfile
@@ -262,16 +258,3 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/autocve-sandbox:latest
           cache-from: type=gha,scope=sandbox
           cache-to: type=gha,mode=max,scope=sandbox
-      
-      # 19. 更新 README 中的版本号
-      - name: 更新 README 版本号
-        if: github.event_name == 'push'
-        run: |
-          VERSION="${{ steps.version.outputs.VERSION_NO_V }}"
-          sed -i "s/version-[0-9]*\.[0-9]*\.[0-9]*/version-$VERSION/g" README.md
-          
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          git commit -m "docs: update README version to $VERSION" || true
-          git push origin HEAD:main || true
