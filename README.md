@@ -120,7 +120,7 @@ EOF
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-首次启动会创建配置的管理员。创建成功后可以从 `.env` 中移除 `INITIAL_ADMIN_PASSWORD`，但不要更换 `SECRET_KEY`。
+首次启动会创建配置的管理员。创建成功后可以从 `.env` 中移除 `INITIAL_ADMIN_EMAIL` 和 `INITIAL_ADMIN_PASSWORD`，但不要更换 `SECRET_KEY`。
 
 ### 🛠️ 源码部署
 

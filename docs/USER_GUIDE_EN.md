@@ -59,7 +59,7 @@ INITIAL_ADMIN_PASSWORD=<strong password with at least 12 characters>
 INITIAL_ADMIN_NAME=Administrator
 ```
 
-The administrator is created on the first startup. After it is created successfully, `INITIAL_ADMIN_PASSWORD` can be removed from the configuration, while `SECRET_KEY` must remain stable.
+The administrator is created on the first startup. After it is created successfully, `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` can be removed from the configuration, while `SECRET_KEY` must remain stable.
 
 ## 2. Quick Start
 
@@ -109,7 +109,7 @@ Open:
 http://localhost:3000
 ```
 
-Log in with `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` configured in `backend/.env`. After the first successful login, it is recommended to remove `INITIAL_ADMIN_PASSWORD` from the configuration and manage later password changes through account settings.
+Log in with `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` configured in `backend/.env`. After the first successful login, it is recommended to remove `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from the configuration and manage later email or password changes through account settings.
 
 After logging in, it is recommended to complete two things first:
 

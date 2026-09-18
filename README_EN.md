@@ -120,7 +120,7 @@ EOF
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-The configured administrator is created on the first startup. After successful creation, `INITIAL_ADMIN_PASSWORD` can be removed from `.env`, but `SECRET_KEY` must remain unchanged.
+The configured administrator is created on the first startup. After successful creation, `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` can be removed from `.env`, but `SECRET_KEY` must remain unchanged.
 
 ### 🛠️ Source Deployment
 

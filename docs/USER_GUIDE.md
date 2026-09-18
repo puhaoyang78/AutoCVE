@@ -59,7 +59,7 @@ INITIAL_ADMIN_PASSWORD=<至少 12 位的强密码>
 INITIAL_ADMIN_NAME=Administrator
 ```
 
-首次启动会创建该管理员。创建成功后可以从配置中移除 `INITIAL_ADMIN_PASSWORD`，但 `SECRET_KEY` 必须长期保持不变。
+首次启动会创建该管理员。创建成功后可以从配置中移除 `INITIAL_ADMIN_EMAIL` 和 `INITIAL_ADMIN_PASSWORD`，但 `SECRET_KEY` 必须长期保持不变。
 
 ## 2. 快速开始
 
@@ -109,7 +109,7 @@ docker compose ps
 http://localhost:3000
 ```
 
-使用 `backend/.env` 中配置的 `INITIAL_ADMIN_EMAIL` 和 `INITIAL_ADMIN_PASSWORD` 登录。首次登录成功后，建议从配置中移除 `INITIAL_ADMIN_PASSWORD`，后续密码修改通过账户设置完成。
+使用 `backend/.env` 中配置的 `INITIAL_ADMIN_EMAIL` 和 `INITIAL_ADMIN_PASSWORD` 登录。首次登录成功后，建议从配置中移除 `INITIAL_ADMIN_EMAIL` 和 `INITIAL_ADMIN_PASSWORD`；后续邮箱和密码修改通过账户设置完成。
 
 登录后建议先完成两件事：
 
