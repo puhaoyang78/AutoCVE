@@ -44,7 +44,6 @@ bcrypt==4.3.0
     # via
     #   autocve-backend (pyproject.toml)
     #   chromadb
-    #   passlib
 beautifulsoup4==4.14.3
     # via autocve-backend (pyproject.toml)
 boolean-py==5.0
@@ -356,8 +355,6 @@ packaging==25.0
     #   pip-requirements-parser
     #   safety
     #   safety-schemas
-passlib==1.7.4
-    # via autocve-backend (pyproject.toml)
 phply==1.2.6
     # via autocve-backend (pyproject.toml)
 pillow==12.0.0
