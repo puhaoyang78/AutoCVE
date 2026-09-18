@@ -994,24 +994,6 @@ async def _auto_generate_managed_vulnerability_reports(
 
         try:
             if session is not None:
-                # Runtime report generation writes its own committed transcript message
-                # through AuditSessionStore before the continuation starts.
-                pass
-            elif session is not None:
-                await _append_internal_audit_session_message(
-                    db,
-                    session_id=session.id,
-                    role='user',
-                    content=prompt,
-                    name='managed_report_generator',
-                    metadata={
-                        'kind': 'internal_managed_report_request',
-                        'finding_id': finding.id,
-                        'managed_vulnerability_id': managed.id,
-                        'report_slug': _managed_report_slug(managed),
-                    },
-                )
-            if session is not None:
                 generated_bundle = await _generate_managed_report_bundle_from_session(
                     db,
                     session=session,

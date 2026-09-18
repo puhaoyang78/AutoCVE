@@ -664,13 +664,31 @@ async def test_auto_generate_managed_reports_when_verification_disabled(monkeypa
             managed_vulnerability,
             report_service,
         ):
-            del db_session, task, finding
+            del task
             captured['session_id'] = session.id
             captured['managed_vulnerability_id'] = managed_vulnerability.id
             prompt = report_service.build_generation_prompt(vulnerability=managed_vulnerability)
             assert 'cve-report-writer' not in prompt
             assert 'Read/Grep/Glob/Skill' not in prompt
             assert 'FinalizeVulnerabilityReports' in prompt
+            context_message = report_service.build_generation_context_message(
+                vulnerability=managed_vulnerability,
+                finding_id=finding.id,
+                report_slug=agent_tasks_endpoint._managed_report_slug(managed_vulnerability),
+            )
+            await agent_tasks_endpoint._append_internal_audit_session_message(
+                db_session,
+                session_id=session.id,
+                role='user',
+                content=context_message,
+                name='managed_report_generator',
+                metadata={
+                    'kind': 'internal_managed_report_request',
+                    'finding_id': finding.id,
+                    'managed_vulnerability_id': managed_vulnerability.id,
+                    'report_slug': agent_tasks_endpoint._managed_report_slug(managed_vulnerability),
+                },
+            )
             return GeneratedReportBundle(
                 report_en='# EN\n\n## Summary\n\n## Details\napp/api.py reaches httpx.get.\n\nCore vulnerable code path:\n\n```python\nresponse = httpx.get(target, timeout=5)\n```\n\n## POC\n\n## Impact\n\n## Remediation\n\n## Disclosure Notes\n\n## Supplemental Information\n\n### Affected products\n- Ecosystem: self-hosted\n- Package name: demo-app\n- Affected versions: to be confirmed\n- Patched versions: none confirmed\n\n### Severity\n- Scoring method: CVSS v3.1\n- Score: 8.6\n- Vector string: CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N\n\n### Weaknesses\n- CWE: CWE-918 Server-Side Request Forgery (SSRF)',
                 report_zh='# ZH\n\n## Summary\n\n## Details\napp/api.py reaches httpx.get.\n\nCore vulnerable code path:\n\n```python\nresponse = httpx.get(target, timeout=5)\n```\n\n## POC\n\n## Impact\n\n## Remediation\n\n## Disclosure Notes\n\n## 补充信息\n\n### Affected products\n- Ecosystem: self-hosted\n- Package name: demo-app\n- Affected versions: to be confirmed\n- Patched versions: none confirmed\n\n### Severity\n- Scoring method: CVSS v3.1\n- Score: 8.6\n- Vector string: CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N\n\n### Weaknesses\n- CWE: CWE-918 Server-Side Request Forgery (SSRF)',

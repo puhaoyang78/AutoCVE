@@ -274,7 +274,7 @@ def test_shared_tool_runtime_converts_ask_permission_rules_into_denied_tool_reco
     snapshot = store.load_session_snapshot(session_id)
 
     assert records[0].status == AuditToolCallStatus.DENIED.value
-    assert "approval" in (records[0].error_message or "").lower()
+    assert "批准" in (records[0].error_message or "")
     assert snapshot.tool_calls[0].status == AuditToolCallStatus.DENIED.value
     assert snapshot.checkpoints[0].state_payload["event"] == "PermissionDenied"
     assert snapshot.checkpoints[0].state_payload["source"] == "permission_rule"
