@@ -11,7 +11,6 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.token import Token
-from app.schemas.user import User as UserSchema
 
 router = APIRouter()
 
