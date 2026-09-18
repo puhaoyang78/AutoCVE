@@ -110,7 +110,7 @@ Finding Agent is AutoCVE's core audit capability and is designed specifically fo
 No need to clone the repository. Start it with one command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/larlarua/AutoCVE/v1.0.0/docker-compose.prod.yml \
+curl -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml \
   | docker compose -f - up -d
 ```
 
@@ -119,7 +119,7 @@ curl -fsSL https://raw.githubusercontent.com/larlarua/AutoCVE/v1.0.0/docker-comp
 Suitable for local development, feature debugging, or secondary development:
 
 ```bash
-git clone https://github.com/larlarua/AutoCVE.git
+git clone https://github.com/puhaoyang78/AutoCVE.git
 cd AutoCVE
 docker compose up -d --build
 ```

@@ -112,12 +112,12 @@ Finding Agent 是 AutoCVE 的核心审计能力，专为 CVE 挖掘场景设计�
 Linux / macOS / Git Bash :
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/larlarua/AutoCVE/v1.0.5/docker-compose.prod.yml \
+curl -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml \
   | docker compose -f - up -d
 ```
 Windows PowerShell / CMD :
 ```bash
-curl.exe -fsSL https://raw.githubusercontent.com/larlarua/AutoCVE/v1.0.5/docker-compose.prod.yml | docker compose -f - up -d
+curl.exe -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml | docker compose -f - up -d
 ```
 
 ### 🛠️ 源码部署
@@ -125,7 +125,7 @@ curl.exe -fsSL https://raw.githubusercontent.com/larlarua/AutoCVE/v1.0.5/docker-
 适用于本地开发、功能调试或二次开发：
 
 ```bash
-git clone https://github.com/larlarua/AutoCVE.git
+git clone https://github.com/puhaoyang78/AutoCVE.git
 cd AutoCVE
 docker compose up -d --build
 ```
