@@ -48,8 +48,9 @@ async def test_create_initial_admin_rejects_partial_configuration(monkeypatch):
     monkeypatch.setattr(settings, "INITIAL_ADMIN_PASSWORD", None)
 
     db = MagicMock()
+    db.execute = AsyncMock(return_value=_ExecuteResult(None))
 
-    with pytest.raises(RuntimeError, match="must be configured together"):
+    with pytest.raises(RuntimeError, match="required to create"):
         await create_initial_admin(db)
 
 
