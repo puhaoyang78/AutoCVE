@@ -16,7 +16,6 @@ from app.services.runtime_core.memory_runtime import (
     build_runtime_memory_prompt,
 )
 
-
 WORKTREE_ROOT = Path(__file__).resolve().parents[3]
 
 

@@ -5,8 +5,8 @@ import copy
 import json
 import os
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -21,8 +21,8 @@ from app.core.encryption import decrypt_sensitive_data
 from app.db.session import get_db
 from app.models.agent_task import AgentFinding, AgentTask, FindingStatus
 from app.models.audit_session import (
-    AuditHandoff,
     AuditCheckpoint,
+    AuditHandoff,
     AuditMemory,
     AuditModelStreamAttempt,
     AuditSession,
@@ -40,14 +40,14 @@ from app.models.one_click_cve import (
     OneClickCveProjectStatus,
 )
 from app.models.project import Project
-from app.schemas.managed_vulnerability import ManagedVulnerabilityDetailResponse
 from app.models.user import User
+from app.schemas.managed_vulnerability import ManagedVulnerabilityDetailResponse
 from app.services.agent.tools.sandbox_tool import SandboxManager
 from app.services.audit_chat_runtime.bridge import AuditChatRuntimeBridge
 from app.services.finding_runtime.bridge import FindingRuntimeBridge
+from app.services.finding_runtime.resume_queue import enqueue_audit_session_resume
 from app.services.llm.service import LLMService
 from app.services.runtime_core.runtime_guardrails import is_guardrails_enabled
-from app.services.finding_runtime.resume_queue import enqueue_audit_session_resume
 
 router = APIRouter()
 
@@ -55,17 +55,17 @@ router = APIRouter()
 class AuditSessionResponse(BaseModel):
     id: str
     project_id: str
-    task_id: Optional[str] = None
+    task_id: str | None = None
     runtime_stack: str
     state: str
-    system_prompt: Optional[str] = None
-    recon_payload: Optional[dict[str, Any]] = None
+    system_prompt: str | None = None
+    recon_payload: dict[str, Any] | None = None
     guardrails_enabled: bool = False
     created_at: datetime
     updated_at: datetime
     can_resume: bool = False
-    last_error_kind: Optional[str] = None
-    resume_status: Optional[str] = None
+    last_error_kind: str | None = None
+    resume_status: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -76,7 +76,7 @@ class AuditSessionMessageResponse(BaseModel):
     sequence: int
     role: str
     content: str
-    name: Optional[str] = None
+    name: str | None = None
     metadata: dict[str, Any]
     payload: dict[str, Any]
     created_at: datetime
@@ -100,10 +100,10 @@ class AuditSessionToolCallResponse(BaseModel):
     is_concurrency_safe: bool
     input_payload: dict[str, Any]
     output_payload: dict[str, Any]
-    error_message: Optional[str] = None
-    duration_ms: Optional[int] = None
+    error_message: str | None = None
+    duration_ms: int | None = None
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -114,11 +114,11 @@ class AuditModelStreamAttemptResponse(BaseModel):
     turn_id: str
     attempt_number: int
     status: str
-    error_kind: Optional[str] = None
-    error_message: Optional[str] = None
+    error_kind: str | None = None
+    error_message: str | None = None
     provider_request_count: int
     started_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -128,8 +128,8 @@ class AuditSessionSkillResponse(BaseModel):
     session_id: str
     skill_ref: str
     name: str
-    description: Optional[str] = None
-    source_type: Optional[str] = None
+    description: str | None = None
+    source_type: str | None = None
     enabled: bool
     matched: bool
     skill_metadata: dict[str, Any]
@@ -147,7 +147,7 @@ class AuditSessionSkillInvocationResponse(BaseModel):
     status: str
     input_payload: dict[str, Any]
     output_payload: dict[str, Any]
-    error_message: Optional[str] = None
+    error_message: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -162,7 +162,7 @@ class AuditSessionMemoryResponse(BaseModel):
     source_type: str
     source_ref: str
     content: str
-    relevance_score: Optional[int] = None
+    relevance_score: int | None = None
     metadata_json: dict[str, Any]
     created_at: datetime
 
@@ -297,7 +297,11 @@ async def _build_runtime_follow_up_context(
     session: AuditSession,
     db: AsyncSession,
 ) -> tuple[FindingRuntimeBridge, SandboxManager, str, int | None]:
-    from app.api.v1.endpoints.agent_tasks import _get_project_root, _get_user_config, _initialize_tools
+    from app.api.v1.endpoints.agent_tasks import (
+        _get_project_root,
+        _get_user_config,
+        _initialize_tools,
+    )
 
     task = await db.get(AgentTask, session.task_id) if session.task_id else None
     project = await db.get(Project, session.project_id)
@@ -370,7 +374,11 @@ async def _build_audit_chat_follow_up_context(
     session: AuditSession,
     db: AsyncSession,
 ) -> tuple[AuditChatRuntimeBridge, SandboxManager, str, int | None]:
-    from app.api.v1.endpoints.agent_tasks import _get_project_root, _get_user_config, _initialize_tools
+    from app.api.v1.endpoints.agent_tasks import (
+        _get_project_root,
+        _get_user_config,
+        _initialize_tools,
+    )
 
     task = await db.get(AgentTask, session.task_id) if session.task_id else None
     project = await db.get(Project, session.project_id)
@@ -485,7 +493,7 @@ async def queue_runtime_session_resume(
     metadata["resume_job"] = {
         "token": resume_token,
         "status": "queued",
-        "queued_at": datetime.now(timezone.utc).isoformat(),
+        "queued_at": datetime.now(UTC).isoformat(),
         "can_resume": False,
         "error_kind": None,
     }
@@ -505,7 +513,7 @@ async def queue_runtime_session_resume(
     if batch_project is not None:
         batch_project.status = OneClickCveProjectStatus.AUDITING
         batch_project.error_message = None
-        batch_project.updated_at_local = datetime.now(timezone.utc)
+        batch_project.updated_at_local = datetime.now(UTC)
     await db.commit()
 
     try:
@@ -531,13 +539,13 @@ async def queue_runtime_session_resume(
             message = "继续审计队列不可用，已停止整个一键 CVE"
             batch_project.status = OneClickCveProjectStatus.FAILED
             batch_project.error_message = message
-            batch_project.updated_at_local = datetime.now(timezone.utc)
+            batch_project.updated_at_local = datetime.now(UTC)
             batch = await db.get(OneClickCveBatch, batch_project.batch_id)
             if batch is not None:
                 batch.status = OneClickCveBatchStatus.FAILED
                 batch.error_message = message
                 batch.current_step = message
-                batch.completed_at = datetime.now(timezone.utc)
+                batch.completed_at = datetime.now(UTC)
         await db.commit()
         raise HTTPException(status_code=503, detail="Resume queue is temporarily unavailable") from exc
     return session, True
@@ -1006,7 +1014,7 @@ async def stream_audit_session_message(
                         while True:
                             try:
                                 event = await asyncio.wait_for(queue.get(), timeout=15.0)
-                            except asyncio.TimeoutError:
+                            except TimeoutError:
                                 yield _format_sse_event({"type": "heartbeat"})
                                 continue
                             if event is None:

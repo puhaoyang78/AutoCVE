@@ -1,11 +1,11 @@
 """LLM service type definitions."""
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 
 
-class LLMProvider(str, Enum):
+class LLMProvider(StrEnum):
     """Supported LLM providers."""
 
     GEMINI = "gemini"
@@ -29,16 +29,16 @@ class LLMConfig:
     provider: LLMProvider
     api_key: str
     model: str
-    base_url: Optional[str] = None
+    base_url: str | None = None
     timeout: int = 300
-    temperature: Optional[float] = None
+    temperature: float | None = None
     max_tokens: int = 4096
-    top_p: Optional[float] = None
+    top_p: float | None = None
     frequency_penalty: float = 0
     presence_penalty: float = 0
     endpoint_protocol: str = "openai_compatible"
     tool_message_format: str = "auto"
-    custom_headers: Dict[str, str] = field(default_factory=dict)
+    custom_headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -47,13 +47,13 @@ class LLMMessage:
 
     role: str
     content: Any
-    name: Optional[str] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    tool_call_id: Optional[str] = None
-    reasoning_content: Optional[str] = None
+    name: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    tool_call_id: str | None = None
+    reasoning_content: str | None = None
 
     @classmethod
-    def from_dict(cls, item: Dict[str, Any]) -> "LLMMessage":
+    def from_dict(cls, item: dict[str, Any]) -> "LLMMessage":
         return cls(
             role=str(item["role"]),
             content=item.get("content"),
@@ -63,8 +63,8 @@ class LLMMessage:
             reasoning_content=item.get("reasoning_content"),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
-        data: Dict[str, Any] = {"role": self.role, "content": self.content}
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"role": self.role, "content": self.content}
         if self.name is not None:
             data["name"] = self.name
         if self.tool_calls is not None:
@@ -80,12 +80,12 @@ class LLMMessage:
 class LLMRequest:
     """LLM request parameters."""
 
-    messages: List[LLMMessage]
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    top_p: Optional[float] = None
-    tools: Optional[List[Dict[str, Any]]] = None
-    parallel_tool_calls: Optional[bool] = None
+    messages: list[LLMMessage]
+    temperature: float | None = None
+    max_tokens: int | None = None
+    top_p: float | None = None
+    tools: list[dict[str, Any]] | None = None
+    parallel_tool_calls: bool | None = None
     stream: bool = False
 
 
@@ -103,11 +103,11 @@ class LLMResponse:
     """LLM response."""
 
     content: str
-    model: Optional[str] = None
-    usage: Optional[LLMUsage] = None
-    finish_reason: Optional[str] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    reasoning_content: Optional[str] = None
+    model: str | None = None
+    usage: LLMUsage | None = None
+    finish_reason: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    reasoning_content: str | None = None
 
 
 class LLMError(Exception):
@@ -116,10 +116,10 @@ class LLMError(Exception):
     def __init__(
         self,
         message: str,
-        provider: Optional[LLMProvider] = None,
-        status_code: Optional[int] = None,
-        original_error: Optional[Any] = None,
-        api_response: Optional[str] = None,
+        provider: LLMProvider | None = None,
+        status_code: int | None = None,
+        original_error: Any | None = None,
+        api_response: str | None = None,
     ):
         super().__init__(message)
         self.provider = provider
@@ -128,7 +128,7 @@ class LLMError(Exception):
         self.api_response = api_response
 
 
-DEFAULT_MODELS: Dict[LLMProvider, str] = {
+DEFAULT_MODELS: dict[LLMProvider, str] = {
     LLMProvider.GEMINI: "gemini-3.5-flash",
     LLMProvider.OPENAI: "gpt-5.5",
     LLMProvider.CLAUDE: "claude-opus-4-8",
@@ -144,7 +144,7 @@ DEFAULT_MODELS: Dict[LLMProvider, str] = {
 }
 
 
-DEFAULT_BASE_URLS: Dict[LLMProvider, str] = {
+DEFAULT_BASE_URLS: dict[LLMProvider, str] = {
     LLMProvider.OPENAI: "https://api.openai.com/v1",
     LLMProvider.QWEN: "https://dashscope.aliyuncs.com/compatible-mode/v1",
     LLMProvider.DEEPSEEK: "https://api.deepseek.com",

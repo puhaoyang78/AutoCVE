@@ -5,14 +5,14 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class StreamEventType(str, Enum):
+class StreamEventType(StrEnum):
     LLM_START = "llm_start"
     LLM_THOUGHT = "llm_thought"
     LLM_DECISION = "llm_decision"
@@ -47,12 +47,12 @@ class StreamEventType(str, Enum):
 @dataclass
 class StreamEvent:
     event_type: StreamEventType
-    data: Dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    data: dict[str, Any] = field(default_factory=dict)
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     sequence: int = 0
-    node_name: Optional[str] = None
-    phase: Optional[str] = None
-    tool_name: Optional[str] = None
+    node_name: str | None = None
+    phase: str | None = None
+    tool_name: str | None = None
 
     def to_sse(self) -> str:
         event_data = {
@@ -69,7 +69,7 @@ class StreamEvent:
             event_data["tool"] = self.tool_name
         return f"event: {self.event_type.value}\ndata: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "event_type": self.event_type.value,
             "data": self.data,
@@ -87,16 +87,16 @@ class StreamHandler:
     def __init__(self, task_id: str):
         self.task_id = task_id
         self._sequence = 0
-        self._current_phase: Optional[str] = None
-        self._current_node: Optional[str] = None
+        self._current_phase: str | None = None
+        self._current_node: str | None = None
         self._thinking_buffer: list[str] = []
-        self._tool_states: Dict[str, Dict[str, Any]] = {}
+        self._tool_states: dict[str, dict[str, Any]] = {}
 
     def _next_sequence(self) -> int:
         self._sequence += 1
         return self._sequence
 
-    async def process_langgraph_event(self, event: Dict[str, Any]) -> Optional[StreamEvent]:
+    async def process_langgraph_event(self, event: dict[str, Any]) -> StreamEvent | None:
         event_kind = event.get("event", "")
         event_name = event.get("name", "")
         event_data = event.get("data", {})
@@ -139,7 +139,7 @@ class StreamHandler:
         ]
         return any(token.lower() in name.lower() for token in node_names)
 
-    async def _handle_llm_start(self, data: Dict[str, Any], name: str) -> StreamEvent:
+    async def _handle_llm_start(self, data: dict[str, Any], name: str) -> StreamEvent:
         self._thinking_buffer = []
         return StreamEvent(
             event_type=StreamEventType.THINKING_START,
@@ -149,7 +149,7 @@ class StreamHandler:
             data={"model": name, "message": "LLM thinking started"},
         )
 
-    async def _handle_llm_stream(self, data: Dict[str, Any], name: str) -> Optional[StreamEvent]:
+    async def _handle_llm_stream(self, data: dict[str, Any], name: str) -> StreamEvent | None:
         chunk = data.get("chunk")
         if not chunk:
             return None
@@ -167,7 +167,7 @@ class StreamHandler:
             data={"token": content, "accumulated": "".join(self._thinking_buffer)},
         )
 
-    async def _handle_llm_end(self, data: Dict[str, Any], name: str) -> StreamEvent:
+    async def _handle_llm_end(self, data: dict[str, Any], name: str) -> StreamEvent:
         full_response = "".join(self._thinking_buffer)
         self._thinking_buffer = []
         usage = {}
@@ -186,7 +186,7 @@ class StreamHandler:
             data={"response": full_response[:2000], "usage": usage, "message": "LLM thinking finished"},
         )
 
-    async def _handle_tool_start(self, tool_name: str, data: Dict[str, Any]) -> StreamEvent:
+    async def _handle_tool_start(self, tool_name: str, data: dict[str, Any]) -> StreamEvent:
         tool_input = data.get("input", {})
         self._tool_states[tool_name] = {"start_time": time.time(), "input": tool_input}
         return StreamEvent(
@@ -198,7 +198,7 @@ class StreamHandler:
             data={"tool_name": tool_name, "input": self._truncate_data(tool_input), "message": f"Calling tool: {tool_name}"},
         )
 
-    async def _handle_tool_end(self, tool_name: str, data: Dict[str, Any]) -> StreamEvent:
+    async def _handle_tool_end(self, tool_name: str, data: dict[str, Any]) -> StreamEvent:
         state = self._tool_states.pop(tool_name, {})
         duration_ms = None
         if state.get("start_time"):
@@ -219,7 +219,7 @@ class StreamHandler:
             },
         )
 
-    async def _handle_node_start(self, node_name: str, data: Dict[str, Any]) -> StreamEvent:
+    async def _handle_node_start(self, node_name: str, data: dict[str, Any]) -> StreamEvent:
         self._current_node = node_name
         lowered = node_name.lower()
         phase_map = {
@@ -244,7 +244,7 @@ class StreamHandler:
             data={"node_name": node_name, "input": self._truncate_data(data.get("input", data)), "message": f"Node started: {node_name}"},
         )
 
-    async def _handle_node_end(self, node_name: str, data: Dict[str, Any]) -> StreamEvent:
+    async def _handle_node_end(self, node_name: str, data: dict[str, Any]) -> StreamEvent:
         event = StreamEvent(
             event_type=StreamEventType.NODE_END,
             sequence=self._next_sequence(),
@@ -255,7 +255,7 @@ class StreamHandler:
         self._current_node = None
         return event
 
-    async def _handle_custom_event(self, event_name: str, data: Dict[str, Any]) -> StreamEvent:
+    async def _handle_custom_event(self, event_name: str, data: dict[str, Any]) -> StreamEvent:
         event_type_map = {
             "finding": StreamEventType.FINDING_NEW,
             "finding_verified": StreamEventType.FINDING_VERIFIED,
@@ -288,7 +288,7 @@ class StreamHandler:
             return [self._truncate_data(item, max_length) for item in data[:20]]
         return data
 
-    def create_progress_event(self, progress_percent: float, message: str, phase: Optional[str] = None, node_name: Optional[str] = None) -> StreamEvent:
+    def create_progress_event(self, progress_percent: float, message: str, phase: str | None = None, node_name: str | None = None) -> StreamEvent:
         return StreamEvent(
             event_type=StreamEventType.PROGRESS,
             sequence=self._next_sequence(),
@@ -297,7 +297,7 @@ class StreamHandler:
             data={"progress_percent": progress_percent, "message": message},
         )
 
-    def create_finding_event(self, finding: Dict[str, Any], is_verified: bool = False, node_name: Optional[str] = None) -> StreamEvent:
+    def create_finding_event(self, finding: dict[str, Any], is_verified: bool = False, node_name: str | None = None) -> StreamEvent:
         return StreamEvent(
             event_type=StreamEventType.FINDING_VERIFIED if is_verified else StreamEventType.FINDING_NEW,
             sequence=self._next_sequence(),

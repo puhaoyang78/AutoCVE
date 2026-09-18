@@ -34,10 +34,9 @@ import logging
 import os
 import sys
 import tempfile
-import subprocess
-from typing import Optional, List, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
-from pathlib import Path
 
 from .base import AgentTool, ToolResult
 
@@ -55,15 +54,15 @@ class KunlunScanInput(BaseModel):
     target_path: str = Field(
         description="要扫描的目录或文件路径（相对于项目根目录）"
     )
-    language: Optional[str] = Field(
+    language: str | None = Field(
         default=None,
         description="指定扫描语言: php, javascript, solidity, chromeext。不指定则自动检测"
     )
-    rules: Optional[str] = Field(
+    rules: str | None = Field(
         default=None,
         description="指定规则ID，多个规则用逗号分隔，如: 1000,1001,1002"
     )
-    tamper: Optional[str] = Field(
+    tamper: str | None = Field(
         default=None,
         description="指定 tamper 名称，用于自定义修复函数检测"
     )
@@ -79,7 +78,7 @@ class KunlunScanInput(BaseModel):
 
 class KunlunRuleListInput(BaseModel):
     """Kunlun-M 规则列表输入"""
-    language: Optional[str] = Field(
+    language: str | None = Field(
         default=None,
         description="按语言过滤规则: php, javascript, solidity, chromeext"
     )
@@ -238,9 +237,9 @@ Kunlun-M 是一款专注于代码安全审计的工具，特别擅长 PHP 和 Ja
     async def _execute(
         self,
         target_path: str = ".",
-        language: Optional[str] = None,
-        rules: Optional[str] = None,
-        tamper: Optional[str] = None,
+        language: str | None = None,
+        rules: str | None = None,
+        tamper: str | None = None,
         include_unconfirmed: bool = False,
         max_results: int = 50,
         **kwargs
@@ -329,7 +328,7 @@ Kunlun-M 是一款专注于代码安全审计的工具，特别擅长 PHP 和 Ja
             # 清理临时文件
             try:
                 os.unlink(output_file)
-            except:
+            except Exception:
                 pass
 
             if not findings:
@@ -357,7 +356,7 @@ Kunlun-M 是一款专注于代码安全审计的工具，特别擅长 PHP 和 Ja
                 }
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ToolResult(
                 success=False,
                 error="Kunlun-M 扫描超时（10分钟）"
@@ -374,14 +373,14 @@ Kunlun-M 是一款专注于代码安全审计的工具，特别擅长 PHP 和 Ja
         stdout: str,
         stderr: str,
         output_file: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """解析 Kunlun-M 扫描结果"""
         findings = []
 
         # 尝试从输出文件读取 JSON
         try:
             if os.path.exists(output_file):
-                with open(output_file, 'r', encoding='utf-8') as f:
+                with open(output_file, encoding='utf-8') as f:
                     data = json.load(f)
                     if isinstance(data, list):
                         findings.extend(data)
@@ -399,7 +398,7 @@ Kunlun-M 是一款专注于代码安全审计的工具，特别擅长 PHP 和 Ja
                 if json_start >= 0 and json_end > json_start:
                     json_str = stdout[json_start:json_end]
                     findings = json.loads(json_str)
-            except:
+            except Exception:
                 pass
 
             # 尝试解析表格格式输出
@@ -408,7 +407,7 @@ Kunlun-M 是一款专注于代码安全审计的工具，特别擅长 PHP 和 Ja
 
         return findings
 
-    def _parse_table_output(self, output: str) -> List[Dict[str, Any]]:
+    def _parse_table_output(self, output: str) -> list[dict[str, Any]]:
         """解析 Kunlun-M 表格格式输出"""
         findings = []
         lines = output.split('\n')
@@ -429,15 +428,15 @@ Kunlun-M 是一款专注于代码安全审计的工具，特别擅长 PHP 和 Ja
                             "analysis": parts[7] if len(parts) > 7 else "",
                         }
                         findings.append(finding)
-                    except:
+                    except Exception:
                         pass
 
         return findings
 
-    def _format_findings(self, findings: List[Dict[str, Any]], target: str) -> str:
+    def _format_findings(self, findings: list[dict[str, Any]], target: str) -> str:
         """格式化漏洞发现"""
         output_parts = [
-            f"🔍 Kunlun-M 扫描结果",
+            "🔍 Kunlun-M 扫描结果",
             f"目标: {target}",
             f"发现 {len(findings)} 个潜在安全问题:\n"
         ]
@@ -523,7 +522,7 @@ class KunlunRuleListTool(AgentTool):
 
     async def _execute(
         self,
-        language: Optional[str] = None,
+        language: str | None = None,
         **kwargs
     ) -> ToolResult:
         """列出可用规则"""
@@ -573,7 +572,7 @@ class KunlunRuleListTool(AgentTool):
                 metadata={"language": language}
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ToolResult(
                 success=False,
                 error="获取规则列表超时"
@@ -711,7 +710,7 @@ class KunlunPluginTool(AgentTool):
                 metadata={"plugin": plugin_name, "target": target_path}
             )
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return ToolResult(
                 success=False,
                 error=f"插件 {plugin_name} 执行超时"

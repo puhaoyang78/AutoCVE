@@ -2,8 +2,7 @@
 竞态条件漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 RACE_CONDITION = KnowledgeDocument(
     id="vuln_race_condition",
@@ -86,13 +85,13 @@ from sqlalchemy import select
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
     amount = request.json['amount']
-    
+
     with db.begin():
         # 行级锁
         user = db.execute(
             select(User).where(User.id == current_user.id).with_for_update()
         ).scalar_one()
-        
+
         if user.balance >= amount:
             user.balance -= amount
             return transfer_money(amount)

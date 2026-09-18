@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from app.services.scan_runtime.executors import SemgrepScanExecutor
-from app.services.scan_runtime.models import DEFAULT_SEMGREP_CONFIGS, ScannerExecutionResult, ScannerRequest
+from app.services.scan_runtime.models import (
+    DEFAULT_SEMGREP_CONFIGS,
+    ScannerExecutionResult,
+    ScannerRequest,
+)
 from app.services.scan_runtime.store import ScanResultStore
 
 

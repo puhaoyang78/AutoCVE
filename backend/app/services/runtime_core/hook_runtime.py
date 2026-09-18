@@ -52,7 +52,7 @@ class SubprocessHookCommandRunner:
                 await process.wait()
             else:
                 await asyncio.wait_for(process.wait(), timeout_ms / 1000)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timed_out = True
             process.kill()
             await process.wait()

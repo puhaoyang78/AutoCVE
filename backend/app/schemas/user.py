@@ -1,18 +1,19 @@
-from typing import Optional, List
+
 from pydantic import BaseModel, ConfigDict, EmailStr
 
+
 class UserBase(BaseModel):
-    email: Optional[EmailStr] = None
-    is_active: Optional[bool] = True
+    email: EmailStr | None = None
+    is_active: bool | None = True
     is_superuser: bool = False
-    full_name: Optional[str] = None
-    
+    full_name: str | None = None
+
     # Profile fields
-    phone: Optional[str] = None
-    avatar_url: Optional[str] = None
+    phone: str | None = None
+    avatar_url: str | None = None
     role: str = "member"
-    github_username: Optional[str] = None
-    gitlab_username: Optional[str] = None
+    github_username: str | None = None
+    gitlab_username: str | None = None
 
 class UserCreate(UserBase):
     email: EmailStr
@@ -20,12 +21,12 @@ class UserCreate(UserBase):
     full_name: str
 
 class UserUpdate(UserBase):
-    password: Optional[str] = None
+    password: str | None = None
 
 class UserInDBBase(UserBase):
     id: str
-    created_at: Optional[object] = None # Datetime
-    updated_at: Optional[object] = None
+    created_at: object | None = None # Datetime
+    updated_at: object | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -33,7 +34,7 @@ class User(UserInDBBase):
     pass
 
 class UserListResponse(BaseModel):
-    users: List[User]
+    users: list[User]
     total: int
     skip: int
     limit: int

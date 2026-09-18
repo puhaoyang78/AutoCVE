@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from html import escape
-from typing import Any, Iterable
+from typing import Any
 
 from app.models.audit_session import AuditSkillInvocationStatus
 from app.services.agent.skill_service import SkillService
 from app.services.runtime_core.skill_mentions import ExplicitSkillMention
 from app.services.runtime_core.skill_runtime import SkillInvocationRuntime
-
 
 _BODY_STAGES = {"body", "references", "examples", "scripts", "full"}
 

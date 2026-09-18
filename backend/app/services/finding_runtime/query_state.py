@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.services.finding_runtime.models import RuntimeContinueReason, RuntimeMessageRole, TranscriptItem
+from app.services.finding_runtime.models import (
+    RuntimeContinueReason,
+    RuntimeMessageRole,
+    TranscriptItem,
+)
 
 
 @dataclass(slots=True)

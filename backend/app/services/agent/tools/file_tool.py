@@ -10,15 +10,15 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from .base import AgentTool, ToolResult
 
 
-def _build_allowed_roots(project_root: str, additional_roots: Optional[List[str]] = None) -> List[str]:
-    roots: List[str] = []
+def _build_allowed_roots(project_root: str, additional_roots: list[str] | None = None) -> list[str]:
+    roots: list[str] = []
     for raw_root in [project_root, *(additional_roots or [])]:
         normalized = os.path.realpath(str(raw_root or "").strip())
         if normalized and normalized not in roots:
@@ -26,7 +26,7 @@ def _build_allowed_roots(project_root: str, additional_roots: Optional[List[str]
     return roots
 
 
-def _resolve_allowed_path(path_value: str, allowed_roots: List[str]) -> Optional[str]:
+def _resolve_allowed_path(path_value: str, allowed_roots: list[str]) -> str | None:
     raw_path = str(path_value or "").strip()
     if not raw_path:
         return None
@@ -37,7 +37,7 @@ def _resolve_allowed_path(path_value: str, allowed_roots: List[str]) -> Optional
             return candidate
         return None
 
-    fallback_candidate: Optional[str] = None
+    fallback_candidate: str | None = None
     for root in allowed_roots:
         candidate = os.path.realpath(os.path.join(root, raw_path))
         if not candidate.startswith(root):
@@ -49,7 +49,7 @@ def _resolve_allowed_path(path_value: str, allowed_roots: List[str]) -> Optional
     return fallback_candidate
 
 
-def _best_display_path(full_path: str, project_root: str, allowed_roots: List[str], requested_path: str) -> str:
+def _best_display_path(full_path: str, project_root: str, allowed_roots: list[str], requested_path: str) -> str:
     if not full_path:
         return requested_path
 
@@ -92,23 +92,23 @@ def _detect_language(file_path: str) -> str:
 
 class FileReadInput(BaseModel):
     file_path: str = Field(description="File path relative to the audit project root or an approved shared root")
-    start_line: Optional[int] = Field(default=None, description="Optional 1-based start line")
-    end_line: Optional[int] = Field(default=None, description="Optional inclusive end line")
+    start_line: int | None = Field(default=None, description="Optional 1-based start line")
+    end_line: int | None = Field(default=None, description="Optional inclusive end line")
     max_lines: int = Field(default=500, description="Maximum number of lines to return")
 
 
 class ReadManyFilesInput(BaseModel):
-    file_paths: List[str] = Field(description="Multiple file paths to read in one audit turn")
-    start_line: Optional[int] = Field(default=None, description="Optional shared start line")
-    end_line: Optional[int] = Field(default=None, description="Optional shared end line")
+    file_paths: list[str] = Field(description="Multiple file paths to read in one audit turn")
+    start_line: int | None = Field(default=None, description="Optional shared start line")
+    end_line: int | None = Field(default=None, description="Optional shared end line")
     max_lines: int = Field(default=220, description="Maximum lines per file")
     max_files: int = Field(default=6, description="Maximum number of files to read in one batch")
 
 
 class FileSearchInput(BaseModel):
     keyword: str = Field(description="Keyword or regex to search for")
-    file_pattern: Optional[str] = Field(default=None, description="Optional glob such as *.py")
-    directory: Optional[str] = Field(default=None, description="Optional directory relative to project root or shared root")
+    file_pattern: str | None = Field(default=None, description="Optional glob such as *.py")
+    directory: str | None = Field(default=None, description="Optional directory relative to project root or shared root")
     case_sensitive: bool = Field(default=False, description="Whether the search is case sensitive")
     max_results: int = Field(default=50, description="Maximum number of matches to return")
     is_regex: bool = Field(default=False, description="Whether keyword should be treated as regex")
@@ -117,7 +117,7 @@ class FileSearchInput(BaseModel):
 
 class ListFilesInput(BaseModel):
     directory: str = Field(default=".", description="Directory relative to project root or shared root")
-    pattern: Optional[str] = Field(default=None, description="Optional glob such as *.py")
+    pattern: str | None = Field(default=None, description="Optional glob such as *.py")
     recursive: bool = Field(default=False, description="Whether to walk child directories")
     max_files: int = Field(default=100, description="Maximum number of files to return")
     timeout_seconds: int = Field(default=45, ge=1, le=120, description="Search timeout in seconds (1-120)")
@@ -130,13 +130,13 @@ async def _terminate_process(process: asyncio.subprocess.Process) -> None:
     process.terminate()
     try:
         await asyncio.wait_for(process.wait(), timeout=1.5)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         process.kill()
         await process.wait()
 
 
-def _rg_exclude_args(exclude_dirs: set[str], exclude_patterns: List[str]) -> List[str]:
-    args: List[str] = []
+def _rg_exclude_args(exclude_dirs: set[str], exclude_patterns: list[str]) -> list[str]:
+    args: list[str] = []
     for directory in sorted(exclude_dirs):
         args.extend(["--glob", f"!**/{directory}/**"])
     for pattern in exclude_patterns:
@@ -150,9 +150,9 @@ class FileReadTool(AgentTool):
     def __init__(
         self,
         project_root: str,
-        exclude_patterns: Optional[List[str]] = None,
-        target_files: Optional[List[str]] = None,
-        additional_roots: Optional[List[str]] = None,
+        exclude_patterns: list[str] | None = None,
+        target_files: list[str] | None = None,
+        additional_roots: list[str] | None = None,
     ):
         super().__init__()
         self.project_root = os.path.realpath(project_root)
@@ -186,9 +186,9 @@ class FileReadTool(AgentTool):
 
     @staticmethod
     def _read_file_lines_sync(file_path: str, start_idx: int, end_idx: int) -> tuple[list[str], int]:
-        selected_lines: List[str] = []
+        selected_lines: list[str] = []
         total_lines = 0
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as handle:
+        with open(file_path, encoding="utf-8", errors="ignore") as handle:
             for index, line in enumerate(handle):
                 total_lines = index + 1
                 if start_idx <= index < end_idx:
@@ -198,8 +198,8 @@ class FileReadTool(AgentTool):
         return selected_lines, total_lines
 
     @staticmethod
-    def _read_all_lines_sync(file_path: str) -> List[str]:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as handle:
+    def _read_all_lines_sync(file_path: str) -> list[str]:
+        with open(file_path, encoding="utf-8", errors="ignore") as handle:
             return handle.readlines()
 
     def _is_target_allowed(self, requested_path: str, resolved_path: str) -> bool:
@@ -224,8 +224,8 @@ class FileReadTool(AgentTool):
         *,
         requested_path: str,
         full_path: str,
-        start_line: Optional[int],
-        end_line: Optional[int],
+        start_line: int | None,
+        end_line: int | None,
         max_lines: int,
     ) -> ToolResult:
         if not os.path.exists(full_path):
@@ -286,8 +286,8 @@ class FileReadTool(AgentTool):
     async def _execute(
         self,
         file_path: str,
-        start_line: Optional[int] = None,
-        end_line: Optional[int] = None,
+        start_line: int | None = None,
+        end_line: int | None = None,
         max_lines: int = 500,
         **kwargs,
     ) -> ToolResult:
@@ -332,15 +332,15 @@ class ReadManyFilesTool(FileReadTool):
 
     async def _execute(
         self,
-        file_paths: List[str],
-        start_line: Optional[int] = None,
-        end_line: Optional[int] = None,
+        file_paths: list[str],
+        start_line: int | None = None,
+        end_line: int | None = None,
         max_lines: int = 220,
         max_files: int = 6,
         **kwargs,
     ) -> ToolResult:
         del kwargs
-        normalized_paths: List[str] = []
+        normalized_paths: list[str] = []
         seen = set()
         for raw_path in file_paths or []:
             file_path = str(raw_path or "").strip()
@@ -357,8 +357,8 @@ class ReadManyFilesTool(FileReadTool):
                 error=f"Too many files requested ({len(normalized_paths)}). Limit is {max_files}.",
             )
 
-        rendered_results: List[str] = []
-        failures: List[str] = []
+        rendered_results: list[str] = []
+        failures: list[str] = []
         for index, file_path in enumerate(normalized_paths, start=1):
             result = await super()._execute(
                 file_path=file_path,
@@ -423,9 +423,9 @@ class FileSearchTool(AgentTool):
     def __init__(
         self,
         project_root: str,
-        exclude_patterns: Optional[List[str]] = None,
-        target_files: Optional[List[str]] = None,
-        additional_roots: Optional[List[str]] = None,
+        exclude_patterns: list[str] | None = None,
+        target_files: list[str] | None = None,
+        additional_roots: list[str] | None = None,
     ):
         super().__init__()
         self.project_root = os.path.realpath(project_root)
@@ -461,15 +461,15 @@ class FileSearchTool(AgentTool):
         return True
 
     @staticmethod
-    def _read_file_lines_sync(file_path: str) -> List[str]:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as handle:
+    def _read_file_lines_sync(file_path: str) -> list[str]:
+        with open(file_path, encoding="utf-8", errors="ignore") as handle:
             return handle.readlines()
 
     @staticmethod
     def _normalize_keyword_input(
-        keyword: Optional[str] = None,
+        keyword: str | None = None,
         **kwargs,
-    ) -> Optional[str]:
+    ) -> str | None:
         if isinstance(keyword, str) and keyword.strip():
             return keyword.strip()
 
@@ -481,9 +481,9 @@ class FileSearchTool(AgentTool):
 
     async def _execute(
         self,
-        keyword: Optional[str] = None,
-        file_pattern: Optional[str] = None,
-        directory: Optional[str] = None,
+        keyword: str | None = None,
+        file_pattern: str | None = None,
+        directory: str | None = None,
         case_sensitive: bool = False,
         max_results: int = 50,
         is_regex: bool = False,
@@ -509,7 +509,7 @@ class FileSearchTool(AgentTool):
             return ToolResult(success=False, error="Grep unavailable: ripgrep (rg) is not installed in the runtime.")
         max_results = max(1, int(max_results))
         timeout_seconds = min(120, max(1, int(timeout_seconds)))
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         args = [rg, "--json", "--no-messages", "--line-number", "--with-filename"]
         if not case_sensitive:
             args.append("--ignore-case")
@@ -641,9 +641,9 @@ class ListFilesTool(AgentTool):
     def __init__(
         self,
         project_root: str,
-        exclude_patterns: Optional[List[str]] = None,
-        target_files: Optional[List[str]] = None,
-        additional_roots: Optional[List[str]] = None,
+        exclude_patterns: list[str] | None = None,
+        target_files: list[str] | None = None,
+        additional_roots: list[str] | None = None,
     ):
         super().__init__()
         self.project_root = os.path.realpath(project_root)
@@ -681,7 +681,7 @@ class ListFilesTool(AgentTool):
     async def _execute(
         self,
         directory: str = ".",
-        pattern: Optional[str] = None,
+        pattern: str | None = None,
         recursive: bool = False,
         max_files: int = 100,
         timeout_seconds: int = 45,
@@ -703,8 +703,8 @@ class ListFilesTool(AgentTool):
             return ToolResult(success=False, error="Glob unavailable: ripgrep (rg) is not installed in the runtime.")
         max_files = max(1, int(max_files))
         timeout_seconds = min(120, max(1, int(timeout_seconds)))
-        files: List[str] = []
-        dirs: List[str] = []
+        files: list[str] = []
+        dirs: list[str] = []
 
         def include_file(display_path: str, file_name: str) -> bool:
             if pattern and not fnmatch.fnmatch(file_name, pattern):

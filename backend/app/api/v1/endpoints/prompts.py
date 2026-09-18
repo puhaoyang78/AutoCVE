@@ -4,11 +4,12 @@
 
 import json
 import time
-from typing import Any, List, Optional
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func as sql_func
 
 from app.api import deps
 from app.db.session import get_db
@@ -16,9 +17,9 @@ from app.models.prompt_template import PromptTemplate
 from app.models.user import User
 from app.schemas.prompt_template import (
     PromptTemplateCreate,
-    PromptTemplateUpdate,
-    PromptTemplateResponse,
     PromptTemplateListResponse,
+    PromptTemplateResponse,
+    PromptTemplateUpdate,
     PromptTestRequest,
     PromptTestResponse,
 )
@@ -30,25 +31,25 @@ router = APIRouter()
 async def list_prompt_templates(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    template_type: Optional[str] = Query(None, description="模板类型过滤"),
-    is_active: Optional[bool] = Query(None, description="是否启用"),
+    template_type: str | None = Query(None, description="模板类型过滤"),
+    is_active: bool | None = Query(None, description="是否启用"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """获取提示词模板列表"""
     query = select(PromptTemplate)
-    
+
     # 过滤条件：系统模板 + 当前用户创建的模板
     query = query.where(
-        (PromptTemplate.is_system == True) | 
+        (PromptTemplate.is_system.is_(True)) |
         (PromptTemplate.created_by == current_user.id)
     )
-    
+
     if template_type:
         query = query.where(PromptTemplate.template_type == template_type)
     if is_active is not None:
         query = query.where(PromptTemplate.is_active == is_active)
-    
+
     # 排序：系统模板优先，然后按排序权重和创建时间
     query = query.order_by(
         PromptTemplate.is_system.desc(),
@@ -56,25 +57,25 @@ async def list_prompt_templates(
         PromptTemplate.sort_order.asc(),
         PromptTemplate.created_at.desc()
     )
-    
+
     # 计数
     count_query = select(sql_func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar()
-    
+
     # 分页
     query = query.offset(skip).limit(limit)
     result = await db.execute(query)
     templates = result.scalars().all()
-    
+
     items = []
     for t in templates:
         variables = {}
         if t.variables:
             try:
                 variables = json.loads(t.variables)
-            except:
+            except Exception:
                 pass
-        
+
         items.append(PromptTemplateResponse(
             id=t.id,
             name=t.name,
@@ -91,7 +92,7 @@ async def list_prompt_templates(
             created_at=t.created_at,
             updated_at=t.updated_at,
         ))
-    
+
     return PromptTemplateListResponse(items=items, total=total)
 
 
@@ -106,21 +107,21 @@ async def get_prompt_template(
         select(PromptTemplate).where(PromptTemplate.id == template_id)
     )
     template = result.scalar_one_or_none()
-    
+
     if not template:
         raise HTTPException(status_code=404, detail="模板不存在")
-    
+
     # 检查权限
     if not template.is_system and template.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="无权访问此模板")
-    
+
     variables = {}
     if template.variables:
         try:
             variables = json.loads(template.variables)
-        except:
+        except Exception:
             pass
-    
+
     return PromptTemplateResponse(
         id=template.id,
         name=template.name,
@@ -159,11 +160,11 @@ async def create_prompt_template(
         is_default=False,
         created_by=current_user.id,
     )
-    
+
     db.add(template)
     await db.commit()
     await db.refresh(template)
-    
+
     return PromptTemplateResponse(
         id=template.id,
         name=template.name,
@@ -194,10 +195,10 @@ async def update_prompt_template(
         select(PromptTemplate).where(PromptTemplate.id == template_id)
     )
     template = result.scalar_one_or_none()
-    
+
     if not template:
         raise HTTPException(status_code=404, detail="模板不存在")
-    
+
     # 系统模板不允许修改核心内容，只能修改启用状态
     if template.is_system:
         if template_in.is_active is not None:
@@ -208,7 +209,7 @@ async def update_prompt_template(
         # 检查权限
         if template.created_by != current_user.id:
             raise HTTPException(status_code=403, detail="无权修改此模板")
-        
+
         # 更新字段
         update_data = template_in.dict(exclude_unset=True)
         for field, value in update_data.items():
@@ -216,17 +217,17 @@ async def update_prompt_template(
                 setattr(template, field, json.dumps(value))
             elif field != "is_default":  # 不允许用户设置默认
                 setattr(template, field, value)
-    
+
     await db.commit()
     await db.refresh(template)
-    
+
     variables = {}
     if template.variables:
         try:
             variables = json.loads(template.variables)
-        except:
+        except Exception:
             pass
-    
+
     return PromptTemplateResponse(
         id=template.id,
         name=template.name,
@@ -256,19 +257,19 @@ async def delete_prompt_template(
         select(PromptTemplate).where(PromptTemplate.id == template_id)
     )
     template = result.scalar_one_or_none()
-    
+
     if not template:
         raise HTTPException(status_code=404, detail="模板不存在")
-    
+
     if template.is_system:
         raise HTTPException(status_code=403, detail="系统模板不允许删除")
-    
+
     if template.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="无权删除此模板")
-    
+
     await db.delete(template)
     await db.commit()
-    
+
     return {"message": "模板已删除"}
 
 
@@ -279,12 +280,12 @@ async def test_prompt_template(
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """测试提示词效果"""
-    from app.services.llm.service import LLMService
-    from app.models.user_config import UserConfig
     from app.core.encryption import decrypt_sensitive_data
-    
+    from app.models.user_config import UserConfig
+    from app.services.llm.service import LLMService
+
     start_time = time.time()
-    
+
     try:
         # 获取用户配置
         user_config = {}
@@ -299,17 +300,17 @@ async def test_prompt_template(
                 'qwenApiKey', 'deepseekApiKey', 'zhipuApiKey', 'moonshotApiKey',
                 'baiduApiKey', 'minimaxApiKey', 'doubaoApiKey'
             ]
-            
+
             llm_config = json.loads(config.llm_config) if config.llm_config else {}
             for field in SENSITIVE_LLM_FIELDS:
                 if field in llm_config and llm_config[field]:
                     llm_config[field] = decrypt_sensitive_data(llm_config[field])
-            
+
             user_config = {'llmConfig': llm_config}
-        
+
         # 创建使用用户配置的LLM服务实例
         llm_service = LLMService(user_config=user_config)
-        
+
         # 使用自定义提示词进行分析
         result = await llm_service.analyze_code_with_custom_prompt(
             code=request.code,
@@ -317,9 +318,9 @@ async def test_prompt_template(
             custom_prompt=request.content,
             output_language=request.output_language,
         )
-        
+
         execution_time = time.time() - start_time
-        
+
         return PromptTestResponse(
             success=True,
             result=result,
@@ -346,33 +347,33 @@ async def set_default_template(
     """设置默认模板（仅管理员）"""
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="仅管理员可设置默认模板")
-    
+
     result = await db.execute(
         select(PromptTemplate).where(PromptTemplate.id == template_id)
     )
     template = result.scalar_one_or_none()
-    
+
     if not template:
         raise HTTPException(status_code=404, detail="模板不存在")
-    
+
     # 取消同类型的其他默认模板
     await db.execute(
         select(PromptTemplate)
         .where(PromptTemplate.template_type == template.template_type)
-        .where(PromptTemplate.is_default == True)
+        .where(PromptTemplate.is_default.is_(True))
     )
     same_type_defaults = (await db.execute(
         select(PromptTemplate)
         .where(PromptTemplate.template_type == template.template_type)
-        .where(PromptTemplate.is_default == True)
+        .where(PromptTemplate.is_default.is_(True))
     )).scalars().all()
-    
+
     for t in same_type_defaults:
         t.is_default = False
-    
+
     # 设置新的默认模板
     template.is_default = True
-    
+
     await db.commit()
-    
+
     return {"message": "已设置为默认模板"}

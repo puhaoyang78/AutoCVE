@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -9,8 +9,8 @@ class AgentSkillBindingBase(BaseModel):
     enabled: bool = Field(True, description="Whether this binding is enabled")
     always_include: bool = Field(False, description="Always inject this skill metadata at agent startup")
     sort_order: int = Field(0, description="Binding order inside the agent")
-    match_keywords: List[str] = Field(default_factory=list, description="Keywords used to decide whether the skill body should be loaded later")
-    match_config: Dict[str, Any] = Field(default_factory=dict, description="Reserved binding config")
+    match_keywords: list[str] = Field(default_factory=list, description="Keywords used to decide whether the skill body should be loaded later")
+    match_config: dict[str, Any] = Field(default_factory=dict, description="Reserved binding config")
 
 
 class AgentSkillBindingCreate(AgentSkillBindingBase):
@@ -18,21 +18,21 @@ class AgentSkillBindingCreate(AgentSkillBindingBase):
 
 
 class AgentSkillBindingUpdate(BaseModel):
-    enabled: Optional[bool] = None
-    always_include: Optional[bool] = None
-    sort_order: Optional[int] = None
-    match_keywords: Optional[List[str]] = None
-    match_config: Optional[Dict[str, Any]] = None
+    enabled: bool | None = None
+    always_include: bool | None = None
+    sort_order: int | None = None
+    match_keywords: list[str] | None = None
+    match_config: dict[str, Any] | None = None
 
 
 class AgentSkillBindingResponse(AgentSkillBindingBase):
     id: str
     skill_id: str
-    bindings_file: Optional[str] = None
-    skill_file: Optional[str] = None
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    bindings_file: str | None = None
+    skill_file: str | None = None
+    created_by: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class SkillBase(BaseModel):
@@ -40,33 +40,33 @@ class SkillBase(BaseModel):
     slug: str = Field(..., min_length=1, max_length=160)
     description: str = Field(..., min_length=1)
     source_type: str = Field("manual", description="manual/local/github")
-    source_url: Optional[str] = None
-    content: Optional[str] = None
-    metadata_json: Dict[str, Any] = Field(default_factory=dict)
-    tags: List[str] = Field(default_factory=list)
-    extension_manifest: List[Dict[str, Any]] = Field(default_factory=list)
-    extension_payload: Dict[str, Any] = Field(default_factory=dict)
+    source_url: str | None = None
+    content: str | None = None
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
+    extension_manifest: list[dict[str, Any]] = Field(default_factory=list)
+    extension_payload: dict[str, Any] = Field(default_factory=dict)
     is_active: bool = True
     is_system: bool = False
 
 
 class SkillCreate(SkillBase):
-    bindings: List[AgentSkillBindingCreate] = Field(default_factory=list)
+    bindings: list[AgentSkillBindingCreate] = Field(default_factory=list)
 
 
 class SkillUpdate(BaseModel):
-    name: Optional[str] = None
-    slug: Optional[str] = None
-    description: Optional[str] = None
-    source_type: Optional[str] = None
-    source_url: Optional[str] = None
-    content: Optional[str] = None
-    metadata_json: Optional[Dict[str, Any]] = None
-    tags: Optional[List[str]] = None
-    extension_manifest: Optional[List[Dict[str, Any]]] = None
-    extension_payload: Optional[Dict[str, Any]] = None
-    is_active: Optional[bool] = None
-    is_system: Optional[bool] = None
+    name: str | None = None
+    slug: str | None = None
+    description: str | None = None
+    source_type: str | None = None
+    source_url: str | None = None
+    content: str | None = None
+    metadata_json: dict[str, Any] | None = None
+    tags: list[str] | None = None
+    extension_manifest: list[dict[str, Any]] | None = None
+    extension_payload: dict[str, Any] | None = None
+    is_active: bool | None = None
+    is_system: bool | None = None
 
 
 class SkillMetadataResponse(BaseModel):
@@ -74,36 +74,36 @@ class SkillMetadataResponse(BaseModel):
     name: str
     slug: str
     description: str
-    tags: List[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     source_type: str
-    source_url: Optional[str] = None
-    metadata_json: Dict[str, Any] = Field(default_factory=dict)
+    source_url: str | None = None
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
     is_system: bool = False
     is_active: bool = True
-    bindings: List[AgentSkillBindingResponse] = Field(default_factory=list)
-    folder_path: Optional[str] = None
-    skill_file: Optional[str] = None
-    bindings_file: Optional[str] = None
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    bindings: list[AgentSkillBindingResponse] = Field(default_factory=list)
+    folder_path: str | None = None
+    skill_file: str | None = None
+    bindings_file: str | None = None
+    created_by: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class SkillResponse(SkillMetadataResponse):
-    content: Optional[str] = None
-    extension_manifest: List[Dict[str, Any]] = Field(default_factory=list)
-    extension_payload: Dict[str, Any] = Field(default_factory=dict)
+    content: str | None = None
+    extension_manifest: list[dict[str, Any]] = Field(default_factory=list)
+    extension_payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class SkillListResponse(BaseModel):
-    items: List[SkillMetadataResponse]
+    items: list[SkillMetadataResponse]
     total: int
 
 
 class SkillImportRequest(BaseModel):
     repo_url: str
-    agent_type: Optional[str] = None
+    agent_type: str | None = None
     bind_to_agent: bool = True
     enabled: bool = True
     always_include: bool = False
-    match_keywords: List[str] = Field(default_factory=list)
+    match_keywords: list[str] = Field(default_factory=list)

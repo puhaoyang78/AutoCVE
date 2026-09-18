@@ -4,18 +4,18 @@
 包含各种漏洞类型的专业知识
 """
 
-from .injection import SQL_INJECTION, NOSQL_INJECTION, COMMAND_INJECTION, CODE_INJECTION
-from .xss import XSS_REFLECTED, XSS_STORED, XSS_DOM
-from .auth import AUTH_BYPASS, IDOR, BROKEN_ACCESS_CONTROL
-from .crypto import WEAK_CRYPTO, HARDCODED_SECRETS
-from .ssrf import SSRF
-from .deserialization import INSECURE_DESERIALIZATION
-from .path_traversal import PATH_TRAVERSAL
-from .xxe import XXE
-from .race_condition import RACE_CONDITION
-from .csrf import CSRF
+from .auth import AUTH_BYPASS, BROKEN_ACCESS_CONTROL, IDOR
 from .business_logic import BUSINESS_LOGIC, RATE_LIMITING
+from .crypto import HARDCODED_SECRETS, WEAK_CRYPTO
+from .csrf import CSRF
+from .deserialization import INSECURE_DESERIALIZATION
+from .injection import CODE_INJECTION, COMMAND_INJECTION, NOSQL_INJECTION, SQL_INJECTION
 from .open_redirect import OPEN_REDIRECT
+from .path_traversal import PATH_TRAVERSAL
+from .race_condition import RACE_CONDITION
+from .ssrf import SSRF
+from .xss import XSS_DOM, XSS_REFLECTED, XSS_STORED
+from .xxe import XXE
 
 # 所有漏洞知识文档
 ALL_VULNERABILITY_DOCS = [
@@ -52,7 +52,7 @@ __all__ = [
     "ALL_VULNERABILITY_DOCS",
     # 注入类
     "SQL_INJECTION",
-    "NOSQL_INJECTION", 
+    "NOSQL_INJECTION",
     "COMMAND_INJECTION",
     "CODE_INJECTION",
     # XSS类

@@ -5,7 +5,6 @@ from typing import Any
 from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile
 
-
 HEADERS = ["scan_id", "path_id", "Vulnerability", "Type", "URL", "AI判断", "AI判断原因"]
 
 

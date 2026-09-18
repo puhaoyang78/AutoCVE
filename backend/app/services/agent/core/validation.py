@@ -7,18 +7,16 @@ Prevents path traversal, validates inputs, and enforces limits.
 
 import os
 import re
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set, Union
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .errors import (
+    FileSizeExceededError,
     InputValidationError,
     PathTraversalError,
-    FileSizeExceededError,
 )
-
 
 # ============ Validation Constants ============
 
@@ -102,15 +100,15 @@ def validate_path(
         if not resolved_path.startswith(resolved_root + os.sep) and resolved_path != resolved_root:
             raise PathTraversalError(f"Path escapes project root: {path}")
     except (OSError, ValueError) as e:
-        raise InputValidationError(f"Invalid path: {path} - {e}")
+        raise InputValidationError(f"Invalid path: {path} - {e}") from e
 
     return abs_path
 
 
 def validate_file_extension(
     path: str,
-    allowed_extensions: Optional[Set[str]] = None,
-    blocked_extensions: Optional[Set[str]] = None,
+    allowed_extensions: set[str] | None = None,
+    blocked_extensions: set[str] | None = None,
 ) -> None:
     """
     Validate file extension.
@@ -158,7 +156,7 @@ def validate_file_size(
             )
         return size
     except OSError as e:
-        raise InputValidationError(f"Cannot check file size: {e}")
+        raise InputValidationError(f"Cannot check file size: {e}") from e
 
 
 # ============ Input Schemas ============
@@ -169,9 +167,9 @@ class AgentTaskInput(BaseModel):
     project_root: str = Field(..., min_length=1, max_length=500)
     max_iterations: int = Field(default=20, ge=1, le=100)
     timeout_seconds: int = Field(default=1800, ge=60, le=7200)
-    target_vulnerabilities: List[str] = Field(default_factory=list)
-    exclude_patterns: List[str] = Field(default_factory=list)
-    target_files: List[str] = Field(default_factory=list)
+    target_vulnerabilities: list[str] = Field(default_factory=list)
+    exclude_patterns: list[str] = Field(default_factory=list)
+    target_files: list[str] = Field(default_factory=list)
 
     @field_validator('task')
     @classmethod
@@ -189,7 +187,7 @@ class AgentTaskInput(BaseModel):
 
     @field_validator('target_vulnerabilities')
     @classmethod
-    def validate_vulnerabilities(cls, v: List[str]) -> List[str]:
+    def validate_vulnerabilities(cls, v: list[str]) -> list[str]:
         valid_types = {
             'sql_injection', 'xss', 'command_injection', 'path_traversal',
             'ssrf', 'xxe', 'deserialization', 'auth_bypass', 'idor',
@@ -209,8 +207,8 @@ class ToolInput(BaseModel):
 class FileReadInput(ToolInput):
     """Validated input for file read operations"""
     file_path: str = Field(..., min_length=1, max_length=500)
-    start_line: Optional[int] = Field(default=None, ge=1)
-    end_line: Optional[int] = Field(default=None, ge=1)
+    start_line: int | None = Field(default=None, ge=1)
+    end_line: int | None = Field(default=None, ge=1)
 
     @model_validator(mode='after')
     def validate_line_range(self) -> 'FileReadInput':
@@ -235,7 +233,7 @@ class FileSearchInput(ToolInput):
         try:
             re.compile(v)
         except re.error as e:
-            raise ValueError(f'Invalid regex pattern: {e}')
+            raise ValueError(f'Invalid regex pattern: {e}') from e
         return v
 
 
@@ -256,9 +254,9 @@ class CodeAnalysisInput(ToolInput):
 
 class PatternMatchInput(ToolInput):
     """Validated input for pattern matching operations"""
-    patterns: List[str] = Field(..., min_length=1, max_length=50)
+    patterns: list[str] = Field(..., min_length=1, max_length=50)
     target_path: str = Field(default=".", max_length=500)
-    file_extensions: List[str] = Field(default_factory=list)
+    file_extensions: list[str] = Field(default_factory=list)
     max_files: int = Field(default=500, ge=1, le=2000)
 
 
@@ -266,7 +264,7 @@ class ExternalToolInput(ToolInput):
     """Validated input for external tool operations"""
     tool_name: str = Field(..., min_length=1, max_length=50)
     target_path: str = Field(..., max_length=500)
-    options: Dict[str, Any] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict)
     timeout: int = Field(default=60, ge=5, le=300)
 
     @field_validator('tool_name')
@@ -297,7 +295,7 @@ class ToolInputValidator:
         self,
         path: str,
         max_size: int = DEFAULT_MAX_FILE_SIZE,
-        allowed_extensions: Optional[Set[str]] = None,
+        allowed_extensions: set[str] | None = None,
     ) -> str:
         """Validate a file for reading"""
         abs_path = self.validate_file_path(path)
@@ -346,7 +344,7 @@ def sanitize_string(value: str, max_length: int = 1000) -> str:
     return value
 
 
-def sanitize_dict(data: Dict[str, Any], max_depth: int = 5) -> Dict[str, Any]:
+def sanitize_dict(data: dict[str, Any], max_depth: int = 5) -> dict[str, Any]:
     """Recursively sanitize a dictionary"""
     if max_depth <= 0:
         return {"_truncated": True}

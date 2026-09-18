@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import httpx
 
 from ..base_adapter import BaseLLMAdapter
+from ..protocols.registry import get_model_capabilities
 from ..types import (
     DEFAULT_BASE_URLS,
     LLMConfig,
@@ -24,7 +26,6 @@ from ..types import (
     LLMResponse,
     LLMUsage,
 )
-from ..protocols.registry import get_model_capabilities
 
 logger = logging.getLogger(__name__)
 

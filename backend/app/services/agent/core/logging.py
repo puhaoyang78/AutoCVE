@@ -5,25 +5,24 @@ Production-grade structured logging for the Agent framework.
 Provides consistent, queryable logs with automatic context injection.
 """
 
+import json
 import logging
 import sys
-import json
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Union
+from datetime import UTC, datetime
+from enum import StrEnum
 from functools import wraps
-from enum import Enum
+from typing import Any
 
 from .context import (
     get_correlation_id,
-    get_task_id,
     get_current_agent,
+    get_task_id,
     get_trace_path,
 )
 
-
 # ============ Log Levels ============
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
@@ -51,8 +50,8 @@ class StructuredFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         # Base log entry
-        log_entry: Dict[str, Any] = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        log_entry: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -131,7 +130,7 @@ class HumanReadableFormatter(logging.Formatter):
             agent = "-"
 
         # Format: [TIME] LEVEL [CID] [AGENT] message
-        timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3]
+        timestamp = datetime.now(UTC).strftime("%H:%M:%S.%f")[:-3]
         level = f"{color}{record.levelname:8s}{reset}"
 
         formatted = f"[{timestamp}] {level} [{cid}] [{agent:12s}] {record.getMessage()}"
@@ -171,14 +170,14 @@ class AgentLogger:
     def __init__(
         self,
         name: str,
-        agent_name: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        agent_name: str | None = None,
+        agent_id: str | None = None,
     ):
         self.logger = logging.getLogger(name)
         self.agent_name = agent_name
         self.agent_id = agent_id
 
-    def _get_extra(self, **kwargs) -> Dict[str, Any]:
+    def _get_extra(self, **kwargs) -> dict[str, Any]:
         """Build extra dict with agent info"""
         extra = {}
         if self.agent_name:
@@ -211,7 +210,7 @@ class AgentLogger:
     def log_llm_call_start(
         self,
         iteration: int,
-        model: Optional[str] = None,
+        model: str | None = None,
         message_count: int = 0,
     ):
         """Log start of LLM call"""
@@ -229,7 +228,7 @@ class AgentLogger:
         tokens_input: int,
         tokens_output: int,
         duration_ms: int,
-        model: Optional[str] = None,
+        model: str | None = None,
     ):
         """Log completion of LLM call"""
         self.info(
@@ -263,7 +262,7 @@ class AgentLogger:
     def log_tool_call_start(
         self,
         tool_name: str,
-        tool_input: Optional[Dict[str, Any]] = None,
+        tool_input: dict[str, Any] | None = None,
     ):
         """Log start of tool call"""
         self.info(
@@ -278,7 +277,7 @@ class AgentLogger:
         tool_name: str,
         success: bool,
         duration_ms: int,
-        output_summary: Optional[str] = None,
+        output_summary: str | None = None,
     ):
         """Log completion of tool call"""
         level = "info" if success else "warning"
@@ -353,8 +352,8 @@ class AgentLogger:
         self,
         severity: str,
         vulnerability_type: str,
-        file_path: Optional[str] = None,
-        line: Optional[int] = None,
+        file_path: str | None = None,
+        line: int | None = None,
     ):
         """Log vulnerability finding"""
         self.info(
@@ -429,7 +428,7 @@ class AgentLogger:
 # ============ Logging Configuration ============
 
 def configure_logging(
-    level: Union[str, LogLevel] = LogLevel.INFO,
+    level: str | LogLevel = LogLevel.INFO,
     structured: bool = True,
     stream: Any = None,
 ) -> None:
@@ -467,7 +466,7 @@ def configure_logging(
     logger.propagate = False
 
 
-def get_logger(name: str, agent_name: Optional[str] = None, agent_id: Optional[str] = None) -> AgentLogger:
+def get_logger(name: str, agent_name: str | None = None, agent_id: str | None = None) -> AgentLogger:
     """
     Get a logger instance for the given name.
 
@@ -490,7 +489,7 @@ def get_logger(name: str, agent_name: Optional[str] = None, agent_id: Optional[s
 
 def log_execution(
     operation: str,
-    logger: Optional[AgentLogger] = None,
+    logger: AgentLogger | None = None,
 ):
     """
     Decorator to log function execution with timing.
@@ -507,16 +506,16 @@ def log_execution(
             if logger is None:
                 logger = get_logger(func.__module__)
 
-            start_time = datetime.now(timezone.utc)
+            start_time = datetime.now(UTC)
             logger.debug(f"Starting {operation}")
 
             try:
                 result = await func(*args, **kwargs)
-                duration_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+                duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
                 logger.debug(f"Completed {operation} in {duration_ms}ms")
                 return result
             except Exception as e:
-                duration_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+                duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
                 logger.error(
                     f"Failed {operation} after {duration_ms}ms: {e}",
                     exc_info=True,

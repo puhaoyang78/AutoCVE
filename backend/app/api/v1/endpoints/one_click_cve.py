@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
@@ -11,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api import deps
+from app.api.v1.endpoints.audit_sessions import (
+    AuditSessionResumeResponse,
+    queue_runtime_session_resume,
+)
 from app.models.agent_task import AgentTask, AgentTaskStatus
 from app.models.audit_session import AuditCheckpoint, AuditModelStreamAttempt, AuditSession
 from app.models.one_click_cve import (
@@ -21,7 +25,6 @@ from app.models.one_click_cve import (
 )
 from app.models.user import User
 from app.services.agent.task_executor import request_agent_task_cancellation
-from app.api.v1.endpoints.audit_sessions import AuditSessionResumeResponse, queue_runtime_session_resume
 from app.services.one_click_cve.runner import run_one_click_cve_batch
 from app.services.one_click_cve.task_queue import (
     enqueue_one_click_cve_batch,
@@ -137,7 +140,7 @@ async def _cancel_active_batch_agent_tasks(db: AsyncSession, batch_id: str) -> l
         )
     )
     tasks = list(result.scalars().all())
-    completed_at = datetime.now(timezone.utc)
+    completed_at = datetime.now(UTC)
     for project in projects:
         project.status = OneClickCveProjectStatus.CANCELLED
         project.error_message = project.error_message or "Cancelled by one-click CVE batch cancellation"
@@ -286,7 +289,7 @@ async def cancel_one_click_cve_batch(
         return _batch_response(batch)
     cancelled_task_ids = await _cancel_active_batch_agent_tasks(db, batch.id)
     batch.status = OneClickCveBatchStatus.CANCELLED
-    batch.completed_at = datetime.now(timezone.utc)
+    batch.completed_at = datetime.now(UTC)
     batch.current_step = "用户已取消"
     await db.commit()
     await _wait_for_manual_cancel_checkpoints(db, cancelled_task_ids)
@@ -330,7 +333,7 @@ async def resume_one_click_cve_project(
     # very fast worker can finish and then be overwritten back to AUDITING.
     project.status = OneClickCveProjectStatus.AUDITING
     project.error_message = None
-    project.updated_at_local = datetime.now(timezone.utc)
+    project.updated_at_local = datetime.now(UTC)
     try:
         session, queued = await queue_runtime_session_resume(
             session_id=session.id,
@@ -341,11 +344,11 @@ async def resume_one_click_cve_project(
         if exc.status_code == 503:
             project.status = OneClickCveProjectStatus.FAILED
             project.error_message = "继续审计队列不可用，已停止整个一键 CVE"
-            project.updated_at_local = datetime.now(timezone.utc)
+            project.updated_at_local = datetime.now(UTC)
             batch.status = OneClickCveBatchStatus.FAILED
             batch.error_message = project.error_message
             batch.current_step = project.error_message
-            batch.completed_at = datetime.now(timezone.utc)
+            batch.completed_at = datetime.now(UTC)
             await db.commit()
         raise
     if not queued:

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Callable, Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
 from app.core.config import settings
-
 
 SECURITY_POLICY_PATHS = (
     "SECURITY.md",
@@ -119,7 +119,7 @@ class GitHubCveDiscoveryService:
         now_provider: Callable[[], datetime] | None = None,
     ):
         self.client = client or GitHubApiClient()
-        self.now_provider = now_provider or (lambda: datetime.now(timezone.utc))
+        self.now_provider = now_provider or (lambda: datetime.now(UTC))
 
     async def discover_candidates(
         self,
@@ -180,7 +180,7 @@ class GitHubCveDiscoveryService:
             if candidate is not None:
                 enriched.append(candidate)
 
-        enriched.sort(key=lambda candidate: (candidate.score, candidate.pushed_at or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+        enriched.sort(key=lambda candidate: (candidate.score, candidate.pushed_at or datetime.min.replace(tzinfo=UTC)), reverse=True)
         return enriched[:requested]
 
     async def _candidate_from_item(
@@ -385,7 +385,7 @@ def _raw_candidate_sort_key(item: dict[str, Any], *, now: datetime, prefer_secur
         language=str(item.get("language") or ""),
         full_name=str(item.get("full_name") or ""),
     )
-    return score, pushed_at or datetime.min.replace(tzinfo=timezone.utc)
+    return score, pushed_at or datetime.min.replace(tzinfo=UTC)
 
 
 def _parse_github_datetime(value: Any) -> datetime | None:
@@ -395,14 +395,14 @@ def _parse_github_datetime(value: Any) -> datetime | None:
         text = str(value).replace("Z", "+00:00")
         parsed = datetime.fromisoformat(text)
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
     except ValueError:
         return None
 
 
 def _subtract_months(value: datetime, months: int) -> datetime:
-    value = value.astimezone(timezone.utc) if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    value = value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
     month_index = value.month - months
     year = value.year
     while month_index <= 0:
@@ -445,7 +445,7 @@ def _score_candidate(
     if has_security_policy:
         score += 80
     if pushed_at:
-        age_days = max(0, (now.astimezone(timezone.utc) - pushed_at).days)
+        age_days = max(0, (now.astimezone(UTC) - pushed_at).days)
         score += max(0.0, 60.0 - min(age_days, 180) / 3)
 
     haystack = f"{full_name} {description}".lower()

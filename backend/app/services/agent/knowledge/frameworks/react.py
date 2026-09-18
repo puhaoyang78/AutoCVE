@@ -2,8 +2,7 @@
 React 框架安全知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 REACT_SECURITY = KnowledgeDocument(
     id="framework_react",
@@ -29,8 +28,8 @@ function Comment({ content }) {
 // 安全 - 使用DOMPurify
 import DOMPurify from 'dompurify';
 function Comment({ content }) {
-    return <div dangerouslySetInnerHTML={{ 
-        __html: DOMPurify.sanitize(content) 
+    return <div dangerouslySetInnerHTML={{
+        __html: DOMPurify.sanitize(content)
     }} />;
 }
 ```

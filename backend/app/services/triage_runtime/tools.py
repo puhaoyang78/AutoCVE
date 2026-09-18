@@ -4,7 +4,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
-from app.services.finding_runtime.final_finding_contract import FinalizedFinding, format_validation_errors
+from app.services.finding_runtime.final_finding_contract import (
+    FinalizedFinding,
+    format_validation_errors,
+)
 from app.services.finding_runtime.models import ToolExecutionPayload
 from app.services.runtime_core.tool_runtime import RuntimeTool, ToolExecutionContext
 from app.services.triage_runtime.queue import TriageQueue

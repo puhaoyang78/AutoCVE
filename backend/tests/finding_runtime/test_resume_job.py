@@ -12,8 +12,8 @@ from app.models.audit_session import AuditCheckpoint, AuditSession
 from app.models.one_click_cve import OneClickCveBatch, OneClickCveBatchProject
 from app.models.project import Project
 from app.models.user import User
-from app.services.finding_runtime.models import RuntimeCompletionMode
 from app.services.finding_runtime import resume_job
+from app.services.finding_runtime.models import RuntimeCompletionMode
 
 
 @pytest.mark.asyncio

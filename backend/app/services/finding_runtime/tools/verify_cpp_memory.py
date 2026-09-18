@@ -9,7 +9,6 @@ from app.services.agent.tools.run_code import RunCodeTool
 from app.services.finding_runtime.models import ToolExecutionPayload
 from app.services.runtime_core.tool_runtime import RuntimeTool, ToolExecutionContext
 
-
 _SANITIZER_PATTERNS = {
     "asan": re.compile(r"AddressSanitizer|ERROR:\s*AddressSanitizer", re.IGNORECASE),
     "ubsan": re.compile(r"UndefinedBehaviorSanitizer|runtime error:", re.IGNORECASE),

@@ -2,8 +2,7 @@
 Express.js 框架安全知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 EXPRESS_SECURITY = KnowledgeDocument(
     id="framework_express",

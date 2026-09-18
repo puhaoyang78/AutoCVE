@@ -4,7 +4,6 @@ import inspect
 from typing import Any
 
 from app.services.agent.skill_service import SkillService
-from app.services.runtime_core.memory_runtime import RuntimeMemoryManager, build_runtime_memory_prompt
 from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptItem
 from app.services.finding_runtime.query_transitions import hydrate_query_loop_state
 from app.services.finding_runtime.skills import (
@@ -14,6 +13,10 @@ from app.services.finding_runtime.skills import (
     RuntimeSkillCatalog,
 )
 from app.services.runtime_core.explicit_skill_loader import load_explicit_skill_injections
+from app.services.runtime_core.memory_runtime import (
+    RuntimeMemoryManager,
+    build_runtime_memory_prompt,
+)
 from app.services.runtime_core.skill_discovery import SkillDiscoveryScheduler
 from app.services.runtime_core.skill_mentions import collect_explicit_skill_mentions
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -69,7 +69,7 @@ class TriageQueue:
             return {"batch_id": None, "findings": [], "remaining": self.coverage_summary(index=index)}
 
         batch_id = f"triage-batch-{uuid.uuid4().hex[:12]}"
-        lease_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=self.lease_seconds)).isoformat()
+        lease_expires_at = (datetime.now(UTC) + timedelta(seconds=self.lease_seconds)).isoformat()
         selected_ids = {str(item.get("finding_id")) for item in selected}
         for item in index:
             if str(item.get("finding_id")) not in selected_ids:
@@ -219,7 +219,7 @@ class TriageQueue:
         return ERROR_TERMINAL_STATUS if attempts >= self.max_attempts else status
 
     def _reclaim_expired(self, index: list[dict[str, Any]]) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         for item in index:
             if str(item.get("status") or "") != REVIEWING_STATUS:
                 continue

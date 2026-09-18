@@ -9,7 +9,6 @@ from app.services.finding_runtime.models import RuntimeSkillCatalogSnapshot, Too
 from app.services.finding_runtime.tooling import RuntimeTool, ToolExecutionContext
 from app.services.runtime_core.skill_runtime import SkillInvocationRuntime
 
-
 FINDING_AUDIT_SKILL = "code-audit-finding"
 FINDING_KNOWLEDGE_SKILL = "secknowledge-skill"
 FINDING_REPORT_SKILL = "cve-report-writer"

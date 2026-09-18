@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 DEFAULT_TOKEN_BUDGET_NUDGE = "Continue investigating until you either exhaust credible attack paths or produce stronger evidence for a reportable finding."
 
 

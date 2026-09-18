@@ -5,12 +5,12 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent, TaskHandoff
 from ..json_parser import AgentJsonParser
-from ..skill_service import SkillService
 from ..prompts import FILE_VALIDATION_RULES, TOOL_USAGE_GUIDE
+from ..skill_service import SkillService
+from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent, TaskHandoff
 
 logger = logging.getLogger(__name__)
 
@@ -97,25 +97,25 @@ SCAN_OUTPUT_SCHEMA = """```json
 @dataclass
 class ToolInvocation:
     action: str
-    action_input: Dict[str, Any] = field(default_factory=dict)
+    action_input: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class WorkflowStep:
     thought: str
-    action: Optional[str] = None
-    action_input: Optional[Dict[str, Any]] = None
-    actions: List[ToolInvocation] = field(default_factory=list)
-    observation: Optional[str] = None
+    action: str | None = None
+    action_input: dict[str, Any] | None = None
+    actions: list[ToolInvocation] = field(default_factory=list)
+    observation: str | None = None
     is_final: bool = False
-    final_answer: Optional[Dict[str, Any]] = None
+    final_answer: dict[str, Any] | None = None
 
 
 @dataclass
 class PreparedToolInvocation:
     invocation: ToolInvocation
     is_concurrency_safe: bool = False
-    concurrency_key: Optional[str] = None
+    concurrency_key: str | None = None
 
 
 class AnalysisWorkflowAgent(BaseAgent):
@@ -129,10 +129,10 @@ class AnalysisWorkflowAgent(BaseAgent):
         name: str,
         agent_type: AgentType,
         llm_service,
-        tools: Dict[str, Any],
+        tools: dict[str, Any],
         event_emitter=None,
         system_prompt: str,
-        tool_usage_guide: Optional[str] = None,
+        tool_usage_guide: str | None = None,
         max_iterations: int = 20,
     ):
         tools_description = "\n".join(
@@ -156,8 +156,8 @@ class AnalysisWorkflowAgent(BaseAgent):
             system_prompt=full_prompt,
         )
         super().__init__(config, llm_service, tools, event_emitter)
-        self._conversation_history: List[Dict[str, str]] = []
-        self._steps: List[WorkflowStep] = []
+        self._conversation_history: list[dict[str, str]] = []
+        self._steps: list[WorkflowStep] = []
 
     def _parse_llm_response(self, response: str) -> WorkflowStep:
         step = WorkflowStep(thought="")
@@ -219,8 +219,8 @@ class AnalysisWorkflowAgent(BaseAgent):
             step.thought = cleaned.strip()[:500]
         return step
 
-    def _normalize_action_batch(self, raw_actions: List[Any]) -> List[ToolInvocation]:
-        normalized: List[ToolInvocation] = []
+    def _normalize_action_batch(self, raw_actions: list[Any]) -> list[ToolInvocation]:
+        normalized: list[ToolInvocation] = []
         for item in raw_actions:
             if not isinstance(item, dict):
                 continue
@@ -233,19 +233,19 @@ class AnalysisWorkflowAgent(BaseAgent):
             normalized.append(ToolInvocation(action=action, action_input=action_input))
         return normalized
 
-    def _iter_step_actions(self, step: WorkflowStep) -> List[ToolInvocation]:
+    def _iter_step_actions(self, step: WorkflowStep) -> list[ToolInvocation]:
         if step.actions:
             return step.actions
         if step.action:
             return [ToolInvocation(action=step.action, action_input=step.action_input or {})]
         return []
 
-    def _prepare_step_actions(self, step: WorkflowStep) -> List[PreparedToolInvocation]:
-        prepared: List[PreparedToolInvocation] = []
+    def _prepare_step_actions(self, step: WorkflowStep) -> list[PreparedToolInvocation]:
+        prepared: list[PreparedToolInvocation] = []
         for invocation in self._iter_step_actions(step):
             tool = self.tools.get(invocation.action)
             is_concurrency_safe = False
-            concurrency_key: Optional[str] = None
+            concurrency_key: str | None = None
             if tool is not None:
                 action_input = invocation.action_input or {}
                 try:
@@ -268,8 +268,8 @@ class AnalysisWorkflowAgent(BaseAgent):
         return prepared
 
     @staticmethod
-    def _partition_prepared_actions(prepared_actions: List[PreparedToolInvocation]) -> List[tuple[bool, List[PreparedToolInvocation]]]:
-        batches: List[tuple[bool, List[PreparedToolInvocation]]] = []
+    def _partition_prepared_actions(prepared_actions: list[PreparedToolInvocation]) -> list[tuple[bool, list[PreparedToolInvocation]]]:
+        batches: list[tuple[bool, list[PreparedToolInvocation]]] = []
         active_keys: set[str] = set()
         for prepared in prepared_actions:
             if prepared.is_concurrency_safe:
@@ -293,7 +293,7 @@ class AnalysisWorkflowAgent(BaseAgent):
         index: int,
         invocation: ToolInvocation,
         observation: str,
-        failed_tool_calls: Dict[str, int],
+        failed_tool_calls: dict[str, int],
     ) -> str:
         tool_call_key = f"{invocation.action}:{json.dumps(invocation.action_input or {}, sort_keys=True)}"
         rendered_observation = observation
@@ -309,9 +309,9 @@ class AnalysisWorkflowAgent(BaseAgent):
             f"{rendered_observation}"
         )
 
-    async def _execute_step_actions(self, step: WorkflowStep, failed_tool_calls: Dict[str, int]) -> str:
+    async def _execute_step_actions(self, step: WorkflowStep, failed_tool_calls: dict[str, int]) -> str:
         prepared_actions = self._prepare_step_actions(step)
-        observations: List[str] = []
+        observations: list[str] = []
 
         for is_concurrency_safe, batch in self._partition_prepared_actions(prepared_actions):
             for prepared in batch:
@@ -330,7 +330,7 @@ class AnalysisWorkflowAgent(BaseAgent):
                     for prepared in batch
                 ]
 
-            for prepared, observation in zip(batch, raw_observations):
+            for prepared, observation in zip(batch, raw_observations, strict=True):
                 observations.append(
                     self._render_action_observation(
                         index=len(observations) + 1,
@@ -346,10 +346,10 @@ class AnalysisWorkflowAgent(BaseAgent):
             return observations[0].split("=>\n", 1)[1]
         return "Batch Observation:\n" + "\n\n".join(observations)
 
-    async def _prepare_runtime_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _prepare_runtime_context(self, context: dict[str, Any]) -> dict[str, Any]:
         return context
 
-    def _build_iteration_messages(self) -> List[Dict[str, str]]:
+    def _build_iteration_messages(self) -> list[dict[str, str]]:
         return self._conversation_history
 
     def _on_iteration_start(self, iteration: int) -> None:
@@ -358,7 +358,7 @@ class AnalysisWorkflowAgent(BaseAgent):
     def _build_iteration_control_prompt(self) -> str:
         return ""
 
-    def _inject_iteration_control_prompt(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def _inject_iteration_control_prompt(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
         prompt = self._build_iteration_control_prompt().strip()
         if not prompt:
             return messages
@@ -380,8 +380,8 @@ class AnalysisWorkflowAgent(BaseAgent):
     def _structured_tool_calling_parallel(self) -> bool:
         return True
 
-    def _build_structured_tool_schemas(self) -> List[Dict[str, Any]]:
-        schemas: List[Dict[str, Any]] = []
+    def _build_structured_tool_schemas(self) -> list[dict[str, Any]]:
+        schemas: list[dict[str, Any]] = []
         for tool_name, tool in self.tools.items():
             if tool_name.startswith("_"):
                 continue
@@ -394,7 +394,7 @@ class AnalysisWorkflowAgent(BaseAgent):
                 logger.debug("Failed to build structured schema for tool %s: %s", tool_name, exc)
         return schemas
 
-    def _normalize_structured_action_input(self, raw_input: Any) -> Dict[str, Any]:
+    def _normalize_structured_action_input(self, raw_input: Any) -> dict[str, Any]:
         if raw_input is None:
             return {}
         if isinstance(raw_input, dict):
@@ -406,8 +406,8 @@ class AnalysisWorkflowAgent(BaseAgent):
             return {"raw_input": parsed}
         return {"raw_input": raw_input}
 
-    def _parse_structured_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> List[ToolInvocation]:
-        invocations: List[ToolInvocation] = []
+    def _parse_structured_tool_calls(self, tool_calls: list[dict[str, Any]]) -> list[ToolInvocation]:
+        invocations: list[ToolInvocation] = []
         for tool_call in tool_calls or []:
             if not isinstance(tool_call, dict):
                 continue
@@ -424,8 +424,8 @@ class AnalysisWorkflowAgent(BaseAgent):
             invocations.append(ToolInvocation(action=action, action_input=action_input))
         return invocations
 
-    def _parse_textual_structured_tool_calls(self, content: str) -> List[ToolInvocation]:
-        invocations: List[ToolInvocation] = []
+    def _parse_textual_structured_tool_calls(self, content: str) -> list[ToolInvocation]:
+        invocations: list[ToolInvocation] = []
         if not content or "Tool Calls:" not in content:
             return invocations
 
@@ -441,8 +441,8 @@ class AnalysisWorkflowAgent(BaseAgent):
             )
         return invocations
 
-    def _build_structured_assistant_content(self, content: str, tool_calls: List[Dict[str, Any]]) -> str:
-        parts: List[str] = []
+    def _build_structured_assistant_content(self, content: str, tool_calls: list[dict[str, Any]]) -> str:
+        parts: list[str] = []
         if content and content.strip():
             parts.append(content.strip())
         invocations = self._parse_structured_tool_calls(tool_calls)
@@ -457,8 +457,8 @@ class AnalysisWorkflowAgent(BaseAgent):
     def _build_structured_debug_output(
         self,
         content: str,
-        tool_calls: List[Dict[str, Any]],
-        finish_reason: Optional[str] = None,
+        tool_calls: list[dict[str, Any]],
+        finish_reason: str | None = None,
     ) -> str:
         invocations = self._parse_structured_tool_calls(tool_calls)
         if not invocations:
@@ -477,7 +477,7 @@ class AnalysisWorkflowAgent(BaseAgent):
         }
         return json.dumps(payload, ensure_ascii=False, indent=2)
 
-    def _maybe_parse_structured_final_answer(self, content: str) -> Optional[Dict[str, Any]]:
+    def _maybe_parse_structured_final_answer(self, content: str) -> dict[str, Any] | None:
         stripped = re.sub(r"```json\s*|```", "", (content or "").strip())
         if not stripped:
             return None
@@ -486,7 +486,7 @@ class AnalysisWorkflowAgent(BaseAgent):
             return parsed
         return None
 
-    def _synthesize_action_thought(self, step: WorkflowStep) -> Optional[str]:
+    def _synthesize_action_thought(self, step: WorkflowStep) -> str | None:
         action = (step.action or "").strip()
         action_input = step.action_input or {}
         if not action:
@@ -517,11 +517,11 @@ class AnalysisWorkflowAgent(BaseAgent):
     def _build_step_from_structured_response(
         self,
         content: str,
-        tool_calls: List[Dict[str, Any]],
+        tool_calls: list[dict[str, Any]],
         *,
         allow_tool_calls: bool = True,
     ) -> WorkflowStep:
-        invocations: List[ToolInvocation] = []
+        invocations: list[ToolInvocation] = []
         if allow_tool_calls:
             invocations = self._parse_structured_tool_calls(tool_calls)
             if not invocations:
@@ -552,7 +552,7 @@ class AnalysisWorkflowAgent(BaseAgent):
 
     async def _request_structured_step(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
     ) -> tuple[WorkflowStep, str, str, int]:
         messages = self.compress_messages_if_needed(messages)
         if self.is_cancelled:
@@ -598,7 +598,7 @@ class AnalysisWorkflowAgent(BaseAgent):
 
     async def _request_iteration_step(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
     ) -> tuple[WorkflowStep, str, str, int]:
         if self._use_structured_tool_calling():
             return await self._request_structured_step(messages)
@@ -624,7 +624,7 @@ class AnalysisWorkflowAgent(BaseAgent):
     def _should_skip_full_history_finalization(self) -> bool:
         return False
 
-    def _get_project_context(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _get_project_context(self, input_data: dict[str, Any]) -> dict[str, Any]:
         project_info = input_data.get("project_info", {})
         config = input_data.get("config", {})
         previous_results = input_data.get("previous_results", {}) or {}
@@ -666,7 +666,7 @@ class AnalysisWorkflowAgent(BaseAgent):
             "skill_context": {},
         }
 
-    def _build_initial_message(self, context: Dict[str, Any]) -> str:
+    def _build_initial_message(self, context: dict[str, Any]) -> str:
         raise NotImplementedError
 
     def _build_summary_prompt(self) -> str:
@@ -678,16 +678,16 @@ class AnalysisWorkflowAgent(BaseAgent):
             "只能返回 'Final Answer: {...}' 或匹配 schema 的纯 JSON。"
         )
 
-    def _build_fallback_result(self) -> Dict[str, Any]:
+    def _build_fallback_result(self) -> dict[str, Any]:
         return {
             self.output_key: [],
             "summary": f"{self.name} 已完成 {len(self._steps)} 轮推理，但没有产出符合要求的 Final Answer。",
         }
 
-    async def _recover_final_result(self) -> Dict[str, Any]:
+    async def _recover_final_result(self) -> dict[str, Any]:
         return {}
 
-    def _normalize_finding(self, finding: Dict[str, Any], *, origin: Optional[str] = None) -> Dict[str, Any]:
+    def _normalize_finding(self, finding: dict[str, Any], *, origin: str | None = None) -> dict[str, Any]:
         line_start = finding.get("line_start") or finding.get("line", 0) or 0
         line_end = finding.get("line_end") or finding.get("line_start") or finding.get("line", 0) or 0
         try:
@@ -763,7 +763,7 @@ class AnalysisWorkflowAgent(BaseAgent):
                 normalized[key] = [item for item in values if isinstance(item, str) and item.strip()]
         return normalized
 
-    def _normalize_references(self, references: Any) -> List[str]:
+    def _normalize_references(self, references: Any) -> list[str]:
         if not references:
             return []
         if isinstance(references, str):
@@ -772,10 +772,10 @@ class AnalysisWorkflowAgent(BaseAgent):
             return [str(item).strip() for item in references if str(item).strip()]
         return [str(references).strip()]
 
-    def _normalize_exploit_chain(self, exploit_chain: Any) -> List[Dict[str, Any]]:
+    def _normalize_exploit_chain(self, exploit_chain: Any) -> list[dict[str, Any]]:
         if not isinstance(exploit_chain, list):
             return []
-        normalized_chain: List[Dict[str, Any]] = []
+        normalized_chain: list[dict[str, Any]] = []
         for idx, step in enumerate(exploit_chain, start=1):
             if not isinstance(step, dict):
                 continue
@@ -794,12 +794,12 @@ class AnalysisWorkflowAgent(BaseAgent):
             )
         return normalized_chain
 
-    def _normalize_poc(self, poc: Any) -> Dict[str, Any]:
+    def _normalize_poc(self, poc: Any) -> dict[str, Any]:
         if not isinstance(poc, dict):
             return {}
         preconditions = poc.get("preconditions", [])
         steps = poc.get("steps", [])
-        normalized_steps: List[Dict[str, Any]] = []
+        normalized_steps: list[dict[str, Any]] = []
         if isinstance(steps, list):
             for idx, step in enumerate(steps, start=1):
                 if not isinstance(step, dict):
@@ -821,7 +821,7 @@ class AnalysisWorkflowAgent(BaseAgent):
             "description": str(poc.get("description", "")).strip(),
         }
 
-    def _postprocess_result(self, raw_result: Dict[str, Any]) -> Dict[str, Any]:
+    def _postprocess_result(self, raw_result: dict[str, Any]) -> dict[str, Any]:
         findings = raw_result.get(self.output_key, [])
         standardized = []
         for finding in findings:
@@ -832,16 +832,16 @@ class AnalysisWorkflowAgent(BaseAgent):
             "summary": raw_result.get("summary", ""),
         }
 
-    def _build_handoff(self, processed_result: Dict[str, Any]) -> Optional[TaskHandoff]:
+    def _build_handoff(self, processed_result: dict[str, Any]) -> TaskHandoff | None:
         findings = processed_result.get("findings", [])
         if not findings:
             return None
 
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         sorted_findings = sorted(findings, key=lambda item: severity_order.get(item.get("severity", "low"), 3))
-        severity_counts: Dict[str, int] = {}
-        type_counts: Dict[str, int] = {}
-        files_with_findings: Dict[str, int] = {}
+        severity_counts: dict[str, int] = {}
+        type_counts: dict[str, int] = {}
+        files_with_findings: dict[str, int] = {}
 
         for finding in findings:
             severity = finding.get("severity", "medium")
@@ -889,7 +889,7 @@ class AnalysisWorkflowAgent(BaseAgent):
             },
         )
 
-    async def run(self, input_data: Dict[str, Any]) -> AgentResult:
+    async def run(self, input_data: dict[str, Any]) -> AgentResult:
         start_time = time.time()
         context = self._get_project_context(input_data)
         context["skill_context"] = await SkillService.resolve_agent_skills(
@@ -905,11 +905,11 @@ class AnalysisWorkflowAgent(BaseAgent):
             {"role": "user", "content": initial_message},
         ]
         self._steps = []
-        final_result: Dict[str, Any] = {self.output_key: [], "summary": ""}
+        final_result: dict[str, Any] = {self.output_key: [], "summary": ""}
         completion_source = "not_completed"
         empty_response_count = 0
         llm_failure_count = 0
-        failed_tool_calls: Dict[str, int] = {}
+        failed_tool_calls: dict[str, int] = {}
         await self.emit_agent_start_debug(
             {
                 "task": context.get("task", ""),
@@ -1107,8 +1107,8 @@ class AnalysisWorkflowAgent(BaseAgent):
             logger.error("%s failed: %s", self.name, exc, exc_info=True)
             return AgentResult(success=False, error=str(exc))
 
-    def get_conversation_history(self) -> List[Dict[str, str]]:
+    def get_conversation_history(self) -> list[dict[str, str]]:
         return self._conversation_history
 
-    def get_steps(self) -> List[WorkflowStep]:
+    def get_steps(self) -> list[WorkflowStep]:
         return self._steps

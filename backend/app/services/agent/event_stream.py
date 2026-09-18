@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from typing import Any
 
 from app.core.config import settings
 
@@ -11,11 +12,11 @@ class RedisAgentEventStream:
     def __init__(
         self,
         *,
-        redis_client: Optional[Any] = None,
-        redis_url: Optional[str] = None,
+        redis_client: Any | None = None,
+        redis_url: str | None = None,
         key_prefix: str = "agent:events",
-        maxlen: Optional[int] = None,
-        block_ms: Optional[int] = None,
+        maxlen: int | None = None,
+        block_ms: int | None = None,
     ):
         self.redis_client = redis_client
         self.redis_url = redis_url or settings.REDIS_URL
@@ -57,7 +58,7 @@ class RedisAgentEventStream:
         while True:
             rows = await client.xread({key: current_id}, count=100, block=self.block_ms)
             if not rows:
-                yield {"event_type": "heartbeat", "timestamp": datetime.now(timezone.utc).isoformat()}
+                yield {"event_type": "heartbeat", "timestamp": datetime.now(UTC).isoformat()}
                 continue
             for _, messages in rows:
                 for message_id, fields in messages:

@@ -2,8 +2,7 @@
 加密相关漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 WEAK_CRYPTO = KnowledgeDocument(
     id="vuln_weak_crypto",

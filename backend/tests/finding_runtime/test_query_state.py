@@ -4,7 +4,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.services.finding_runtime.models import RuntimeContinueReason, RuntimeMessageRole, TranscriptItem
+from app.services.finding_runtime.models import (
+    RuntimeContinueReason,
+    RuntimeMessageRole,
+    TranscriptItem,
+)
 from app.services.finding_runtime.query_state import QueryLoopState
 from app.services.finding_runtime.session_store import AuditSessionStore
 

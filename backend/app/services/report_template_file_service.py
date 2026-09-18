@@ -5,7 +5,7 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class ReportTemplateFileService:
@@ -83,7 +83,7 @@ class ReportTemplateFileService:
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     @classmethod
-    def _paths(cls, slug: str) -> Dict[str, str]:
+    def _paths(cls, slug: str) -> dict[str, str]:
         directory = cls.template_dir(slug)
         relative = directory.relative_to(cls.project_root()).as_posix()
         return {
@@ -97,7 +97,7 @@ class ReportTemplateFileService:
         }
 
     @classmethod
-    def read_template(cls, slug: str) -> Dict[str, Any]:
+    def read_template(cls, slug: str) -> dict[str, Any]:
         slug = cls.slugify(slug)
         metadata = cls._read_json(cls.metadata_file(slug), {})
         content = cls.template_file(slug).read_text(encoding="utf-8") if cls.template_file(slug).exists() else ""
@@ -124,8 +124,8 @@ class ReportTemplateFileService:
         }
 
     @classmethod
-    def list_templates(cls) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
+    def list_templates(cls) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
         for entry in sorted(cls.library_root().iterdir(), key=lambda item: item.name.lower()):
             if entry.is_dir():
                 items.append(cls.read_template(entry.name))
@@ -137,17 +137,17 @@ class ReportTemplateFileService:
         *,
         slug: str,
         name: str,
-        description: Optional[str],
+        description: str | None,
         content: str,
         report_type: str,
         output_format: str,
-        variables: Dict[str, Any],
-        metadata_json: Optional[Dict[str, Any]],
+        variables: dict[str, Any],
+        metadata_json: dict[str, Any] | None,
         is_default: bool,
         is_system: bool,
         is_active: bool,
         sort_order: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         slug = cls.slugify(slug)
         cls.template_file(slug).write_text(content or "", encoding="utf-8")
         cls._write_json(
@@ -168,7 +168,7 @@ class ReportTemplateFileService:
         return cls.read_template(slug)
 
     @classmethod
-    def rename_template(cls, current_slug: str, new_slug: str) -> Dict[str, Any]:
+    def rename_template(cls, current_slug: str, new_slug: str) -> dict[str, Any]:
         current_slug = cls.slugify(current_slug)
         new_slug = cls.slugify(new_slug)
         if current_slug == new_slug:
@@ -189,7 +189,7 @@ class ReportTemplateFileService:
             shutil.rmtree(directory)
 
     @classmethod
-    def clear_default_flags(cls, exclude_slug: Optional[str] = None) -> None:
+    def clear_default_flags(cls, exclude_slug: str | None = None) -> None:
         exclude_slug = cls.slugify(exclude_slug) if exclude_slug else None
         for entry in cls.list_templates():
             if exclude_slug and entry["slug"] == exclude_slug:

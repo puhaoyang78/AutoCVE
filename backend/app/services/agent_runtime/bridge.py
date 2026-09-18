@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.db.session import get_sync_session_factory
 from app.services.agent_runtime.adapter import AgentRuntimeAdapter

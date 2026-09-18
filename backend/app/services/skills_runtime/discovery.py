@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import yaml
 
 from .models import SkillEntry
 
 
-def parse_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
+def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     text = (content or "").replace("\r\n", "\n")
     if not text.startswith("---\n"):
         return {}, text
@@ -35,7 +35,7 @@ def parse_frontmatter(content: str) -> Tuple[Dict[str, Any], str]:
     return metadata, body
 
 
-def _frontmatter_get(frontmatter: Dict[str, Any], *keys: str) -> Any:
+def _frontmatter_get(frontmatter: dict[str, Any], *keys: str) -> Any:
     for key in keys:
         if key in frontmatter:
             return frontmatter[key]
@@ -48,7 +48,7 @@ def _coerce_string(value: Any) -> str | None:
     return str(value)
 
 
-def _coerce_string_list(value: Any) -> List[str]:
+def _coerce_string_list(value: Any) -> list[str]:
     if isinstance(value, list):
         return [str(item) for item in value if item is not None]
     if value is None:
@@ -65,7 +65,7 @@ def _read_json(path: Path, default: Any) -> Any:
         return default
 
 
-def _build_paths(base_dir: Path, project_root: Path, file_name: str = "SKILL.md") -> Dict[str, str]:
+def _build_paths(base_dir: Path, project_root: Path, file_name: str = "SKILL.md") -> dict[str, str]:
     relative = base_dir.resolve().relative_to(project_root.resolve()).as_posix()
     return {
         "storage_path": str(base_dir),
@@ -79,8 +79,8 @@ def _build_paths(base_dir: Path, project_root: Path, file_name: str = "SKILL.md"
     }
 
 
-def _build_extension_manifest(skill_dir: Path) -> List[Dict[str, Any]]:
-    manifest: List[Dict[str, Any]] = []
+def _build_extension_manifest(skill_dir: Path) -> list[dict[str, Any]]:
+    manifest: list[dict[str, Any]] = []
     for folder in ("references", "examples", "scripts"):
         base = skill_dir / folder
         if not base.exists():
@@ -98,13 +98,13 @@ def _build_extension_manifest(skill_dir: Path) -> List[Dict[str, Any]]:
     return manifest
 
 
-def discover_skill_entries(library_root: Path, project_root: Path | None = None) -> List[SkillEntry]:
+def discover_skill_entries(library_root: Path, project_root: Path | None = None) -> list[SkillEntry]:
     library_root = Path(library_root).resolve()
     project_root = Path(project_root).resolve() if project_root else library_root.parent.resolve()
     if not library_root.exists():
         return []
 
-    entries: List[SkillEntry] = []
+    entries: list[SkillEntry] = []
     for child in sorted(library_root.iterdir(), key=lambda item: item.name.lower()):
         if not child.is_dir():
             continue

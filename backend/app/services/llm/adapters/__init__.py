@@ -7,15 +7,15 @@ LLM适配器模块
 """
 
 # LiteLLM 统一适配器
-from .litellm_adapter import LiteLLMAdapter
 from .anthropic_adapter import AnthropicAdapter
-from .openai_responses_adapter import OpenAIResponsesAdapter
-from .gemini_native_adapter import GeminiNativeAdapter
 
 # 原生适配器 (用于 API 格式特殊的提供商)
 from .baidu_adapter import BaiduAdapter
-from .minimax_adapter import MinimaxAdapter
 from .doubao_adapter import DoubaoAdapter
+from .gemini_native_adapter import GeminiNativeAdapter
+from .litellm_adapter import LiteLLMAdapter
+from .minimax_adapter import MinimaxAdapter
+from .openai_responses_adapter import OpenAIResponsesAdapter
 
 __all__ = [
     "LiteLLMAdapter",

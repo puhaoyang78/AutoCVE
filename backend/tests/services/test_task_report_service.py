@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.models.agent_task import AgentFinding
 from app.services.task_report_service import serialize_finding
@@ -17,7 +17,7 @@ def test_serialize_finding_includes_navigation_fields():
         status="new",
         is_verified=False,
     )
-    finding.created_at = datetime(2026, 5, 19, 8, 30, tzinfo=timezone.utc)
+    finding.created_at = datetime(2026, 5, 19, 8, 30, tzinfo=UTC)
 
     payload = serialize_finding(finding)
 

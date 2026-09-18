@@ -8,7 +8,6 @@ from urllib.parse import urlencode, urlparse, urlunparse
 
 import httpx
 
-
 SEVERITY_LABELS = {
     0: "Info",
     1: "Low",

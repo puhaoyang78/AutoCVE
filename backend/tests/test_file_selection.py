@@ -33,7 +33,7 @@ except ImportError:
                 return func
     pytest = MockPytest()
 
-from app.services.scanner import should_exclude, is_text_file, EXCLUDE_PATTERNS
+from app.services.scanner import is_text_file, should_exclude
 
 
 class TestShouldExclude:
@@ -60,12 +60,12 @@ class TestShouldExclude:
         # 注意：当前实现使用简单的 'in' 匹配，不是 glob 模式
         # 所以模式应该是路径片段，如 ".log", "temp/", ".bak"
         custom_patterns = [".log", "temp/", ".bak"]
-        
+
         # 应该被排除（包含模式字符串）
         assert should_exclude("app.log", custom_patterns) is True
         assert should_exclude("temp/cache.txt", custom_patterns) is True
         assert should_exclude("config.bak", custom_patterns) is True
-        
+
         # 不应该被排除
         assert should_exclude("src/main.py", custom_patterns) is False
 
@@ -73,7 +73,7 @@ class TestShouldExclude:
         """测试默认模式和自定义模式组合"""
         # 使用路径片段匹配
         custom_patterns = [".test.js", "coverage/"]
-        
+
         # 默认模式排除
         assert should_exclude("node_modules/lib.js", custom_patterns) is True
         # 自定义模式排除
@@ -115,7 +115,7 @@ class TestExcludePatternsIntegration:
         """测试路径片段匹配"""
         # 当前实现使用 'in' 匹配，所以使用路径片段
         patterns = ["tests/", ".test.js"]
-        
+
         # 这些应该被排除
         assert should_exclude("src/tests/unit.js", patterns) is True
         assert should_exclude("app.test.js", patterns) is True
@@ -139,11 +139,11 @@ class TestFileSelectionWorkflow:
         """创建测试用的 ZIP 文件"""
         temp_dir = tempfile.mkdtemp()
         zip_path = os.path.join(temp_dir, "test.zip")
-        
+
         with zipfile.ZipFile(zip_path, 'w') as zf:
             for filename, content in files.items():
                 zf.writestr(filename, content)
-        
+
         return zip_path
 
     def test_zip_file_filtering(self):
@@ -159,34 +159,34 @@ class TestFileSelectionWorkflow:
             "app.log": "log content",
             "README.md": "# Readme",
         }
-        
+
         zip_path = self.create_test_zip(files)
-        
+
         try:
             # 模拟文件过滤逻辑
             filtered_files = []
             # 使用路径片段匹配（当前实现方式）
             custom_exclude = [".log", ".md"]
-            
+
             with zipfile.ZipFile(zip_path, 'r') as zf:
                 for file_info in zf.infolist():
                     if not file_info.is_dir():
                         path = file_info.filename
                         if is_text_file(path) and not should_exclude(path, custom_exclude):
                             filtered_files.append(path)
-            
+
             # 验证过滤结果
             assert "src/main.py" in filtered_files
             assert "src/utils.py" in filtered_files
             assert "tests/test_main.py" in filtered_files
-            
+
             # 这些应该被排除
             assert "node_modules/lib.js" not in filtered_files  # 默认排除
             assert "dist/bundle.js" not in filtered_files  # 默认排除
             assert ".git/config" not in filtered_files  # 默认排除
             assert "app.log" not in filtered_files  # 自定义排除 (.log)
             assert "README.md" not in filtered_files  # 自定义排除 (.md) + 不是代码文件
-            
+
         finally:
             os.remove(zip_path)
             os.rmdir(os.path.dirname(zip_path))
@@ -200,10 +200,10 @@ class TestFileSelectionWorkflow:
             {"path": "src/tests/test_main.py", "size": 150},
             {"path": "lib/helper.py", "size": 80},
         ]
-        
+
         # 用户选择部分文件
         selected_files = ["src/main.py", "src/utils.py"]
-        
+
         # 验证选择的文件都在可用列表中
         available_paths = {f["path"] for f in all_files}
         for selected in selected_files:
@@ -214,16 +214,16 @@ class TestFileSelectionWorkflow:
         # 模拟初始状态
         initial_exclude = ["node_modules/**", ".git/**"]
         selected_files = ["src/main.py", "src/utils.py"]
-        
+
         # 模拟排除模式变化
         new_exclude = ["node_modules/**", ".git/**", "src/utils.py"]
-        
+
         # 当排除模式变化时，应该清空选择
         # 因为 src/utils.py 现在被排除了
         if initial_exclude != new_exclude:
             # 前端逻辑：清空选择
             selected_files = None
-        
+
         assert selected_files is None
 
 
@@ -234,10 +234,8 @@ class TestAPIEndpoints:
     async def test_get_project_files_with_exclude(self):
         """测试获取项目文件 API 带排除模式"""
         # 模拟请求参数
-        project_id = "test-project-id"
-        branch = "main"
         exclude_patterns = json.dumps(["*.log", "temp/**"])
-        
+
         # 验证参数格式正确
         parsed_patterns = json.loads(exclude_patterns)
         assert isinstance(parsed_patterns, list)
@@ -253,7 +251,7 @@ class TestAPIEndpoints:
             "rule_set_id": None,
             "prompt_template_id": None,
         }
-        
+
         # 验证配置格式
         assert "exclude_patterns" in scan_config
         assert isinstance(scan_config["exclude_patterns"], list)
@@ -267,14 +265,14 @@ class TestEdgeCases:
         """测试空文件列表"""
         files = []
         exclude_patterns = ["*.log"]
-        
+
         filtered = [f for f in files if not should_exclude(f, exclude_patterns)]
         assert filtered == []
 
     def test_all_files_excluded(self):
         """测试所有文件都被排除"""
         files = ["node_modules/a.js", "dist/b.js", ".git/config"]
-        
+
         filtered = [f for f in files if not should_exclude(f)]
         assert filtered == []
 
@@ -286,7 +284,7 @@ class TestEdgeCases:
             "src/file-name.py",
             "src/file_name.py",
         ]
-        
+
         for path in paths:
             # 不应该因为特殊字符而出错
             result = should_exclude(path)
@@ -296,7 +294,7 @@ class TestEdgeCases:
         """测试深层嵌套路径"""
         deep_path = "a/b/c/d/e/f/g/h/i/j/main.py"
         assert should_exclude(deep_path) is False
-        
+
         deep_excluded = "a/b/c/node_modules/d/e/f.js"
         assert should_exclude(deep_excluded) is True
 
@@ -306,7 +304,7 @@ def run_tests():
     print("=" * 60)
     print("文件选择与排除模式功能测试")
     print("=" * 60)
-    
+
     # 测试 should_exclude
     print("\n[1/6] 测试 should_exclude 函数...")
     test_exclude = TestShouldExclude()
@@ -315,14 +313,14 @@ def run_tests():
     test_exclude.test_custom_exclude_patterns()
     test_exclude.test_combined_patterns()
     print("✅ should_exclude 测试通过")
-    
+
     # 测试 is_text_file
     print("\n[2/6] 测试 is_text_file 函数...")
     test_text = TestIsTextFile()
     test_text.test_supported_extensions()
     test_text.test_unsupported_extensions()
     print("✅ is_text_file 测试通过")
-    
+
     # 测试排除模式集成
     print("\n[3/6] 测试排除模式集成...")
     test_integration = TestExcludePatternsIntegration()
@@ -330,7 +328,7 @@ def run_tests():
     test_integration.test_empty_exclude_patterns()
     test_integration.test_none_exclude_patterns()
     print("✅ 排除模式集成测试通过")
-    
+
     # 测试文件选择工作流
     print("\n[4/6] 测试文件选择工作流...")
     test_workflow = TestFileSelectionWorkflow()
@@ -338,7 +336,7 @@ def run_tests():
     test_workflow.test_file_selection_with_exclude()
     test_workflow.test_exclude_patterns_change_clears_selection()
     print("✅ 文件选择工作流测试通过")
-    
+
     # 测试边界情况
     print("\n[5/6] 测试边界情况...")
     test_edge = TestEdgeCases()
@@ -347,7 +345,7 @@ def run_tests():
     test_edge.test_special_characters_in_path()
     test_edge.test_deep_nested_paths()
     print("✅ 边界情况测试通过")
-    
+
     # 测试 API 端点（同步版本）
     print("\n[6/6] 测试 API 端点参数...")
     test_api = TestAPIEndpoints()
@@ -355,7 +353,7 @@ def run_tests():
     asyncio.run(test_api.test_get_project_files_with_exclude())
     asyncio.run(test_api.test_scan_request_with_exclude())
     print("✅ API 端点测试通过")
-    
+
     print("\n" + "=" * 60)
     print("🎉 所有测试通过！")
     print("=" * 60)

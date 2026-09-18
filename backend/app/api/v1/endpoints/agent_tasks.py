@@ -2,43 +2,58 @@
 
 import asyncio
 import contextlib
+import copy
 import inspect
 import json
 import logging
-import copy
 import os
 import re
-import zipfile
 import shutil
-from typing import Any, Callable, List, Optional, Dict, Set
-from datetime import datetime, timezone
+import zipfile
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import case, func
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, ConfigDict, Field
 
 from app.api import deps
-from app.api.v1.endpoints.config import _normalize_workflow_config, WORKFLOW_AGENT_TYPES, WORKFLOW_LOCKED_AGENTS
-from app.db.session import get_db, async_session_factory
-from app.models.agent_task import (
-    AgentTask, AgentEvent, AgentFinding, AgentTreeNode,
-    AgentTaskStatus, AgentTaskPhase, AgentEventType,
-    VulnerabilitySeverity, FindingStatus,
+from app.api.v1.endpoints.config import (
+    WORKFLOW_AGENT_TYPES,
+    WORKFLOW_LOCKED_AGENTS,
+    _normalize_workflow_config,
 )
-from app.models.audit_session import AuditCheckpoint, AuditSession, AuditSessionMessage, AuditSessionTurn, AuditToolCall
-from app.services.finding_runtime.final_finding_contract import has_meaningful_poc, is_placeholder_finding
-from app.services.finding_runtime.fingerprint import build_finding_fingerprint
+from app.core.config import settings
+from app.core.encryption import decrypt_sensitive_data
+from app.db.session import async_session_factory, get_db
+from app.models.agent_task import (
+    AgentEvent,
+    AgentEventType,
+    AgentFinding,
+    AgentTask,
+    AgentTaskPhase,
+    AgentTaskStatus,
+    AgentTreeNode,
+    FindingStatus,
+    VulnerabilitySeverity,
+)
+from app.models.audit_session import (
+    AuditCheckpoint,
+    AuditSession,
+    AuditSessionMessage,
+    AuditSessionTurn,
+    AuditToolCall,
+)
 from app.models.project import Project
 from app.models.user import User
-from app.models.user_config import UserConfig
 from app.services.agent.event_manager import EventManager
 from app.services.agent.event_stream import create_agent_event_stream, event_stream_enabled
-from app.services.agent.task_queue import enqueue_agent_task, should_use_worker_queue
 from app.services.agent.task_executor import (
     _cancelled_tasks,
     _running_asyncio_tasks,
@@ -49,12 +64,14 @@ from app.services.agent.task_executor import (
     is_task_cancelled,
     request_agent_task_cancellation,
 )
-from app.services.agent.streaming import StreamHandler, StreamEvent, StreamEventType
+from app.services.agent.task_queue import enqueue_agent_task, should_use_worker_queue
+from app.services.finding_runtime.final_finding_contract import (
+    has_meaningful_poc,
+    is_placeholder_finding,
+)
+from app.services.finding_runtime.fingerprint import build_finding_fingerprint
 from app.services.git_ssh_service import GitSSHOperations
-from app.services.skill_file_service import SkillFileService
 from app.services.runtime_core.runtime_session_checkpoint_store import RuntimeSessionCheckpointStore
-from app.core.config import settings
-from app.core.encryption import decrypt_sensitive_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -76,7 +93,7 @@ async def _mark_latest_runtime_session_manual_cancelled(db: AsyncSession, task_i
     if batch_project is not None:
         batch_project.status = OneClickCveProjectStatus.CANCELLED
         batch_project.error_message = "用户已手动终止，可继续审计"
-        batch_project.updated_at_local = datetime.now(timezone.utc)
+        batch_project.updated_at_local = datetime.now(UTC)
 
     session = await db.scalar(
         select(AuditSession)
@@ -92,7 +109,7 @@ async def _mark_latest_runtime_session_manual_cancelled(db: AsyncSession, task_i
     metadata["manual_cancel"] = {
         "status": "stopped",
         "can_resume": True,
-        "stopped_at": datetime.now(timezone.utc).isoformat(),
+        "stopped_at": datetime.now(UTC).isoformat(),
     }
     runtime_state["metadata"] = metadata
     session.runtime_state_json = runtime_state
@@ -137,11 +154,11 @@ class AgentTaskCreate(BaseModel):
     """Schema for creating an agent audit task."""
 
     project_id: str = Field(..., description="Project ID")
-    name: Optional[str] = Field(None, description="Task name")
-    description: Optional[str] = Field(None, description="Task description")
+    name: str | None = Field(None, description="Task name")
+    description: str | None = Field(None, description="Task description")
 
-    audit_scope: Optional[dict] = Field(None, description="Audit scope configuration")
-    target_vulnerabilities: Optional[List[str]] = Field(
+    audit_scope: dict | None = Field(None, description="Audit scope configuration")
+    target_vulnerabilities: list[str] | None = Field(
         default=None,
         description="Optional explicit vulnerability classes to emphasize",
     )
@@ -151,13 +168,13 @@ class AgentTaskCreate(BaseModel):
     )
 
     version_label: str = Field(..., description="Human-entered version label")
-    version_tag: Optional[str] = Field(None, description="Optional repository tag")
-    branch_name: Optional[str] = Field(None, description="Repository branch name")
-    exclude_patterns: Optional[List[str]] = Field(
+    version_tag: str | None = Field(None, description="Optional repository tag")
+    branch_name: str | None = Field(None, description="Repository branch name")
+    exclude_patterns: list[str] | None = Field(
         default=["node_modules", "__pycache__", ".git", "*.min.js"],
         description="Glob patterns to exclude from the audit",
     )
-    target_files: Optional[List[str]] = Field(None, description="Explicit file targets for the audit")
+    target_files: list[str] | None = Field(None, description="Explicit file targets for the audit")
 
     max_iterations: int = Field(50, ge=1, le=200, description="Maximum agent iterations")
     timeout_seconds: int = Field(1800, ge=60, le=7200, description="Task timeout in seconds")
@@ -167,64 +184,64 @@ class AgentTaskResponse(BaseModel):
     """Agent task response schema."""
     id: str
     project_id: str
-    name: Optional[str]
-    description: Optional[str]
+    name: str | None
+    description: str | None
     task_type: str = "agent_audit"
     status: str
-    current_phase: Optional[str]
-    current_step: Optional[str] = None
-    version_label: Optional[str] = None
-    version_tag: Optional[str] = None
-    branch_name: Optional[str] = None
-    commit_sha: Optional[str] = None
-    repository_url_snapshot: Optional[str] = None
-    
+    current_phase: str | None
+    current_step: str | None = None
+    version_label: str | None = None
+    version_tag: str | None = None
+    branch_name: str | None = None
+    commit_sha: str | None = None
+    repository_url_snapshot: str | None = None
+
     total_files: int = 0
     indexed_files: int = 0
     analyzed_files: int = 0
     files_with_findings: int = 0
     total_chunks: int = 0
-    
+
     total_iterations: int = 0
     tool_calls_count: int = 0
     tokens_used: int = 0
-    
+
     findings_count: int = 0
     total_findings: int = 0
     verified_count: int = 0
     verified_findings: int = 0
     false_positive_count: int = 0
-    
+
     critical_count: int = 0
     high_count: int = 0
     medium_count: int = 0
     low_count: int = 0
-    
+
     quality_score: float = 0.0
-    security_score: Optional[float] = None
-    
+    security_score: float | None = None
+
     # Progress metrics
     progress_percentage: float = 0.0
-    
+
     created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    
-    audit_scope: Optional[dict] = None
-    target_vulnerabilities: Optional[List[str]] = None
-    verification_level: Optional[str] = None
-    exclude_patterns: Optional[List[str]] = None
-    target_files: Optional[List[str]] = None
-    
-    error_message: Optional[str] = None
-    runtime_session_id: Optional[str] = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+    audit_scope: dict | None = None
+    target_vulnerabilities: list[str] | None = None
+    verification_level: str | None = None
+    exclude_patterns: list[str] | None = None
+    target_files: list[str] | None = None
+
+    error_message: str | None = None
+    runtime_session_id: str | None = None
     finding_outcome: str = "none"
-    runtime_completion_mode: Optional[str] = None
+    runtime_completion_mode: str | None = None
     finalized_findings_count: int = 0
     recovered_candidates_count: int = 0
     handoff_ready: bool = False
-    recovered_candidates: List[Dict[str, Any]] = Field(default_factory=list)
-    
+    recovered_candidates: list[dict[str, Any]] = Field(default_factory=list)
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -232,21 +249,21 @@ class AgentTaskResponse(BaseModel):
 class AgentEventResponse(BaseModel):
     """Agent event response schema."""
     id: str
-    task_id: Optional[str] = None
+    task_id: str | None = None
     event_type: str
-    phase: Optional[str] = None
-    message: Optional[str] = None
+    phase: str | None = None
+    message: str | None = None
     sequence: int
-    timestamp: Optional[str] = None
-    created_at: Optional[str] = None
-    tool_name: Optional[str] = None
-    tool_input: Optional[Dict[str, Any]] = None
-    tool_output: Optional[Dict[str, Any]] = None
-    tool_duration_ms: Optional[int] = None
-    progress_percent: Optional[float] = None
-    finding_id: Optional[str] = None
-    tokens_used: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = None
+    timestamp: str | None = None
+    created_at: str | None = None
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    tool_output: dict[str, Any] | None = None
+    tool_duration_ms: int | None = None
+    progress_percent: float | None = None
+    finding_id: str | None = None
+    tokens_used: int | None = None
+    metadata: dict[str, Any] | None = None
 
     model_config = {
         "from_attributes": True,
@@ -261,34 +278,34 @@ class AgentFindingResponse(BaseModel):
     vulnerability_type: str
     severity: str
     title: str
-    description: Optional[str] = None
-    file_path: Optional[str] = None
-    line_start: Optional[int] = None
-    line_end: Optional[int] = None
-    code_snippet: Optional[str] = None
+    description: str | None = None
+    file_path: str | None = None
+    line_start: int | None = None
+    line_end: int | None = None
+    code_snippet: str | None = None
     is_verified: bool
-    confidence: Optional[float] = Field(default=0.5, validation_alias="ai_confidence")
-    ai_confidence: Optional[float] = None
+    confidence: float | None = Field(default=0.5, validation_alias="ai_confidence")
+    ai_confidence: float | None = None
     status: str
-    report_status: Optional[str] = None
-    verdict: Optional[str] = None
-    suggestion: Optional[str] = None
-    has_poc: Optional[bool] = None
-    poc_code: Optional[str] = None
-    fix_code: Optional[str] = None
-    ai_explanation: Optional[str] = None
-    poc: Optional[dict] = None
-    source: Optional[str] = None
-    sink: Optional[str] = None
-    exploit_chain: List[Dict[str, Any]] = Field(default_factory=list)
-    impact: Optional[str] = None
-    cve_justification: Optional[str] = None
-    verification_notes: Optional[str] = None
-    references: List[str] = Field(default_factory=list)
-    origin: Optional[str] = None
-    entry_point_refs: List[str] = Field(default_factory=list)
-    priority_path_refs: List[str] = Field(default_factory=list)
-    business_flow_notes: List[str] = Field(default_factory=list)
+    report_status: str | None = None
+    verdict: str | None = None
+    suggestion: str | None = None
+    has_poc: bool | None = None
+    poc_code: str | None = None
+    fix_code: str | None = None
+    ai_explanation: str | None = None
+    poc: dict | None = None
+    source: str | None = None
+    sink: str | None = None
+    exploit_chain: list[dict[str, Any]] = Field(default_factory=list)
+    impact: str | None = None
+    cve_justification: str | None = None
+    verification_notes: str | None = None
+    references: list[str] = Field(default_factory=list)
+    origin: str | None = None
+    entry_point_refs: list[str] = Field(default_factory=list)
+    priority_path_refs: list[str] = Field(default_factory=list)
+    business_flow_notes: list[str] = Field(default_factory=list)
     created_at: datetime
 
     model_config = {
@@ -301,37 +318,37 @@ class TaskSummaryResponse(BaseModel):
     """Task summary response schema."""
     task_id: str
     status: str
-    security_score: Optional[int] = None
+    security_score: int | None = None
     total_findings: int
     verified_findings: int
-    severity_distribution: Dict[str, int]
-    vulnerability_types: Dict[str, int]
-    duration_seconds: Optional[int] = None
-    phases_completed: List[str]
+    severity_distribution: dict[str, int]
+    vulnerability_types: dict[str, int]
+    duration_seconds: int | None = None
+    phases_completed: list[str]
 
 
 class DebugTaskListItem(BaseModel):
     id: str
     project_id: str
-    name: Optional[str]
+    name: str | None
     status: str
     created_at: datetime
-    latest_event_at: Optional[str] = None
+    latest_event_at: str | None = None
     event_count: int = 0
     agent_count: int = 0
     tool_call_count: int = 0
 
 
 class DebugTraceResponse(BaseModel):
-    task: Dict[str, Any]
-    summary: Dict[str, Any]
-    timeline: List[Dict[str, Any]]
-    handoffs: List[Dict[str, Any]]
+    task: dict[str, Any]
+    summary: dict[str, Any]
+    timeline: list[dict[str, Any]]
+    handoffs: list[dict[str, Any]]
 
 
 
-_running_orchestrators: Dict[str, Any] = {}
-_running_event_managers: Dict[str, EventManager] = {}
+_running_orchestrators: dict[str, Any] = {}
+_running_event_managers: dict[str, EventManager] = {}
 ONE_CLICK_CVE_DEFAULT_DISABLED_AGENTS = {"scan", "triage", "verification"}
 ONE_CLICK_CVE_DEFAULT_ENABLED_AGENTS = {"finding"}
 
@@ -343,11 +360,11 @@ async def _schedule_agent_task(background_tasks: BackgroundTasks, task_id: str) 
     background_tasks.add_task(_execute_agent_task, task_id)
 
 
-def _is_one_click_cve_scope(audit_scope: Optional[Dict[str, Any]]) -> bool:
+def _is_one_click_cve_scope(audit_scope: dict[str, Any] | None) -> bool:
     return isinstance(audit_scope, dict) and isinstance(audit_scope.get("one_click_cve"), dict)
 
 
-def _apply_workflow_agent_states(target: Dict[str, Any], states: Any, *, missing_enabled_value: bool = True) -> None:
+def _apply_workflow_agent_states(target: dict[str, Any], states: Any, *, missing_enabled_value: bool = True) -> None:
     if isinstance(states, dict):
         for agent in WORKFLOW_AGENT_TYPES:
             raw_state = states.get(agent)
@@ -357,14 +374,14 @@ def _apply_workflow_agent_states(target: Dict[str, Any], states: Any, *, missing
                 target["agentStates"][agent]["enabled"] = raw_state
 
 
-def _enforce_one_click_cve_workflow(target: Dict[str, Any]) -> None:
+def _enforce_one_click_cve_workflow(target: dict[str, Any]) -> None:
     for agent in ONE_CLICK_CVE_DEFAULT_DISABLED_AGENTS:
         target["agentStates"][agent]["enabled"] = False
     for agent in ONE_CLICK_CVE_DEFAULT_ENABLED_AGENTS:
         target["agentStates"][agent]["enabled"] = True
 
 
-def _merge_task_workflow_config(global_workflow: Optional[Dict[str, Any]], audit_scope: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _merge_task_workflow_config(global_workflow: dict[str, Any] | None, audit_scope: dict[str, Any] | None) -> dict[str, Any]:
     one_click_cve_scope = _is_one_click_cve_scope(audit_scope)
     if one_click_cve_scope:
         merged = _normalize_workflow_config({})
@@ -386,7 +403,7 @@ def _merge_task_workflow_config(global_workflow: Optional[Dict[str, Any]], audit
 
 
 
-def _extract_finding_runtime_payload(result_data: Any) -> Dict[str, Any]:
+def _extract_finding_runtime_payload(result_data: Any) -> dict[str, Any]:
     if not isinstance(result_data, dict):
         return {}
     if any(key in result_data for key in ("runtime_completion_mode", "recovered_candidates", "findings")):
@@ -401,7 +418,7 @@ def _extract_finding_runtime_payload(result_data: Any) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _normalize_recovered_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
+def _normalize_recovered_candidate(candidate: Any) -> dict[str, Any] | None:
     if not isinstance(candidate, dict):
         return None
     normalized = {
@@ -429,9 +446,9 @@ def _normalize_recovered_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
 def _build_finding_runtime_result_snapshot(
     *,
     persisted_findings_count: int,
-    finding_payload: Dict[str, Any],
+    finding_payload: dict[str, Any],
     handoff: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     runtime_completion_mode = finding_payload.get("runtime_completion_mode")
     recovered_candidates = [
         normalized
@@ -464,7 +481,7 @@ def _build_finding_runtime_result_snapshot(
     }
 
 
-def _get_task_finding_runtime_result(task: AgentTask) -> Dict[str, Any]:
+def _get_task_finding_runtime_result(task: AgentTask) -> dict[str, Any]:
     agent_config = dict(task.agent_config or {})
     stored = agent_config.get("finding_runtime_result")
     if isinstance(stored, dict):
@@ -497,8 +514,8 @@ def _get_task_finding_runtime_result(task: AgentTask) -> Dict[str, Any]:
     }
 
 
-async def _restore_agents_from_checkpoints(agents: List[Any]) -> List[Dict[str, Any]]:
-    restored: List[Dict[str, Any]] = []
+async def _restore_agents_from_checkpoints(agents: list[Any]) -> list[dict[str, Any]]:
+    restored: list[dict[str, Any]] = []
     for agent in agents:
         restore_fn = getattr(agent, "restore_runtime_session_from_checkpoint", None)
         if not callable(restore_fn):
@@ -516,16 +533,16 @@ async def _restore_agents_from_checkpoints(agents: List[Any]) -> List[Dict[str, 
 
 async def _bootstrap_agent_memories(
     *,
-    agents: List[Any],
+    agents: list[Any],
     project_root: str,
-    project_info: Dict[str, Any],
+    project_info: dict[str, Any],
     task: AgentTask,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     from app.db.session import get_sync_session_factory
     from app.services.runtime_core.memory_runtime import RuntimeMemoryManager
 
     manager = RuntimeMemoryManager(session_factory=get_sync_session_factory())
-    loaded: List[Dict[str, Any]] = []
+    loaded: list[dict[str, Any]] = []
     user_message = " ".join(
         part.strip()
         for part in [
@@ -554,7 +571,7 @@ async def _bootstrap_agent_memories(
         if existing_memory.get("instructions") or existing_memory.get("recalls"):
             continue
         bundle = await manager.preload(
-            agent_type=getattr(agent, "agent_type").value,
+            agent_type=agent.agent_type.value,
             system_prompt=getattr(getattr(agent, "config", None), "system_prompt", "") or "",
             recon_payload=recon_payload,
             user_message=user_message,
@@ -565,7 +582,7 @@ async def _bootstrap_agent_memories(
         agent.load_runtime_memory_bundle(bundle, source="task-bootstrap")
         loaded.append({
             "agent_id": getattr(agent, "agent_id", None),
-            "agent_type": getattr(agent, "agent_type").value,
+            "agent_type": agent.agent_type.value,
             "instruction_count": len(bundle.instructions),
             "recall_count": len(bundle.recalls),
         })
@@ -582,7 +599,7 @@ def _prepare_task_for_resume(task: AgentTask) -> AgentTask:
     task.completed_at = None
     agent_config = dict(task.agent_config or {})
     agent_config["resume_from_checkpoint"] = True
-    agent_config["resume_requested_at"] = datetime.now(timezone.utc).isoformat()
+    agent_config["resume_requested_at"] = datetime.now(UTC).isoformat()
     agent_config["resume_count"] = int(agent_config.get("resume_count") or 0) + 1
     if previous_status:
         agent_config["last_resume_from_status"] = previous_status
@@ -590,12 +607,12 @@ def _prepare_task_for_resume(task: AgentTask) -> AgentTask:
     return task
 
 
-def _mark_task_resume_restore(task: AgentTask, restored_agents: List[Dict[str, Any]] | None) -> bool:
+def _mark_task_resume_restore(task: AgentTask, restored_agents: list[dict[str, Any]] | None) -> bool:
     agent_config = dict(task.agent_config or {})
     if not agent_config.get("resume_from_checkpoint"):
         return False
 
-    normalized_agents: List[Dict[str, Any]] = []
+    normalized_agents: list[dict[str, Any]] = []
     for item in restored_agents or []:
         if not isinstance(item, dict):
             continue
@@ -606,7 +623,7 @@ def _mark_task_resume_restore(task: AgentTask, restored_agents: List[Dict[str, A
         })
 
     agent_config["resume_from_checkpoint"] = False
-    agent_config["last_resume_restored_at"] = datetime.now(timezone.utc).isoformat()
+    agent_config["last_resume_restored_at"] = datetime.now(UTC).isoformat()
     agent_config["last_resume_restore_count"] = len(normalized_agents)
     agent_config["last_resume_restored_agents"] = normalized_agents
     task.agent_config = agent_config
@@ -634,11 +651,11 @@ def _resolve_completed_task_tokens_used(*, current_tokens: int, result: Any, orc
 
 
 def _merge_live_agent_tree_stats(
-    nodes: Dict[str, Dict[str, Any]],
+    nodes: dict[str, dict[str, Any]],
     *,
     get_agent: Callable[[str], Any],
-) -> Dict[str, Dict[str, Any]]:
-    enriched_nodes: Dict[str, Dict[str, Any]] = {}
+) -> dict[str, dict[str, Any]]:
+    enriched_nodes: dict[str, dict[str, Any]] = {}
     for agent_id, node in nodes.items():
         enriched = dict(node)
         agent_instance = get_agent(agent_id)
@@ -662,7 +679,7 @@ def _merge_live_agent_tree_stats(
     return enriched_nodes
 
 
-async def _load_runtime_session_ids(db: AsyncSession, task_ids: List[str]) -> Dict[str, str]:
+async def _load_runtime_session_ids(db: AsyncSession, task_ids: list[str]) -> dict[str, str]:
     if not task_ids:
         return {}
 
@@ -671,18 +688,18 @@ async def _load_runtime_session_ids(db: AsyncSession, task_ids: List[str]) -> Di
         .where(AuditSession.task_id.in_(task_ids))
         .order_by(AuditSession.created_at.desc())
     )
-    mapping: Dict[str, str] = {}
+    mapping: dict[str, str] = {}
     for task_id, session_id in result.all():
         if task_id and task_id not in mapping:
             mapping[str(task_id)] = str(session_id)
     return mapping
 
 
-async def _load_runtime_task_stats(db: AsyncSession, task_ids: List[str]) -> Dict[str, Dict[str, int]]:
+async def _load_runtime_task_stats(db: AsyncSession, task_ids: list[str]) -> dict[str, dict[str, int]]:
     if not task_ids:
         return {}
 
-    stats: Dict[str, Dict[str, int]] = {
+    stats: dict[str, dict[str, int]] = {
         str(task_id): {"total_iterations": 0, "tool_calls_count": 0, "tokens_used": 0}
         for task_id in task_ids
         if task_id
@@ -732,7 +749,7 @@ async def _load_runtime_task_stats(db: AsyncSession, task_ids: List[str]) -> Dic
     return stats
 
 
-def _is_verification_enabled(workflow_config: Optional[Dict[str, Any]]) -> bool:
+def _is_verification_enabled(workflow_config: dict[str, Any] | None) -> bool:
     if not isinstance(workflow_config, dict):
         return False
     agent_states = workflow_config.get('agentStates')
@@ -746,7 +763,7 @@ def _is_verification_enabled(workflow_config: Optional[Dict[str, Any]]) -> bool:
     return False
 
 
-async def _load_latest_task_audit_session(db: AsyncSession, task_id: str) -> Optional[AuditSession]:
+async def _load_latest_task_audit_session(db: AsyncSession, task_id: str) -> AuditSession | None:
     result = await db.execute(
         select(AuditSession)
         .where(AuditSession.task_id == task_id)
@@ -763,7 +780,7 @@ async def _append_internal_audit_session_message(
     role: str,
     content: str,
     name: str,
-    metadata: Optional[Dict[str, Any]] = None,
+    metadata: dict[str, Any] | None = None,
 ) -> AuditSessionMessage:
     latest_sequence = await db.scalar(
         select(AuditSessionMessage.sequence)
@@ -958,10 +975,10 @@ async def _auto_generate_managed_vulnerability_reports(
     db: AsyncSession,
     *,
     task: AgentTask,
-    workflow_config: Optional[Dict[str, Any]],
-    findings: Optional[List[AgentFinding]] = None,
+    workflow_config: dict[str, Any] | None,
+    findings: list[AgentFinding] | None = None,
     event_emitter: Any | None = None,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     del workflow_config
 
     persisted_findings = list(findings or await _load_task_findings(db, task.id))
@@ -1076,8 +1093,8 @@ async def _sync_managed_vulnerability_records(
     db: AsyncSession,
     *,
     task: AgentTask,
-    findings: Optional[List[AgentFinding]] = None,
-) -> Dict[str, int]:
+    findings: list[AgentFinding] | None = None,
+) -> dict[str, int]:
     persisted_findings = list(findings or await _load_task_findings(db, task.id))
     if not persisted_findings:
         return {'created': 0, 'existing': 0, 'failed': 0}
@@ -1116,7 +1133,7 @@ async def _sync_managed_vulnerability_records(
     return stats
 
 
-def _disabled_managed_report_stats(findings: Optional[List[AgentFinding]] = None) -> Dict[str, int]:
+def _disabled_managed_report_stats(findings: list[AgentFinding] | None = None) -> dict[str, int]:
     return {'generated': 0, 'failed': 0, 'skipped': len(findings or [])}
 
 
@@ -1124,18 +1141,19 @@ def _disabled_managed_report_stats(findings: Optional[List[AgentFinding]] = None
 async def _execute_agent_task_impl(task_id: str):
     """Execute an agent audit task in the background."""
     import time
+
     from app.core.config import settings
     from app.services.agent.agents import (
+        AnalysisAgent,
+        FindingAgent,
         OrchestratorAgent,
         ReconAgent,
-        AnalysisAgent,
         ScanAgent,
         TriageAgent,
-        FindingAgent,
         VerificationAgent,
     )
     from app.services.agent.core import agent_registry
-    from app.services.agent.event_manager import EventManager, AgentEventEmitter
+    from app.services.agent.event_manager import AgentEventEmitter, EventManager
     from app.services.agent.tools import SandboxManager
     from app.services.llm.service import LLMService
 
@@ -1170,7 +1188,7 @@ async def _execute_agent_task_impl(task_id: str):
                 raise asyncio.CancelledError("Task cancelled before execution")
 
             task.status = AgentTaskStatus.RUNNING
-            task.started_at = datetime.now(timezone.utc)
+            task.started_at = datetime.now(UTC)
             task.current_phase = AgentTaskPhase.PLANNING
             await db.commit()
             await event_emitter.emit_phase_start("preparation", f"Starting audit for {project.name}")
@@ -1398,7 +1416,7 @@ async def _execute_agent_task_impl(task_id: str):
 
             await db.refresh(task)
             duration_ms = int((time.time() - start_time) * 1000)
-            task.completed_at = datetime.now(timezone.utc)
+            task.completed_at = datetime.now(UTC)
 
             if result.success:
                 findings = (result.data or {}).get("findings", []) if isinstance(result.data, dict) else []
@@ -1472,7 +1490,7 @@ async def _execute_agent_task_impl(task_id: str):
             else:
                 task_was_cancelled = is_task_cancelled(task_id)
                 task.status = AgentTaskStatus.CANCELLED if task_was_cancelled else AgentTaskStatus.FAILED
-                task.completed_at = datetime.now(timezone.utc)
+                task.completed_at = datetime.now(UTC)
                 task.error_message = result.error if hasattr(result, "error") else "Unknown execution error"
                 task.duration_ms = duration_ms
                 runtime_stats = (await _load_runtime_task_stats(db, [task_id])).get(str(task_id), {})
@@ -1493,7 +1511,7 @@ async def _execute_agent_task_impl(task_id: str):
             if task:
                 existing_error_message = task.error_message
                 task.status = AgentTaskStatus.CANCELLED
-                task.completed_at = datetime.now(timezone.utc)
+                task.completed_at = datetime.now(UTC)
                 task.error_message = existing_error_message or "Task cancelled"
                 task.duration_ms = int((time.time() - start_time) * 1000)
                 runtime_stats = (await _load_runtime_task_stats(db, [task_id])).get(str(task_id), {})
@@ -1511,7 +1529,7 @@ async def _execute_agent_task_impl(task_id: str):
             task = await db.get(AgentTask, task_id)
             if task:
                 task.status = AgentTaskStatus.FAILED
-                task.completed_at = datetime.now(timezone.utc)
+                task.completed_at = datetime.now(UTC)
                 task.error_message = str(exc)
                 await db.commit()
             await event_emitter.emit_error(str(exc))
@@ -1542,7 +1560,7 @@ async def _execute_agent_task_impl(task_id: str):
 _execute_agent_task = execute_agent_task
 
 
-async def _get_user_config(db: AsyncSession, user_id: Optional[str]) -> Optional[Dict[str, Any]]:
+async def _get_user_config(db: AsyncSession, user_id: str | None) -> dict[str, Any] | None:
     """Load merged user config for task execution."""
     if not user_id:
         return None
@@ -1558,7 +1576,7 @@ async def _get_user_config(db: AsyncSession, user_id: Optional[str]) -> Optional
     return None
 
 
-async def _get_raw_user_workflow_config(db: AsyncSession, user_id: Optional[str]) -> Dict[str, Any]:
+async def _get_raw_user_workflow_config(db: AsyncSession, user_id: str | None) -> dict[str, Any]:
     """Load only workflow settings explicitly persisted by the user."""
     if not user_id:
         return {}
@@ -1580,39 +1598,31 @@ async def _get_raw_user_workflow_config(db: AsyncSession, user_id: Optional[str]
 async def _initialize_tools(
     project_root: str,
     llm_service,
-    user_config: Optional[Dict[str, Any]],
+    user_config: dict[str, Any] | None,
     sandbox_manager: Any,
-    exclude_patterns: Optional[List[str]] = None,
-    target_files: Optional[List[str]] = None,
-    project_id: Optional[str] = None,
-    event_emitter: Optional[Any] = None,
-    task_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-) -> Dict[str, Dict[str, Any]]:
+    exclude_patterns: list[str] | None = None,
+    target_files: list[str] | None = None,
+    project_id: str | None = None,
+    event_emitter: Any | None = None,
+    task_id: str | None = None,
+    user_id: str | None = None,
+) -> dict[str, dict[str, Any]]:
     """Initialize toolsets for each agent stage."""
     from app.services.agent.tools import (
-        FileReadTool,
-        ReadManyFilesTool,
-        FileSearchTool,
-        ListFilesTool,
-        PatternMatchTool,
-        DataFlowAnalysisTool,
-        SemgrepTool,
         BanditTool,
+        CreateVulnerabilityReportTool,
+        DataFlowAnalysisTool,
         GitleaksTool,
         NpmAuditTool,
-        SafetyTool,
-        TruffleHogTool,
         OSVScannerTool,
-        ThinkTool,
-        ReflectTool,
-        CreateVulnerabilityReportTool,
-        SkillBodyTool,
-        SkillResourceTool,
+        PatternMatchTool,
+        SafetyTool,
         SandboxTool,
-        build_shared_agent_tool_catalog,
+        SemgrepTool,
+        TruffleHogTool,
         build_agent_skill_tools,
         build_agent_tool_catalog,
+        build_shared_agent_tool_catalog,
     )
     async def emit(message: str, level: str = "info") -> None:
         if not event_emitter:
@@ -1649,7 +1659,7 @@ async def _initialize_tools(
         **shared_scanners,
     }
 
-    from app.services.agent.tools import SmartScanTool, QuickAuditTool
+    from app.services.agent.tools import QuickAuditTool, SmartScanTool
 
     analysis_tools = {
         **base_tools,
@@ -1679,25 +1689,25 @@ async def _initialize_tools(
     }
 
     from app.services.agent.tools import (
-        SandboxHttpTool,
-        VulnerabilityVerifyTool,
-        PhpTestTool,
-        PythonTestTool,
+        CommandInjectionTestTool,
+        DeserializationTestTool,
+        ExtractFunctionTool,
+        GoTestTool,
         JavaScriptTestTool,
         JavaTestTool,
-        GoTestTool,
-        RubyTestTool,
-        ShellTestTool,
-        UniversalCodeTestTool,
-        CommandInjectionTestTool,
-        SqlInjectionTestTool,
-        XssTestTool,
         PathTraversalTestTool,
-        SstiTestTool,
-        DeserializationTestTool,
-        UniversalVulnTestTool,
+        PhpTestTool,
+        PythonTestTool,
+        RubyTestTool,
         RunCodeTool,
-        ExtractFunctionTool,
+        SandboxHttpTool,
+        ShellTestTool,
+        SqlInjectionTestTool,
+        SstiTestTool,
+        UniversalCodeTestTool,
+        UniversalVulnTestTool,
+        VulnerabilityVerifyTool,
+        XssTestTool,
     )
 
     verification_tools = {
@@ -1747,13 +1757,13 @@ async def _initialize_tools(
 async def _collect_project_info(
     project_root: str,
     project_name: str,
-    exclude_patterns: Optional[List[str]] = None,
-    target_files: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    exclude_patterns: list[str] | None = None,
+    target_files: list[str] | None = None,
+) -> dict[str, Any]:
     """Collect a lightweight project summary for agent orchestration."""
     import fnmatch
 
-    info: Dict[str, Any] = {
+    info: dict[str, Any] = {
         "name": project_name,
         "root": project_root,
         "languages": [],
@@ -1795,8 +1805,8 @@ async def _collect_project_info(
             '.cpp': 'C++',
         }
 
-        filtered_files: List[str] = []
-        filtered_dirs: Set[str] = set()
+        filtered_files: list[str] = []
+        filtered_dirs: set[str] = set()
 
         for root, dirs, files in os.walk(project_root):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
@@ -1878,7 +1888,7 @@ def _merge_string_list(existing_values: Any, new_values: Any) -> list[str] | Non
     return merged or None
 
 
-def _merge_existing_finding_record(existing: AgentFinding, incoming: AgentFinding, raw_finding: Dict[str, Any]) -> bool:
+def _merge_existing_finding_record(existing: AgentFinding, incoming: AgentFinding, raw_finding: dict[str, Any]) -> bool:
     changed = False
 
     if _severity_rank(incoming.severity) > _severity_rank(existing.severity):
@@ -1940,7 +1950,7 @@ def _merge_existing_finding_record(existing: AgentFinding, incoming: AgentFindin
         changed = True
     if changed:
         metadata["merge_count"] = int(metadata.get("merge_count") or 0) + 1
-        metadata["last_merged_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["last_merged_at"] = datetime.now(UTC).isoformat()
         existing.finding_metadata = metadata
     return changed
 
@@ -1949,8 +1959,8 @@ def _merge_existing_finding_record(existing: AgentFinding, incoming: AgentFindin
 async def _save_findings(
     db: AsyncSession,
     task_id: str,
-    findings: List[Dict],
-    project_root: Optional[str] = None,
+    findings: list[dict],
+    project_root: str | None = None,
 ) -> int:
     """Persist normalized findings for an audit task."""
     from app.models.agent_task import VulnerabilityType
@@ -1968,7 +1978,7 @@ async def _save_findings(
     if inspect.isawaitable(existing_findings_result):
         existing_findings_result = await existing_findings_result
     existing_findings = list(existing_findings_result or [])
-    existing_by_fingerprint: Dict[str, AgentFinding] = {}
+    existing_by_fingerprint: dict[str, AgentFinding] = {}
     for existing in existing_findings:
         fingerprint = build_finding_fingerprint(existing)
         existing.fingerprint = fingerprint
@@ -2188,7 +2198,7 @@ async def _save_findings(
     return persisted_count
 
 
-def _serialize_agent_finding_record(finding: AgentFinding) -> Dict[str, Any]:
+def _serialize_agent_finding_record(finding: AgentFinding) -> dict[str, Any]:
     from app.services.task_report_service import serialize_finding
 
     item = serialize_finding(finding)
@@ -2196,7 +2206,7 @@ def _serialize_agent_finding_record(finding: AgentFinding) -> Dict[str, Any]:
     return item
 
 
-async def _load_task_findings(db: AsyncSession, task_id: str) -> List[AgentFinding]:
+async def _load_task_findings(db: AsyncSession, task_id: str) -> list[AgentFinding]:
     result = await db.execute(
         select(AgentFinding)
         .where(AgentFinding.task_id == task_id)
@@ -2216,9 +2226,9 @@ async def _load_task_findings(db: AsyncSession, task_id: str) -> List[AgentFindi
     return list(result.scalars().all())
 
 
-def _apply_task_finding_metrics(task: AgentTask, findings: List[AgentFinding | Dict[str, Any]]) -> None:
+def _apply_task_finding_metrics(task: AgentTask, findings: list[AgentFinding | dict[str, Any]]) -> None:
     severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-    files_with_findings: Set[str] = set()
+    files_with_findings: set[str] = set()
     verified_count = 0
     false_positive_count = 0
 
@@ -2245,7 +2255,7 @@ def _apply_task_finding_metrics(task: AgentTask, findings: List[AgentFinding | D
 
 
 
-def _calculate_security_score(findings: List[Dict]) -> float:
+def _calculate_security_score(findings: list[dict]) -> float:
     """Calculate a simple security score from finding severities."""
     if not findings:
         return 100.0
@@ -2275,7 +2285,7 @@ def _debug_event_value(event: Any, key: str, default: Any = None) -> Any:
     return default
 
 
-def _normalize_debug_event(event: Any) -> Dict[str, Any]:
+def _normalize_debug_event(event: Any) -> dict[str, Any]:
     metadata = _debug_event_value(event, "event_metadata", {}) or {}
     created_at = _debug_event_value(event, "created_at")
     timestamp = created_at.isoformat() if hasattr(created_at, "isoformat") else str(created_at) if created_at else None
@@ -2304,7 +2314,7 @@ def _normalize_debug_event(event: Any) -> Dict[str, Any]:
     }
 
 
-def _event_progress_percent(event: Any) -> Optional[float]:
+def _event_progress_percent(event: Any) -> float | None:
     direct_value = _debug_event_value(event, "progress_percent")
     if direct_value is not None:
         try:
@@ -2333,12 +2343,12 @@ def _event_progress_percent(event: Any) -> Optional[float]:
 def build_debug_task_item(
     *,
     task_id: str,
-    task_name: Optional[str],
+    task_name: str | None,
     project_id: str,
     status: str,
     created_at: datetime,
-    events: List[Any],
-) -> Dict[str, Any]:
+    events: list[Any],
+) -> dict[str, Any]:
     normalized = [_normalize_debug_event(event) for event in events]
     agent_types = sorted({event["agent_type"] for event in normalized if event.get("agent_type")})
     latest_event_at = normalized[-1]["timestamp"] if normalized else None
@@ -2359,13 +2369,13 @@ def build_debug_task_item(
 def build_debug_trace_payload(
     *,
     task_id: str,
-    task_name: Optional[str],
+    task_name: str | None,
     task_status: str,
-    events: List[Any],
-) -> Dict[str, Any]:
+    events: list[Any],
+) -> dict[str, Any]:
     normalized = [_normalize_debug_event(event) for event in events]
     normalized.sort(key=lambda item: item["sequence"])
-    handoffs: List[Dict[str, Any]] = []
+    handoffs: list[dict[str, Any]] = []
     phases = sorted({event["phase"] for event in normalized if event.get("phase")})
     agents = sorted({event["agent_type"] for event in normalized if event.get("agent_type")})
     tool_calls = sum(1 for event in normalized if event["event_type"] == "tool_call")
@@ -2405,10 +2415,9 @@ def build_debug_trace_payload(
 
 async def _save_agent_tree(db: AsyncSession, task_id: str) -> None:
     """Persist the in-memory agent tree to the database."""
-    from app.models.agent_task import AgentTreeNode
     from app.services.agent.core import agent_registry
 
-    def get_depth(nodes: Dict[str, Dict[str, Any]], agent_id: str, visited: Optional[Set[str]] = None) -> int:
+    def get_depth(nodes: dict[str, dict[str, Any]], agent_id: str, visited: set[str] | None = None) -> int:
         if visited is None:
             visited = set()
         if agent_id in visited:
@@ -2524,10 +2533,10 @@ async def create_agent_task(
     return task
 
 
-@router.get("/", response_model=List[AgentTaskResponse])
+@router.get("/", response_model=list[AgentTaskResponse])
 async def list_agent_tasks(
-    project_id: Optional[str] = None,
-    status: Optional[str] = None,
+    project_id: str | None = None,
+    status: str | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -2569,25 +2578,25 @@ async def list_agent_tasks(
         runtime_result = _get_task_finding_runtime_result(task)
         task_runtime_stats = runtime_stats.get(str(task.id), {})
         if task_runtime_stats.get("total_iterations"):
-            setattr(task, "total_iterations", max(int(task.total_iterations or 0), int(task_runtime_stats["total_iterations"])))
+            task.total_iterations = max(int(task.total_iterations or 0), int(task_runtime_stats["total_iterations"]))
         if task_runtime_stats.get("tool_calls_count"):
-            setattr(task, "tool_calls_count", max(int(task.tool_calls_count or 0), int(task_runtime_stats["tool_calls_count"])))
+            task.tool_calls_count = max(int(task.tool_calls_count or 0), int(task_runtime_stats["tool_calls_count"]))
         if task_runtime_stats.get("tokens_used"):
-            setattr(task, "tokens_used", max(int(task.tokens_used or 0), int(task_runtime_stats["tokens_used"])))
-        setattr(task, "runtime_session_id", runtime_session_ids.get(task.id))
-        setattr(task, "finding_outcome", runtime_result["finding_outcome"])
-        setattr(task, "runtime_completion_mode", runtime_result["runtime_completion_mode"])
-        setattr(task, "finalized_findings_count", runtime_result["finalized_findings_count"])
-        setattr(task, "recovered_candidates_count", runtime_result["recovered_candidates_count"])
-        setattr(task, "handoff_ready", runtime_result["handoff_ready"])
-        setattr(task, "recovered_candidates", runtime_result["recovered_candidates"])
+            task.tokens_used = max(int(task.tokens_used or 0), int(task_runtime_stats["tokens_used"]))
+        task.runtime_session_id = runtime_session_ids.get(task.id)
+        task.finding_outcome = runtime_result["finding_outcome"]
+        task.runtime_completion_mode = runtime_result["runtime_completion_mode"]
+        task.finalized_findings_count = runtime_result["finalized_findings_count"]
+        task.recovered_candidates_count = runtime_result["recovered_candidates_count"]
+        task.handoff_ready = runtime_result["handoff_ready"]
+        task.recovered_candidates = runtime_result["recovered_candidates"]
     return tasks
 
 
-@router.get("/debug-tasks", response_model=List[DebugTaskListItem])
+@router.get("/debug-tasks", response_model=list[DebugTaskListItem])
 async def list_debug_tasks(
-    project_id: Optional[str] = None,
-    status: Optional[str] = None,
+    project_id: str | None = None,
+    status: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -2745,7 +2754,7 @@ async def get_agent_task(
         return AgentTaskResponse(**response_data)
     except Exception as exc:
         logger.error(f"Error serializing task {task_id}: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to serialize task data: {exc}")
+        raise HTTPException(status_code=500, detail=f"Failed to serialize task data: {exc}") from exc
 
 
 @router.get("/{task_id}/debug-trace", response_model=DebugTraceResponse)
@@ -2830,7 +2839,7 @@ async def cancel_agent_task(
 
     request_agent_task_cancellation(task_id)
     task.status = AgentTaskStatus.CANCELLED
-    task.completed_at = datetime.now(timezone.utc)
+    task.completed_at = datetime.now(UTC)
     await db.commit()
     logger.info(f"[Cancel] Task {task_id} cancelled successfully")
     return {"message": "Task cancelled", "task_id": task_id}
@@ -2961,7 +2970,7 @@ async def stream_agent_with_thinking(
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    def format_sse_event(event_data: Dict[str, Any]) -> str:
+    def format_sse_event(event_data: dict[str, Any]) -> str:
         event_type = event_data.get("event_type") or event_data.get("type") or "message"
         if "type" not in event_data:
             event_data["type"] = event_type
@@ -3080,7 +3089,7 @@ async def stream_agent_with_thinking(
 
 
 
-@router.get("/{task_id}/events/list", response_model=List[AgentEventResponse])
+@router.get("/{task_id}/events/list", response_model=list[AgentEventResponse])
 async def list_agent_events(
     task_id: str,
     after_sequence: int = Query(0, ge=0),
@@ -3109,7 +3118,7 @@ async def list_agent_events(
 @router.get("/{task_id}/findings")
 async def list_agent_findings(
     task_id: str,
-    severity: Optional[str] = None,
+    severity: str | None = None,
     verified_only: bool = False,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
@@ -3174,8 +3183,8 @@ async def get_task_summary(
 
     result = await db.execute(select(AgentFinding).where(AgentFinding.task_id == task_id))
     findings = result.scalars().all()
-    severity_distribution: Dict[str, int] = {}
-    vulnerability_types: Dict[str, int] = {}
+    severity_distribution: dict[str, int] = {}
+    vulnerability_types: dict[str, int] = {}
     verified_count = 0
     for finding in findings:
         severity_key = str(finding.severity)
@@ -3293,7 +3302,7 @@ def safe_extract_zip(zip_ref: zipfile.ZipFile, extract_dir: str, task_id: str) -
             shutil.copyfileobj(src, dst)
 
 
-def _find_managed_project_root_fallback(project: Project) -> Optional[str]:
+def _find_managed_project_root_fallback(project: Project) -> str | None:
     managed_root = os.path.abspath(settings.MANAGED_PROJECTS_ROOT)
     if not os.path.isdir(managed_root):
         return None
@@ -3332,18 +3341,19 @@ def _find_managed_project_root_fallback(project: Project) -> Optional[str]:
 async def _get_project_root(
     project: Project,
     task_id: str,
-    branch_name: Optional[str] = None,
-    github_token: Optional[str] = None,
-    gitlab_token: Optional[str] = None,
-    gitea_token: Optional[str] = None,
-    ssh_private_key: Optional[str] = None,
-    event_emitter: Optional[Any] = None,
+    branch_name: str | None = None,
+    github_token: str | None = None,
+    gitlab_token: str | None = None,
+    gitea_token: str | None = None,
+    ssh_private_key: str | None = None,
+    event_emitter: Any | None = None,
     workspace_scope: str = "project",
     refresh: bool = False,
 ) -> str:
     """Prepare a local working copy for the project."""
     import subprocess
     from urllib.parse import urlparse, urlunparse
+
     from app.services.zip_storage import load_project_zip
 
     async def emit(message: str, level: str = "info") -> None:
@@ -3460,24 +3470,24 @@ class AgentTreeResponse(BaseModel):
     total_iterations: int
     total_tool_calls: int
     total_tokens: int
-    root_agent_id: Optional[str] = None
-    nodes: Dict[str, Any]
-    edges: List[Dict[str, Any]]
+    root_agent_id: str | None = None
+    nodes: dict[str, Any]
+    edges: list[dict[str, Any]]
 
 
 class CheckpointResponse(BaseModel):
     id: str
-    agent_id: Optional[str] = None
-    agent_name: Optional[str] = None
-    agent_type: Optional[str] = None
+    agent_id: str | None = None
+    agent_name: str | None = None
+    agent_type: str | None = None
     iteration: int = 0
-    status: Optional[str] = None
+    status: str | None = None
     total_tokens: int = 0
     tool_calls: int = 0
     findings_count: int = 0
-    checkpoint_type: Optional[str] = None
-    checkpoint_name: Optional[str] = None
-    created_at: Optional[str] = None
+    checkpoint_type: str | None = None
+    checkpoint_name: str | None = None
+    created_at: str | None = None
 
 
 @router.get("/{task_id}/tree", response_model=AgentTreeResponse)
@@ -3553,7 +3563,7 @@ async def get_agent_tree(
     )
 
 
-@router.get("/{task_id}/checkpoints", response_model=List[CheckpointResponse])
+@router.get("/{task_id}/checkpoints", response_model=list[CheckpointResponse])
 async def list_checkpoints(
     task_id: str,
     db: AsyncSession = Depends(get_db),
@@ -3644,13 +3654,13 @@ async def get_checkpoint_detail(
 async def generate_audit_report(
     task_id: str,
     format: str = Query("markdown", pattern="^(markdown|json|html)$"),
-    template_id: Optional[str] = Query(None, description="闂佺厧顨庢禍婊堟偩閻愵剛鈻曞璺侯儏琚氶梺鍛婄☉閿曘儴鍟梺?ID"),
+    template_id: str | None = Query(None, description="闂佺厧顨庢禍婊堟偩閻愵剛鈻曞璺侯儏琚氶梺鍛婄☉閿曘儴鍟梺?ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
     """Generate a final vulnerability report for the task."""
     from fastapi.responses import Response
-    from app.models.report_template import AgentTaskReport
+
     from app.services.task_report_service import generate_task_report
 
     task = await db.get(AgentTask, task_id)

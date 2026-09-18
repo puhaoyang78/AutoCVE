@@ -14,11 +14,11 @@ import asyncio
 import json
 import logging
 import re
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any
 
-from .base import BaseAgent, AgentConfig, AgentResult, AgentType, AgentPattern, TaskHandoff
 from ..json_parser import AgentJsonParser
+from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent, TaskHandoff
 
 logger = logging.getLogger(__name__)
 
@@ -258,33 +258,33 @@ Action Input: {"scan_type": "security", "max_files": 50}
 class AnalysisStep:
     """分析步骤"""
     thought: str
-    action: Optional[str] = None
-    action_input: Optional[Dict] = None
-    observation: Optional[str] = None
+    action: str | None = None
+    action_input: dict | None = None
+    observation: str | None = None
     is_final: bool = False
-    final_answer: Optional[Dict] = None
+    final_answer: dict | None = None
 
 
 class AnalysisAgent(BaseAgent):
     """
     漏洞分析 Agent - LLM 驱动版
-    
+
     LLM 全程参与，自主决定：
     1. 分析什么
     2. 使用什么工具
     3. 深入哪些代码
     4. 报告什么发现
     """
-    
+
     def __init__(
         self,
         llm_service,
-        tools: Dict[str, Any],
+        tools: dict[str, Any],
         event_emitter=None,
     ):
         # 组合增强的系统提示词，注入核心安全原则和漏洞优先级
         full_system_prompt = ANALYSIS_SYSTEM_PROMPT
-        
+
         config = AgentConfig(
             name="Analysis",
             agent_type=AgentType.ANALYSIS,
@@ -293,12 +293,12 @@ class AnalysisAgent(BaseAgent):
             system_prompt=full_system_prompt,
         )
         super().__init__(config, llm_service, tools, event_emitter)
-        
-        self._conversation_history: List[Dict[str, str]] = []
-        self._steps: List[AnalysisStep] = []
-    
 
-    
+        self._conversation_history: list[dict[str, str]] = []
+        self._steps: list[AnalysisStep] = []
+
+
+
     def _parse_llm_response(self, response: str) -> AnalysisStep:
         """解析 LLM 响应 - 增强版，更健壮地提取思考内容"""
         step = AnalysisStep(thought="")
@@ -376,23 +376,23 @@ class AnalysisAgent(BaseAgent):
                 step.thought = response.strip()[:500]
 
         return step
-    
 
-    
-    async def run(self, input_data: Dict[str, Any]) -> AgentResult:
+
+
+    async def run(self, input_data: dict[str, Any]) -> AgentResult:
         """
         执行漏洞分析 - LLM 全程参与！
         """
         import time
         start_time = time.time()
-        
+
         project_info = input_data.get("project_info", {})
         config = input_data.get("config", {})
         plan = input_data.get("plan", {})
         previous_results = input_data.get("previous_results", {})
         task = input_data.get("task", "")
         task_context = input_data.get("task_context", "")
-        
+
         # 🔥 处理交接信息
         handoff = input_data.get("handoff")
         if handoff:
@@ -400,23 +400,23 @@ class AnalysisAgent(BaseAgent):
             if isinstance(handoff, dict):
                 handoff = TaskHandoff.from_dict(handoff)
             self.receive_handoff(handoff)
-        
+
         # 从 Recon 结果获取上下文
         recon_data = previous_results.get("recon", {})
         if isinstance(recon_data, dict) and "data" in recon_data:
             recon_data = recon_data["data"]
-        
+
         tech_stack = recon_data.get("tech_stack", {})
         entry_points = recon_data.get("entry_points", [])
         high_risk_areas = recon_data.get("high_risk_areas", plan.get("high_risk_areas", []))
         initial_findings = recon_data.get("initial_findings", [])
-        
+
         # 🔥 构建包含交接上下文的初始消息
         handoff_context = self.get_handoff_context()
-        
+
         # 🔥 获取目标文件列表
         target_files = config.get("target_files", [])
-        
+
         initial_message = f"""请开始对项目进行安全漏洞分析。
 
 ## 项目信息
@@ -438,7 +438,7 @@ class AnalysisAgent(BaseAgent):
 请直接分析这些指定的文件，不要分析其他文件。
 
 """
-        
+
         initial_message += f"""{handoff_context if handoff_context else f'''## 上下文信息
 ### ⚠️ 高风险区域（来自 Recon Agent，必须优先分析）
 以下是 Recon Agent 识别的高风险区域，请**务必优先**读取和分析这些文件：
@@ -469,7 +469,7 @@ class AnalysisAgent(BaseAgent):
 {self.get_tools_description()}
 
 请开始你的安全分析。首先读取高风险区域的文件，然后**立即**分析其中的安全问题（输出 Action）。"""
-        
+
         # 🔥 记录工作开始
         self.record_work("开始安全漏洞分析")
 
@@ -478,25 +478,25 @@ class AnalysisAgent(BaseAgent):
             {"role": "system", "content": self.config.system_prompt},
             {"role": "user", "content": initial_message},
         ]
-        
+
         self._steps = []
         all_findings = []
         error_message = None  # 🔥 跟踪错误信息
-        
+
         await self.emit_thinking("🔬 Analysis Agent 启动，LLM 开始自主安全分析...")
-        
+
         try:
             for iteration in range(self.config.max_iterations):
                 if self.is_cancelled:
                     break
-                
+
                 self._iteration = iteration + 1
-                
+
                 # 🔥 再次检查取消标志（在LLM调用之前）
                 if self.is_cancelled:
                     await self.emit_thinking("🛑 任务已取消，停止执行")
                     break
-                
+
                 # 调用 LLM 进行思考和决策（流式输出）
                 # 🔥 使用用户配置的 temperature 和 max_tokens
                 try:
@@ -507,27 +507,27 @@ class AnalysisAgent(BaseAgent):
                 except asyncio.CancelledError:
                     logger.info(f"[{self.name}] LLM call cancelled")
                     break
-                
+
                 self._total_tokens += tokens_this_round
 
                 # 🔥 Enhanced: Handle empty LLM response with better diagnostics
                 if not llm_output or not llm_output.strip():
                     empty_retry_count = getattr(self, '_empty_retry_count', 0) + 1
                     self._empty_retry_count = empty_retry_count
-                    
+
                     # 🔥 记录更详细的诊断信息
                     logger.warning(
                         f"[{self.name}] Empty LLM response in iteration {self._iteration} "
                         f"(retry {empty_retry_count}/3, tokens_this_round={tokens_this_round})"
                     )
-                    
+
                     if empty_retry_count >= 3:
                         logger.error(f"[{self.name}] Too many empty responses, generating fallback result")
                         error_message = "连续收到空响应，使用回退结果"
                         await self.emit_event("warning", error_message)
                         # 🔥 不是直接 break，而是尝试生成一个回退结果
                         break
-                    
+
                     # 🔥 更有针对性的重试提示
                     retry_prompt = f"""收到空响应。请根据以下格式输出你的思考和行动：
 
@@ -540,30 +540,30 @@ Action Input: {{"参数名": "参数值"}}
 如果你已完成分析，请输出：
 Thought: [总结所有发现]
 Final Answer: {{"findings": [...], "summary": "..."}}"""
-                    
+
                     self._conversation_history.append({
                         "role": "user",
                         "content": retry_prompt,
                     })
                     continue
-                
+
                 # 重置空响应计数器
                 self._empty_retry_count = 0
 
                 # 解析 LLM 响应
                 step = self._parse_llm_response(llm_output)
                 self._steps.append(step)
-                
+
                 # 🔥 发射 LLM 思考内容事件 - 展示安全分析的思考过程
                 if step.thought:
                     await self.emit_llm_thought(step.thought, iteration + 1)
-                
+
                 # 添加 LLM 响应到历史
                 self._conversation_history.append({
                     "role": "assistant",
                     "content": llm_output,
                 })
-                
+
                 # 检查是否完成
                 if step.is_final:
                     await self.emit_llm_decision("完成安全分析", "LLM 判断分析已充分")
@@ -585,44 +585,44 @@ Final Answer: {{"findings": [...], "summary": "..."}}"""
                             )
                     else:
                         logger.warning(f"[{self.name}] Final Answer has no 'findings' key or is None: {step.final_answer}")
-                    
+
                     # 🔥 记录工作完成
                     self.record_work(f"完成安全分析，发现 {len(all_findings)} 个潜在漏洞")
-                    
+
                     await self.emit_llm_complete(
                         f"分析完成，发现 {len(all_findings)} 个潜在漏洞",
                         self._total_tokens
                     )
                     break
-                
+
                 # 执行工具
                 if step.action:
                     # 🔥 发射 LLM 动作决策事件
                     await self.emit_llm_action(step.action, step.action_input or {})
-                    
+
                     # 🔥 循环检测：追踪工具调用失败历史
                     tool_call_key = f"{step.action}:{json.dumps(step.action_input or {}, sort_keys=True)}"
                     if not hasattr(self, '_failed_tool_calls'):
                         self._failed_tool_calls = {}
-                    
+
                     observation = await self.execute_tool(
                         step.action,
                         step.action_input or {}
                     )
-                    
+
                     # 🔥 检测工具调用失败并追踪
                     is_tool_error = (
-                        "失败" in observation or 
-                        "错误" in observation or 
+                        "失败" in observation or
+                        "错误" in observation or
                         "不存在" in observation or
                         "文件过大" in observation or
                         "Error" in observation
                     )
-                    
+
                     if is_tool_error:
                         self._failed_tool_calls[tool_call_key] = self._failed_tool_calls.get(tool_call_key, 0) + 1
                         fail_count = self._failed_tool_calls[tool_call_key]
-                        
+
                         # 🔥 如果同一调用连续失败3次，添加强制跳过提示
                         if fail_count >= 3:
                             logger.warning(f"[{self.name}] Tool call failed {fail_count} times: {tool_call_key}")
@@ -631,24 +631,24 @@ Final Answer: {{"findings": [...], "summary": "..."}}"""
                             observation += "2. 使用 search_code 工具定位关键代码片段\n"
                             observation += "3. 跳过此文件，继续分析其他文件\n"
                             observation += "4. 如果已有足够发现，直接输出 Final Answer"
-                            
+
                             # 重置计数器但保留记录
                             self._failed_tool_calls[tool_call_key] = 0
                     else:
                         # 成功调用，重置失败计数
                         if tool_call_key in self._failed_tool_calls:
                             del self._failed_tool_calls[tool_call_key]
-                    
+
                     # 🔥 工具执行后检查取消状态
                     if self.is_cancelled:
                         logger.info(f"[{self.name}] Cancelled after tool execution")
                         break
-                    
+
                     step.observation = observation
-                    
+
                     # 🔥 发射 LLM 观察事件
                     await self.emit_llm_observation(observation)
-                    
+
                     # 添加观察结果到历史
                     self._conversation_history.append({
                         "role": "user",
@@ -661,11 +661,11 @@ Final Answer: {{"findings": [...], "summary": "..."}}"""
                         "role": "user",
                         "content": "请继续分析。你输出了 Thought 但没有输出 Action。请**立即**选择一个工具执行，或者如果分析完成，输出 Final Answer 汇总所有发现。",
                     })
-            
+
             # 🔥 如果循环结束但没有发现，强制 LLM 总结
             if not all_findings and not self.is_cancelled and not error_message:
                 await self.emit_thinking("📝 分析阶段结束，正在生成漏洞总结...")
-                
+
                 # 添加强制总结的提示
                 self._conversation_history.append({
                     "role": "user",
@@ -694,13 +694,13 @@ Final Answer: {{"findings": [...], "summary": "..."}}"""
 
 Final Answer:""",
                 })
-                
+
                 try:
                     summary_output, _ = await self.stream_llm_call(
                         self._conversation_history,
                         # 🔥 不传递 temperature 和 max_tokens，使用用户配置
                     )
-                    
+
                     if summary_output and summary_output.strip():
                         # 解析总结输出
                         import re
@@ -715,10 +715,10 @@ Final Answer:""",
                             all_findings = parsed_result["findings"]
                 except Exception as e:
                     logger.warning(f"[{self.name}] Failed to generate summary: {e}")
-            
+
             # 处理结果
             duration_ms = int((time.time() - start_time) * 1000)
-            
+
             # 🔥 如果被取消，返回取消结果
             if self.is_cancelled:
                 await self.emit_event(
@@ -734,7 +734,7 @@ Final Answer:""",
                     tokens_used=self._total_tokens,
                     duration_ms=duration_ms,
                 )
-            
+
             # 🔥 如果有错误，返回失败结果
             if error_message:
                 await self.emit_event(
@@ -750,7 +750,7 @@ Final Answer:""",
                     tokens_used=self._total_tokens,
                     duration_ms=duration_ms,
                 )
-            
+
             # 标准化发现
             logger.info(f"[{self.name}] Standardizing {len(all_findings)} findings")
             standardized_findings = []
@@ -759,7 +759,7 @@ Final Answer:""",
                 if not isinstance(finding, dict):
                     logger.warning(f"Skipping invalid finding (not a dict): {finding}")
                     continue
-                    
+
                 standardized = {
                     "vulnerability_type": finding.get("vulnerability_type", "other"),
                     "severity": finding.get("severity", "medium"),
@@ -775,7 +775,7 @@ Final Answer:""",
                     "needs_verification": finding.get("needs_verification", True),
                 }
                 standardized_findings.append(standardized)
-            
+
             await self.emit_event(
                 "info",
                 f"Analysis Agent 完成: {len(standardized_findings)} 个发现, {self._iteration} 轮迭代, {self._tool_calls} 次工具调用"
@@ -807,20 +807,20 @@ Final Answer:""",
                 duration_ms=duration_ms,
                 handoff=handoff,  # 🔥 添加 handoff
             )
-            
+
         except Exception as e:
             logger.error(f"Analysis Agent failed: {e}", exc_info=True)
             return AgentResult(success=False, error=str(e))
-    
-    def get_conversation_history(self) -> List[Dict[str, str]]:
+
+    def get_conversation_history(self) -> list[dict[str, str]]:
         """获取对话历史"""
         return self._conversation_history
 
-    def get_steps(self) -> List[AnalysisStep]:
+    def get_steps(self) -> list[AnalysisStep]:
         """获取执行步骤"""
         return self._steps
 
-    def _create_analysis_handoff(self, findings: List[Dict[str, Any]]) -> TaskHandoff:
+    def _create_analysis_handoff(self, findings: list[dict[str, Any]]) -> TaskHandoff:
         """
         创建 Analysis Agent 的任务交接信息
 

@@ -10,7 +10,6 @@ from app.models.audit_rule import AuditRule, AuditRuleSet
 from app.models.audit_session import AuditMemoryKind
 from app.services.finding_runtime.memory import RuntimeMemoryManager, build_memory_message
 
-
 WORKTREE_ROOT = Path(__file__).resolve().parents[3]
 
 

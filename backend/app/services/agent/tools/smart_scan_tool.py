@@ -8,13 +8,12 @@
 3. 自动选择最适合的扫描策略
 """
 
+import logging
 import os
 import re
-import asyncio
-import logging
-from typing import Optional, List, Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
-from dataclasses import dataclass, field
 
 from .base import AgentTool, ToolResult
 
@@ -27,11 +26,11 @@ class SmartScanInput(BaseModel):
         default=".",
         description="扫描目标：可以是目录路径、文件路径或文件模式（如 '*.py'）"
     )
-    scan_types: Optional[List[str]] = Field(
+    scan_types: list[str] | None = Field(
         default=None,
         description="扫描类型列表。可选: pattern, secret, dependency, all。默认为 all"
     )
-    focus_vulnerabilities: Optional[List[str]] = Field(
+    focus_vulnerabilities: list[str] | None = Field(
         default=None,
         description="重点关注的漏洞类型，如 ['sql_injection', 'xss', 'command_injection']"
     )
@@ -42,19 +41,19 @@ class SmartScanInput(BaseModel):
 class SmartScanTool(AgentTool):
     """
     智能批量扫描工具
-    
+
     自动整合多种扫描能力：
     - 危险模式匹配 (pattern)
     - 密钥泄露检测 (secret)
     - 依赖漏洞检查 (dependency)
-    
+
     特点：
     1. 自动识别项目类型和技术栈
     2. 智能选择最适合的扫描策略
     3. 按风险级别汇总结果
     4. 一次调用完成多项检查
     """
-    
+
     # 高风险文件模式
     HIGH_RISK_PATTERNS = [
         r'.*auth.*\.(py|js|ts|tsx|jsx|java|php|swift|m|mm|kt|rs|go)$',
@@ -78,7 +77,7 @@ class SmartScanTool(AgentTool):
         r'.*Info\.plist$',
         r'.*AndroidManifest\.xml$',
     ]
-    
+
     # 危险模式库（精简版，用于快速扫描）
     QUICK_PATTERNS = {
         "sql_injection": [
@@ -123,15 +122,15 @@ class SmartScanTool(AgentTool):
             (r'fetch\s*\([^)]*req\.', "fetch用户URL"),
         ],
     }
-    
+
     def __init__(self, project_root: str):
         super().__init__()
         self.project_root = project_root
-    
+
     @property
     def name(self) -> str:
         return "smart_scan"
-    
+
     @property
     def description(self) -> str:
         return """🚀 智能批量安全扫描工具 - 一次调用完成多项检查
@@ -155,73 +154,73 @@ class SmartScanTool(AgentTool):
 - all: 所有类型（默认）
 
 输出：按风险级别分类的发现汇总，可直接用于制定进一步分析策略。"""
-    
+
     @property
     def args_schema(self):
         return SmartScanInput
-    
+
     async def _execute(
         self,
         target: str = ".",
-        scan_types: Optional[List[str]] = None,
-        focus_vulnerabilities: Optional[List[str]] = None,
+        scan_types: list[str] | None = None,
+        focus_vulnerabilities: list[str] | None = None,
         max_files: int = 50,
         quick_mode: bool = False,
         **kwargs
     ) -> ToolResult:
         """执行智能扫描"""
         scan_types = scan_types or ["all"]
-        
+
         # 收集要扫描的文件
         files_to_scan = await self._collect_files(target, max_files, quick_mode)
-        
+
         if not files_to_scan:
             return ToolResult(
                 success=True,
                 data=f"在目标 '{target}' 中未找到可扫描的文件",
                 metadata={"files_scanned": 0}
             )
-        
+
         # 执行扫描
         all_findings = []
         files_with_issues = set()
-        
+
         for file_path in files_to_scan:
             file_findings = await self._scan_file(file_path, focus_vulnerabilities)
             if file_findings:
                 all_findings.extend(file_findings)
                 files_with_issues.add(file_path)
-        
+
         # 生成报告
         return self._generate_report(
-            files_to_scan, 
-            files_with_issues, 
+            files_to_scan,
+            files_with_issues,
             all_findings,
             quick_mode
         )
-    
+
     async def _collect_files(
-        self, 
-        target: str, 
-        max_files: int, 
+        self,
+        target: str,
+        max_files: int,
         quick_mode: bool
-    ) -> List[str]:
+    ) -> list[str]:
         """收集要扫描的文件"""
         full_path = os.path.normpath(os.path.join(self.project_root, target))
-        
+
         # 安全检查
         if not full_path.startswith(os.path.normpath(self.project_root)):
             return []
-        
+
         files = []
-        
+
         # 排除目录
         exclude_dirs = {
             'node_modules', '__pycache__', '.git', 'venv', '.venv',
             'build', 'dist', 'target', '.idea', '.vscode', 'vendor',
             'coverage', '.pytest_cache', '.mypy_cache',
         }
-        
+
         # 支持的代码文件扩展名
         code_extensions = {
             '.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.php',
@@ -229,27 +228,27 @@ class SmartScanTool(AgentTool):
             '.swift', '.m', '.mm', '.kt', '.rs', '.sh', '.bat',
             '.vue', '.html', '.htm', '.xml', '.gradle', '.properties'
         }
-        
+
         # 配置文件扩展名
         config_extensions = {'.json', '.yaml', '.yml', '.env', '.ini', '.cfg', '.plist', '.conf'}
-        
+
         all_extensions = code_extensions | config_extensions
-        
+
         if os.path.isfile(full_path):
             return [os.path.relpath(full_path, self.project_root)]
-        
+
         for root, dirs, filenames in os.walk(full_path):
             # 过滤排除目录
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
-            
+
             for filename in filenames:
                 ext = os.path.splitext(filename)[1].lower()
                 if ext not in all_extensions:
                     continue
-                
+
                 file_path = os.path.join(root, filename)
                 rel_path = os.path.relpath(file_path, self.project_root)
-                
+
                 # 快速模式：只扫描高风险文件
                 if quick_mode:
                     is_high_risk = any(
@@ -258,41 +257,41 @@ class SmartScanTool(AgentTool):
                     )
                     if not is_high_risk:
                         continue
-                
+
                 files.append(rel_path)
-                
+
                 if len(files) >= max_files:
                     break
-            
+
             if len(files) >= max_files:
                 break
-        
+
         return files
-    
+
     async def _scan_file(
-        self, 
+        self,
         file_path: str,
-        focus_vulnerabilities: Optional[List[str]] = None
-    ) -> List[Dict[str, Any]]:
+        focus_vulnerabilities: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         """扫描单个文件"""
         full_path = os.path.join(self.project_root, file_path)
-        
+
         try:
-            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(full_path, encoding='utf-8', errors='ignore') as f:
                 content = f.read()
         except Exception as e:
             logger.warning(f"无法读取文件 {file_path}: {e}")
             return []
-        
+
         lines = content.split('\n')
         findings = []
-        
+
         # 确定要检查的漏洞类型
         vuln_types = focus_vulnerabilities or list(self.QUICK_PATTERNS.keys())
-        
+
         for vuln_type in vuln_types:
             patterns = self.QUICK_PATTERNS.get(vuln_type, [])
-            
+
             for pattern, pattern_name in patterns:
                 try:
                     for i, line in enumerate(lines):
@@ -301,7 +300,7 @@ class SmartScanTool(AgentTool):
                             start = max(0, i - 1)
                             end = min(len(lines), i + 2)
                             context = '\n'.join(lines[start:end])
-                            
+
                             findings.append({
                                 "vulnerability_type": vuln_type,
                                 "pattern_name": pattern_name,
@@ -313,9 +312,9 @@ class SmartScanTool(AgentTool):
                             })
                 except re.error:
                     continue
-        
+
         return findings
-    
+
     def _get_severity(self, vuln_type: str) -> str:
         """获取漏洞严重程度"""
         severity_map = {
@@ -327,22 +326,22 @@ class SmartScanTool(AgentTool):
             "hardcoded_secret": "medium",
         }
         return severity_map.get(vuln_type, "medium")
-    
+
     def _generate_report(
         self,
-        files_scanned: List[str],
+        files_scanned: list[str],
         files_with_issues: set,
-        findings: List[Dict],
+        findings: list[dict],
         quick_mode: bool
     ) -> ToolResult:
         """生成扫描报告"""
-        
+
         # 按严重程度分组
         by_severity = {"critical": [], "high": [], "medium": [], "low": []}
         for f in findings:
             sev = f.get("severity", "medium")
             by_severity[sev].append(f)
-        
+
         # 按漏洞类型分组
         by_type = {}
         for f in findings:
@@ -350,19 +349,19 @@ class SmartScanTool(AgentTool):
             if vtype not in by_type:
                 by_type[vtype] = []
             by_type[vtype].append(f)
-        
+
         # 构建报告
         output_parts = [
-            f"🔍 智能安全扫描报告",
+            "🔍 智能安全扫描报告",
             f"{'(快速模式)' if quick_mode else '(完整模式)'}",
             "",
-            f"📊 扫描概览:",
+            "📊 扫描概览:",
             f"- 扫描文件数: {len(files_scanned)}",
             f"- 有问题文件: {len(files_with_issues)}",
             f"- 总发现数: {len(findings)}",
             "",
         ]
-        
+
         # 严重程度统计
         severity_icons = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
         output_parts.append("📈 按严重程度分布:")
@@ -370,17 +369,17 @@ class SmartScanTool(AgentTool):
             count = len(by_severity[sev])
             if count > 0:
                 output_parts.append(f"  {severity_icons[sev]} {sev.upper()}: {count}")
-        
+
         output_parts.append("")
-        
+
         # 漏洞类型统计
         if by_type:
             output_parts.append("📋 按漏洞类型分布:")
             for vtype, vfindings in sorted(by_type.items(), key=lambda x: -len(x[1])):
                 output_parts.append(f"  - {vtype}: {len(vfindings)}")
-        
+
         output_parts.append("")
-        
+
         # 详细发现（按严重程度排序，最多显示15个）
         if findings:
             output_parts.append("⚠️ 重点发现 (按严重程度排序):")
@@ -397,14 +396,14 @@ class SmartScanTool(AgentTool):
                     shown += 1
                 if shown >= 15:
                     break
-            
+
             if len(findings) > 15:
                 output_parts.append(f"\n... 还有 {len(findings) - 15} 个发现")
-        
+
         # 建议的下一步
         output_parts.append("")
         output_parts.append("💡 建议的下一步:")
-        
+
         if by_severity["critical"]:
             output_parts.append("  1. ⚠️ 优先处理 CRITICAL 级别问题 - 使用 read_file 深入分析")
         if by_severity["high"]:
@@ -412,7 +411,7 @@ class SmartScanTool(AgentTool):
         if files_with_issues:
             top_files = list(files_with_issues)[:3]
             output_parts.append(f"  3. 📁 重点审查这些文件: {', '.join(top_files)}")
-        
+
         return ToolResult(
             success=True,
             data="\n".join(output_parts),
@@ -440,22 +439,22 @@ class QuickAuditInput(BaseModel):
 class QuickAuditTool(AgentTool):
     """
     快速文件审计工具
-    
+
     对单个文件进行全面的安全审计，包括：
     - 模式匹配
     - 上下文分析
     - 风险评估
     - 修复建议
     """
-    
+
     def __init__(self, project_root: str):
         super().__init__()
         self.project_root = project_root
-    
+
     @property
     def name(self) -> str:
         return "quick_audit"
-    
+
     @property
     def description(self) -> str:
         return """🎯 快速文件审计工具 - 对单个文件进行全面安全分析
@@ -475,11 +474,11 @@ class QuickAuditTool(AgentTool):
 - smart_scan 发现的高风险文件
 - 需要详细分析的可疑代码
 - 生成具体的修复建议"""
-    
+
     @property
     def args_schema(self):
         return QuickAuditInput
-    
+
     async def _execute(
         self,
         file_path: str,
@@ -488,22 +487,22 @@ class QuickAuditTool(AgentTool):
     ) -> ToolResult:
         """执行快速审计"""
         full_path = os.path.join(self.project_root, file_path)
-        
+
         # 安全检查
         if not os.path.normpath(full_path).startswith(os.path.normpath(self.project_root)):
             return ToolResult(success=False, error="安全错误：路径越界")
-        
+
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {file_path}")
-        
+
         try:
-            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(full_path, encoding='utf-8', errors='ignore') as f:
                 content = f.read()
         except Exception as e:
             return ToolResult(success=False, error=f"读取文件失败: {str(e)}")
-        
+
         lines = content.split('\n')
-        
+
         # 分析结果
         audit_result = {
             "file_path": file_path,
@@ -512,31 +511,31 @@ class QuickAuditTool(AgentTool):
             "code_metrics": {},
             "recommendations": [],
         }
-        
+
         # 代码指标
         audit_result["code_metrics"] = {
             "total_lines": len(lines),
-            "non_empty_lines": len([l for l in lines if l.strip()]),
-            "comment_lines": len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))]),
+            "non_empty_lines": len([line for line in lines if line.strip()]),
+            "comment_lines": len([line for line in lines if line.strip().startswith(('#', '//', '/*', '*'))]),
         }
-        
+
         # 执行模式匹配
         from .pattern_tool import PatternMatchTool
         pattern_tool = PatternMatchTool(self.project_root)
-        
+
         # 使用完整的模式库进行扫描
         for vuln_type, config in pattern_tool.PATTERNS.items():
             patterns_dict = config.get("patterns", {})
-            
+
             # 检测语言
             ext = os.path.splitext(file_path)[1].lower()
-            lang_map = {".py": "python", ".js": "javascript", ".ts": "javascript", 
+            lang_map = {".py": "python", ".js": "javascript", ".ts": "javascript",
                        ".php": "php", ".java": "java", ".go": "go"}
             language = lang_map.get(ext)
-            
+
             patterns_to_check = patterns_dict.get(language, [])
             patterns_to_check.extend(patterns_dict.get("_common", []))
-            
+
             for pattern, pattern_name in patterns_to_check:
                 try:
                     for i, line in enumerate(lines):
@@ -544,7 +543,7 @@ class QuickAuditTool(AgentTool):
                             start = max(0, i - 2)
                             end = min(len(lines), i + 3)
                             context = '\n'.join(f"{start+j+1}: {lines[start+j]}" for j in range(end-start))
-                            
+
                             finding = {
                                 "vulnerability_type": vuln_type,
                                 "pattern_name": pattern_name,
@@ -555,18 +554,18 @@ class QuickAuditTool(AgentTool):
                                 "description": config.get("description", ""),
                                 "cwe_id": config.get("cwe_id", ""),
                             }
-                            
+
                             # 深度分析：添加修复建议
                             if deep_analysis:
                                 finding["recommendation"] = self._get_recommendation(vuln_type)
-                            
+
                             audit_result["findings"].append(finding)
                 except re.error:
                     continue
-        
+
         # 生成报告
         return self._format_audit_report(audit_result)
-    
+
     def _get_recommendation(self, vuln_type: str) -> str:
         """获取修复建议"""
         recommendations = {
@@ -580,20 +579,20 @@ class QuickAuditTool(AgentTool):
             "weak_crypto": "使用 SHA-256 或更强的哈希算法。使用 AES-256-GCM 进行加密。",
         }
         return recommendations.get(vuln_type, "请手动审查此代码段的安全性。")
-    
-    def _format_audit_report(self, audit_result: Dict) -> ToolResult:
+
+    def _format_audit_report(self, audit_result: dict) -> ToolResult:
         """格式化审计报告"""
         findings = audit_result["findings"]
-        
+
         output_parts = [
             f"📋 文件审计报告: {audit_result['file_path']}",
             "",
-            f"📊 代码统计:",
+            "📊 代码统计:",
             f"  - 总行数: {audit_result['code_metrics']['total_lines']}",
             f"  - 有效代码: {audit_result['code_metrics']['non_empty_lines']}",
             "",
         ]
-        
+
         if not findings:
             output_parts.append("✅ 未发现已知的安全问题")
         else:
@@ -601,12 +600,12 @@ class QuickAuditTool(AgentTool):
             by_severity = {"critical": [], "high": [], "medium": [], "low": []}
             for f in findings:
                 by_severity[f["severity"]].append(f)
-            
+
             severity_icons = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}
-            
+
             output_parts.append(f"⚠️ 发现 {len(findings)} 个潜在问题:")
             output_parts.append("")
-            
+
             for sev in ["critical", "high", "medium", "low"]:
                 for f in by_severity[sev]:
                     icon = severity_icons[sev]
@@ -618,7 +617,7 @@ class QuickAuditTool(AgentTool):
                     if f.get("recommendation"):
                         output_parts.append(f"   💡 建议: {f['recommendation'][:100]}")
                     output_parts.append("")
-        
+
         return ToolResult(
             success=True,
             data="\n".join(output_parts),

@@ -1,9 +1,7 @@
 from pathlib import Path
-from typing import List, Optional, Union
 
 from pydantic import AnyHttpUrl, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 DEFAULT_MANAGED_PROJECTS_ROOT = str(Path(__file__).resolve().parents[3] / "projects")
 
@@ -18,11 +16,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
 
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    BACKEND_CORS_ORIGINS: list[AnyHttpUrl] = []
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+    def assemble_cors_origins(cls, v: str | list[str]) -> list[str] | str:
         if isinstance(v, str) and not v.startswith("["):
             return [item.strip() for item in v.split(",")]
         if isinstance(v, (list, str)):
@@ -47,9 +45,9 @@ class Settings(BaseSettings):
         )
 
     LLM_PROVIDER: str = "openai"
-    LLM_API_KEY: Optional[str] = None
-    LLM_MODEL: Optional[str] = None
-    LLM_BASE_URL: Optional[str] = None
+    LLM_API_KEY: str | None = None
+    LLM_MODEL: str | None = None
+    LLM_BASE_URL: str | None = None
     LLM_TIMEOUT: int = 150
     LLM_TEMPERATURE: float = 0.1
     LLM_MAX_TOKENS: int = 4096
@@ -60,23 +58,23 @@ class Settings(BaseSettings):
     SUB_AGENT_TIMEOUT_SECONDS: int = 600
     TOOL_TIMEOUT_SECONDS: int = 60
 
-    OPENAI_API_KEY: Optional[str] = None
-    OPENAI_BASE_URL: Optional[str] = None
-    GEMINI_API_KEY: Optional[str] = None
-    CLAUDE_API_KEY: Optional[str] = None
-    QWEN_API_KEY: Optional[str] = None
-    DEEPSEEK_API_KEY: Optional[str] = None
-    ZHIPU_API_KEY: Optional[str] = None
-    MOONSHOT_API_KEY: Optional[str] = None
-    BAIDU_API_KEY: Optional[str] = None
-    MINIMAX_API_KEY: Optional[str] = None
-    DOUBAO_API_KEY: Optional[str] = None
-    MIMO_API_KEY: Optional[str] = None
-    OLLAMA_BASE_URL: Optional[str] = "http://localhost:11434/v1"
+    OPENAI_API_KEY: str | None = None
+    OPENAI_BASE_URL: str | None = None
+    GEMINI_API_KEY: str | None = None
+    CLAUDE_API_KEY: str | None = None
+    QWEN_API_KEY: str | None = None
+    DEEPSEEK_API_KEY: str | None = None
+    ZHIPU_API_KEY: str | None = None
+    MOONSHOT_API_KEY: str | None = None
+    BAIDU_API_KEY: str | None = None
+    MINIMAX_API_KEY: str | None = None
+    DOUBAO_API_KEY: str | None = None
+    MIMO_API_KEY: str | None = None
+    OLLAMA_BASE_URL: str | None = "http://localhost:11434/v1"
 
-    GITHUB_TOKEN: Optional[str] = None
-    GITLAB_TOKEN: Optional[str] = None
-    GITEA_TOKEN: Optional[str] = None
+    GITHUB_TOKEN: str | None = None
+    GITLAB_TOKEN: str | None = None
+    GITEA_TOKEN: str | None = None
 
     MAX_ANALYZE_FILES: int = 0
     MAX_FILE_SIZE_BYTES: int = 200 * 1024
@@ -88,9 +86,9 @@ class Settings(BaseSettings):
     OUTPUT_LANGUAGE: str = "zh-CN"
 
     CHECKMARX_FEATURE_ENABLED: bool = False
-    CHECKMARX_BASE_URL: Optional[str] = None
+    CHECKMARX_BASE_URL: str | None = None
     CHECKMARX_CLIENT_ID: str = "resource_owner_sast_client"
-    CHECKMARX_CLIENT_SECRET: Optional[str] = None
+    CHECKMARX_CLIENT_SECRET: str | None = None
     CHECKMARX_SCOPE: str = "access_control_api sast_api"
     CHECKMARX_PRESET_ID: int = 36
     CHECKMARX_FORCE_SCAN: bool = True
@@ -107,15 +105,15 @@ class Settings(BaseSettings):
     CHECKMARX_HELP_RESULTS_429_BASE_WAIT: float = 2.0
     CHECKMARX_UPLOAD_DIR: str = "./uploads/checkmarx"
     CHECKMARX_WORKFLOW_ENABLED: bool = True
-    WORKFLOW_URL: Optional[str] = None
-    WORKFLOW_API_TOKEN: Optional[str] = None
+    WORKFLOW_URL: str | None = None
+    WORKFLOW_API_TOKEN: str | None = None
     WORKFLOW_USER: str = "autocve"
     WORKFLOW_TIMEOUT: float = 300.0
 
     EMBEDDING_PROVIDER: str = "openai"
     EMBEDDING_MODEL: str = "text-embedding-3-small"
-    EMBEDDING_API_KEY: Optional[str] = None
-    EMBEDDING_BASE_URL: Optional[str] = None
+    EMBEDDING_API_KEY: str | None = None
+    EMBEDDING_BASE_URL: str | None = None
     VECTOR_DB_PATH: str = "./data/vector_db"
 
     SSH_CONFIG_PATH: str = "./data/ssh"

@@ -8,17 +8,17 @@ RAG (Retrieval-Augmented Generation) 系统
 - 支持索引版本控制和状态查询
 """
 
-from .splitter import CodeSplitter, CodeChunk
 from .embeddings import EmbeddingService
 from .indexer import (
+    INDEX_VERSION,
     CodeIndexer,
     IndexingProgress,
     IndexingResult,
     IndexStatus,
     IndexUpdateMode,
-    INDEX_VERSION,
 )
 from .retriever import CodeRetriever
+from .splitter import CodeChunk, CodeSplitter
 
 __all__ = [
     "CodeSplitter",

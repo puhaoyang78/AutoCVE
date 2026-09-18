@@ -5,8 +5,9 @@ import hashlib
 import inspect
 import json
 import os
+from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -27,9 +28,8 @@ from app.api.v1.endpoints.audit_sessions import (
     AuditSessionMessageCreate,
     AuditSessionMessageResponse,
     AuditSessionResponse,
-    _chunk_text,
-    _format_sse_event,
     _build_agent_user_config,
+    _format_sse_event,
     _to_message_response,
     _to_session_response,
 )
@@ -37,17 +37,24 @@ from app.core.config import settings
 from app.core.encryption import decrypt_sensitive_data
 from app.db.session import get_db
 from app.models.agent_task import AgentFinding, AgentTask
-from app.models.audit_session import AuditCheckpoint, AuditSession, AuditSessionMessage, AuditToolCall
+from app.models.audit_session import (
+    AuditCheckpoint,
+    AuditSession,
+    AuditSessionMessage,
+    AuditToolCall,
+)
 from app.models.managed_vulnerability import ManagedVulnerability
 from app.models.project import Project
 from app.models.user import User
-from app.schemas.managed_vulnerability import ManagedVulnerabilityDetailResponse, ManagedVulnerabilityListResponse
+from app.schemas.managed_vulnerability import (
+    ManagedVulnerabilityDetailResponse,
+    ManagedVulnerabilityListResponse,
+)
 from app.services.agent.tools.sandbox_tool import SandboxManager
 from app.services.direct_audit_vulnerability_service import DirectAuditVulnerabilitySyncService
 from app.services.finding_runtime.bridge import FindingRuntimeBridge
 from app.services.finding_runtime.models import RuntimeStopReason, TurnExecutionResult
 from app.services.llm.service import LLMService
-from app.services.vulnerability_report_generation import VulnerabilityReportGenerationService
 from app.services.runtime_core.runtime_guardrails import (
     normalize_approval_scope,
     register_shell_approval,
@@ -55,6 +62,7 @@ from app.services.runtime_core.runtime_guardrails import (
 )
 from app.services.runtime_core.runtime_tool_registry import CanonicalWriteTool
 from app.services.runtime_core.session_state import SessionRuntimeState as SharedSessionRuntimeState
+from app.services.vulnerability_report_generation import VulnerabilityReportGenerationService
 
 router = APIRouter()
 
@@ -492,10 +500,10 @@ async def _resolve_workspace_root(
     *,
     project: Project,
     workspace_key: str,
-    github_token: Optional[str],
-    gitlab_token: Optional[str],
-    gitea_token: Optional[str],
-    ssh_private_key: Optional[str],
+    github_token: str | None,
+    gitlab_token: str | None,
+    gitea_token: str | None,
+    ssh_private_key: str | None,
 ) -> str:
     if project.source_type in {"local_directory", "zip"} and project.local_path:
         workspace_root = os.path.abspath(project.local_path)
@@ -526,7 +534,7 @@ async def _build_direct_runtime_context(
     project: Project,
     db: AsyncSession,
     current_user: User,
-    workspace_root: Optional[str] = None,
+    workspace_root: str | None = None,
 ) -> tuple[FindingRuntimeBridge, SandboxManager, str, int, str, dict[str, Any]]:
     user_config = await _get_user_config(db, current_user.id)
     other_config = (user_config or {}).get("otherConfig", {})

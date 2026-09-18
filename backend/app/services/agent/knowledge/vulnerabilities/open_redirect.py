@@ -2,7 +2,7 @@
 开放重定向漏洞知识模块
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 OPEN_REDIRECT = KnowledgeDocument(
     id="vuln_open_redirect",
@@ -88,14 +88,14 @@ ALLOWED_HOSTS = ['example.com', 'app.example.com']
 def is_safe_url(url):
     if not url:
         return False
-    
+
     # 检查协议
     parsed = urlparse(url)
-    
+
     # 只允许相对路径
     if not parsed.netloc:
         return url.startswith('/')
-    
+
     # 检查域名白名单
     return parsed.netloc in ALLOWED_HOSTS
 

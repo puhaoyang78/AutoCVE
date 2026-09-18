@@ -1,9 +1,12 @@
 from __future__ import annotations
+
 from copy import deepcopy
 from typing import Any
+
 from app.services.finding_runtime.compaction.models import CompactionResult
 from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptItem
 from app.services.finding_runtime.query_state import QueryLoopState
+
 POST_COMPACT_MAX_TOKENS_PER_SKILL = 5_000
 POST_COMPACT_SKILLS_TOKEN_BUDGET = 25_000
 SKILL_TRUNCATION_MARKER = "\n\n[... skill content truncated for compaction; use Read on the skill path if you need the full text]"
@@ -136,30 +139,30 @@ def _has_preserved_file_context(messages: list[TranscriptItem], normalized_path:
             return True
     return False
 def _has_preserved_tools_context(messages: list[TranscriptItem], tools: list[str]) -> bool:
-    wanted = sorted(set(tool for tool in tools if tool))
+    wanted = sorted({tool for tool in tools if tool})
     for item in messages:
         item_tools = item.metadata.get("tools") or item.payload.get("tools") or []
-        normalized = sorted(set(str(tool) for tool in item_tools if str(tool or "").strip()))
+        normalized = sorted({str(tool) for tool in item_tools if str(tool or "").strip()})
         if normalized == wanted and str(item.metadata.get("attachment_kind") or "") == "tools_delta":
             return True
         if normalized == wanted and str(item.name or "") == "post_compact_tools_attachment":
             return True
     return False
 def _has_preserved_agent_listing(messages: list[TranscriptItem], agents: list[str]) -> bool:
-    wanted = sorted(set(agent for agent in agents if agent))
+    wanted = sorted({agent for agent in agents if agent})
     for item in messages:
         item_agents = item.metadata.get("agents") or item.payload.get("agents") or []
-        normalized = sorted(set(str(agent) for agent in item_agents if str(agent or "").strip()))
+        normalized = sorted({str(agent) for agent in item_agents if str(agent or "").strip()})
         if normalized == wanted and str(item.metadata.get("attachment_kind") or "") == "agent_listing":
             return True
         if normalized == wanted and str(item.name or "") == "post_compact_agents_attachment":
             return True
     return False
 def _has_preserved_mcp_servers(messages: list[TranscriptItem], mcp_servers: list[str]) -> bool:
-    wanted = sorted(set(server for server in mcp_servers if server))
+    wanted = sorted({server for server in mcp_servers if server})
     for item in messages:
         item_servers = item.metadata.get("mcp_servers") or item.payload.get("mcp_servers") or []
-        normalized = sorted(set(str(server) for server in item_servers if str(server or "").strip()))
+        normalized = sorted({str(server) for server in item_servers if str(server or "").strip()})
         if normalized == wanted and str(item.metadata.get("attachment_kind") or "") == "mcp_instructions":
             return True
         if normalized == wanted and str(item.name or "") == "post_compact_mcp_attachment":

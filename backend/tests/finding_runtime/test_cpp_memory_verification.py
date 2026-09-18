@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 
 from app.services.agent.tools.base import AgentTool, ToolResult
-from app.services.finding_runtime.tools.verify_cpp_memory import VerifyCppMemoryInput, VerifyCppMemoryTool
+from app.services.finding_runtime.tools.verify_cpp_memory import (
+    VerifyCppMemoryInput,
+    VerifyCppMemoryTool,
+)
 from app.services.runtime_core import build_runtime_tool_registry
 from app.services.runtime_core.tool_runtime import ToolExecutionContext
 

@@ -4,9 +4,9 @@ Agent JSON 解析工具
 """
 
 import json
-import re
 import logging
-from typing import Dict, Any, List, Optional, Union
+import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ class AgentJsonParser:
         return text[start_idx:end_idx]
 
     @classmethod
-    def repair_with_library(cls, text: str) -> Dict[str, Any]:
+    def repair_with_library(cls, text: str) -> dict[str, Any]:
         """使用 json-repair 库修复并解析 JSON"""
         if not JSON_REPAIR_AVAILABLE:
             raise ValueError("json-repair library not available")
@@ -102,7 +102,7 @@ class AgentJsonParser:
         raise ValueError(f"json-repair returned unexpected type: {type(repaired)}")
 
     @classmethod
-    def extract_from_markdown(cls, text: str) -> Dict[str, Any]:
+    def extract_from_markdown(cls, text: str) -> dict[str, Any]:
         """从 markdown 代码块提取 JSON"""
         match = re.search(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```', text)
         if match:
@@ -110,7 +110,7 @@ class AgentJsonParser:
         raise ValueError("No markdown code block found")
 
     @classmethod
-    def extract_json_object(cls, text: str) -> Dict[str, Any]:
+    def extract_json_object(cls, text: str) -> dict[str, Any]:
         """智能提取 JSON 对象"""
         start_idx = text.find('{')
         if start_idx == -1:
@@ -161,7 +161,7 @@ class AgentJsonParser:
         return json.loads(json_str)
 
     @classmethod
-    def fix_truncated_json(cls, text: str) -> Dict[str, Any]:
+    def fix_truncated_json(cls, text: str) -> dict[str, Any]:
         """修复截断的 JSON"""
         start_idx = text.find('{')
         if start_idx == -1:
@@ -184,7 +184,7 @@ class AgentJsonParser:
         return json.loads(json_str)
 
     @classmethod
-    def parse(cls, text: str, default: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def parse(cls, text: str, default: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         从 LLM 响应中解析 JSON（优先使用 json-repair）
 
@@ -240,7 +240,7 @@ class AgentJsonParser:
         raise ValueError(f"无法解析 JSON: {last_error}")
 
     @classmethod
-    def parse_findings(cls, text: str) -> List[Dict[str, Any]]:
+    def parse_findings(cls, text: str) -> list[dict[str, Any]]:
         """
         专门解析 findings 列表
 
@@ -281,7 +281,7 @@ class AgentJsonParser:
             return []
 
     @classmethod
-    def safe_get(cls, data: Union[Dict, str, Any], key: str, default: Any = None) -> Any:
+    def safe_get(cls, data: dict | str | Any, key: str, default: Any = None) -> Any:
         """
         安全地从数据中获取值
 

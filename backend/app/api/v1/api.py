@@ -1,5 +1,27 @@
 ﻿from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, projects, tasks, scan, members, config, database, prompts, rules, agent_tasks, embedding_config, ssh_keys, skills, report_templates, audit_sessions, agent_direct_audit, vulnerabilities, checkmarx, one_click_cve
+
+from app.api.v1.endpoints import (
+    agent_direct_audit,
+    agent_tasks,
+    audit_sessions,
+    auth,
+    checkmarx,
+    config,
+    database,
+    embedding_config,
+    members,
+    one_click_cve,
+    projects,
+    prompts,
+    report_templates,
+    rules,
+    scan,
+    skills,
+    ssh_keys,
+    tasks,
+    users,
+    vulnerabilities,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])

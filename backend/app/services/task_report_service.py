@@ -1,6 +1,7 @@
 import json
-from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 from jinja2 import Template
 from sqlalchemy import select
@@ -9,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.agent_task import AgentFinding, AgentTask
 from app.models.project import Project
 from app.models.report_template import AgentTaskReport
-from app.services.finding_runtime.final_finding_contract import filter_meaningful_exploit_chain, has_meaningful_poc
+from app.services.finding_runtime.final_finding_contract import (
+    filter_meaningful_exploit_chain,
+    has_meaningful_poc,
+)
 from app.services.report_template_file_service import ReportTemplateFileService
-
 
 DEFAULT_REPORT_TEMPLATE = """# AutoCVE 最终漏洞报告
 
@@ -61,7 +64,7 @@ DEFAULT_REPORT_TEMPLATE = """# AutoCVE 最终漏洞报告
 """
 
 
-def _severity_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+def _severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
     counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     for finding in findings:
         severity = str(finding.get("severity", "")).lower()
@@ -70,7 +73,7 @@ def _severity_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
-def _origin_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+def _origin_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
     counts = {"direct_finding": 0, "other": 0}
     for finding in findings:
         origin = str(finding.get("origin") or "direct_finding").lower()
@@ -80,7 +83,7 @@ def _origin_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
-def _report_status_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+def _report_status_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
     counts = {"confirmed": 0, "candidate": 0, "false_positive": 0}
     for finding in findings:
         report_status = str(finding.get("report_status") or finding.get("verdict") or "candidate").lower()
@@ -90,7 +93,7 @@ def _report_status_counts(findings: Iterable[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
-def serialize_finding(finding: AgentFinding | Dict[str, Any]) -> Dict[str, Any]:
+def serialize_finding(finding: AgentFinding | dict[str, Any]) -> dict[str, Any]:
     if isinstance(finding, dict):
         item = dict(finding)
         item.setdefault("report_status", str(item.get("verdict") or "candidate").lower())
@@ -153,14 +156,14 @@ def serialize_finding(finding: AgentFinding | Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def get_default_report_template() -> Optional[Dict[str, Any]]:
+def get_default_report_template() -> dict[str, Any] | None:
     items = ReportTemplateFileService.list_templates()
     if not items:
         return None
     return next((item for item in items if item.get("is_default")), items[0])
 
 
-async def get_task_report(db: AsyncSession, task_id: str) -> Optional[AgentTaskReport]:
+async def get_task_report(db: AsyncSession, task_id: str) -> AgentTaskReport | None:
     result = await db.execute(select(AgentTaskReport).where(AgentTaskReport.task_id == task_id))
     return result.scalar_one_or_none()
 
@@ -169,15 +172,15 @@ async def build_report_payload(
     db: AsyncSession,
     task: AgentTask,
     project: Project,
-    findings: List[AgentFinding | Dict[str, Any]],
-    template: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    findings: list[AgentFinding | dict[str, Any]],
+    template: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     del db
     finding_items = [serialize_finding(item) for item in findings]
     status_counts = _report_status_counts(finding_items)
     return {
         "report": {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "type": "final_vulnerability_report",
         },
         "project": {
@@ -221,7 +224,7 @@ async def build_report_payload(
     }
 
 
-def render_report_content(payload: Dict[str, Any], template_content: str, output_format: str = "markdown") -> str:
+def render_report_content(payload: dict[str, Any], template_content: str, output_format: str = "markdown") -> str:
     if output_format == "json":
         return json.dumps(payload, ensure_ascii=False, indent=2)
 
@@ -243,8 +246,8 @@ async def generate_task_report(
     db: AsyncSession,
     task: AgentTask,
     project: Project,
-    findings: List[AgentFinding | Dict[str, Any]],
-    template_id: Optional[str] = None,
+    findings: list[AgentFinding | dict[str, Any]],
+    template_id: str | None = None,
     output_format: str = "markdown",
 ) -> AgentTaskReport:
     template = None

@@ -16,16 +16,16 @@ Prompt Caching 模块
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
-from dataclasses import dataclass, field
-from enum import Enum
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
 
 from .tokenizer import TokenEstimator
 
 logger = logging.getLogger(__name__)
 
 
-class CacheStrategy(str, Enum):
+class CacheStrategy(StrEnum):
     """缓存策略"""
     NONE = "none"                    # 不缓存
     SYSTEM_ONLY = "system_only"      # 仅缓存系统提示词
@@ -38,11 +38,11 @@ class CacheConfig:
     """缓存配置"""
     enabled: bool = True
     strategy: CacheStrategy = CacheStrategy.SYSTEM_AND_EARLY
-    
+
     # 缓存阈值
     min_system_prompt_tokens: int = 1000  # 系统提示词最小 token 数才启用缓存
     early_messages_count: int = 5         # 早期对话缓存的消息数
-    
+
     # 多缓存点配置
     multi_point_interval: int = 10        # 多缓存点间隔（消息数）
     max_cache_points: int = 4             # 最大缓存点数量
@@ -55,12 +55,12 @@ class CacheStats:
     cache_misses: int = 0
     cached_tokens: int = 0
     total_tokens: int = 0
-    
+
     @property
     def hit_rate(self) -> float:
         total = self.cache_hits + self.cache_misses
         return self.cache_hits / total if total > 0 else 0.0
-    
+
     @property
     def token_savings(self) -> float:
         return self.cached_tokens / self.total_tokens if self.total_tokens > 0 else 0.0
@@ -69,14 +69,14 @@ class CacheStats:
 class PromptCacheManager:
     """
     Prompt 缓存管理器
-    
+
     负责:
     1. 检测 LLM 是否支持缓存
     2. 根据对话长度选择缓存策略
     3. 为消息添加缓存标记
     4. 统计缓存效果
     """
-    
+
     # 支持缓存的模型
     CACHEABLE_MODELS = {
         # Anthropic Claude
@@ -93,134 +93,134 @@ class PromptCacheManager:
         "gpt-4o": False,
         "gpt-4o-mini": False,
     }
-    
+
     # Anthropic 缓存标记
     ANTHROPIC_CACHE_CONTROL = {"type": "ephemeral"}
-    
-    def __init__(self, config: Optional[CacheConfig] = None):
+
+    def __init__(self, config: CacheConfig | None = None):
         self.config = config or CacheConfig()
         self.stats = CacheStats()
         self._cache_enabled_for_session = True
-    
+
     def supports_caching(self, model: str, provider: str) -> bool:
         """
         检查模型是否支持缓存
-        
+
         Args:
             model: 模型名称
             provider: 提供商名称
-            
+
         Returns:
             是否支持缓存
         """
         if not self.config.enabled:
             return False
-        
+
         # Anthropic Claude 支持缓存
         if provider.lower() in ["anthropic", "claude"]:
             # 检查模型名称
             for cacheable_model in self.CACHEABLE_MODELS:
                 if cacheable_model in model.lower():
                     return self.CACHEABLE_MODELS.get(cacheable_model, False)
-        
+
         return False
-    
+
     def determine_strategy(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         system_prompt_tokens: int = 0,
     ) -> CacheStrategy:
         """
         根据对话状态确定缓存策略
-        
+
         Args:
             messages: 消息列表
             system_prompt_tokens: 系统提示词的 token 数
-            
+
         Returns:
             缓存策略
         """
         if not self.config.enabled:
             return CacheStrategy.NONE
-        
+
         # 系统提示词太短，不值得缓存
         if system_prompt_tokens < self.config.min_system_prompt_tokens:
             return CacheStrategy.NONE
-        
+
         message_count = len(messages)
-        
+
         # 短对话：仅缓存系统提示词
         if message_count < 10:
             return CacheStrategy.SYSTEM_ONLY
-        
+
         # 中等对话：缓存系统提示词和早期对话
         if message_count < 30:
             return CacheStrategy.SYSTEM_AND_EARLY
-        
+
         # 长对话：多缓存点
         return CacheStrategy.MULTI_POINT
-    
+
     def add_cache_markers_anthropic(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         strategy: CacheStrategy,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         为 Anthropic Claude 消息添加缓存标记
-        
+
         Anthropic 的缓存格式:
         - 在 content 中使用 cache_control 字段
         - 支持 text 类型的 content block
-        
+
         Args:
             messages: 原始消息列表
             strategy: 缓存策略
-            
+
         Returns:
             添加了缓存标记的消息列表
         """
         if strategy == CacheStrategy.NONE:
             return messages
-        
+
         cached_messages = []
-        
+
         for i, msg in enumerate(messages):
             new_msg = msg.copy()
-            
+
             # 系统提示词缓存
             if msg.get("role") == "system":
                 new_msg = self._add_cache_to_message(new_msg)
                 cached_messages.append(new_msg)
                 continue
-            
+
             # 早期对话缓存
             if strategy in [CacheStrategy.SYSTEM_AND_EARLY, CacheStrategy.MULTI_POINT]:
                 if i <= self.config.early_messages_count:
                     new_msg = self._add_cache_to_message(new_msg)
-            
+
             # 多缓存点
             if strategy == CacheStrategy.MULTI_POINT:
                 if i > 0 and i % self.config.multi_point_interval == 0:
                     cache_point_count = i // self.config.multi_point_interval
                     if cache_point_count <= self.config.max_cache_points:
                         new_msg = self._add_cache_to_message(new_msg)
-            
+
             cached_messages.append(new_msg)
-        
+
         return cached_messages
-    
-    def _add_cache_to_message(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _add_cache_to_message(self, msg: dict[str, Any]) -> dict[str, Any]:
         """
         为单条消息添加缓存标记
-        
+
         Args:
             msg: 原始消息
-            
+
         Returns:
             添加了缓存标记的消息
         """
         content = msg.get("content", "")
-        
+
         # 如果 content 是字符串，转换为 content block 格式
         if isinstance(content, str):
             msg["content"] = [
@@ -236,44 +236,44 @@ class PromptCacheManager:
                 last_block = content[-1]
                 if isinstance(last_block, dict):
                     last_block["cache_control"] = self.ANTHROPIC_CACHE_CONTROL
-        
+
         return msg
-    
+
     def process_messages(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         model: str,
         provider: str,
         system_prompt_tokens: int = 0,
-    ) -> Tuple[List[Dict[str, Any]], bool]:
+    ) -> tuple[list[dict[str, Any]], bool]:
         """
         处理消息，添加缓存标记
-        
+
         Args:
             messages: 原始消息列表
             model: 模型名称
             provider: 提供商名称
             system_prompt_tokens: 系统提示词 token 数
-            
+
         Returns:
             (处理后的消息列表, 是否启用了缓存)
         """
         if not self.supports_caching(model, provider):
             return messages, False
-        
+
         strategy = self.determine_strategy(messages, system_prompt_tokens)
-        
+
         if strategy == CacheStrategy.NONE:
             return messages, False
-        
+
         # 根据提供商选择缓存方法
         if provider.lower() in ["anthropic", "claude"]:
             cached_messages = self.add_cache_markers_anthropic(messages, strategy)
             logger.debug(f"Applied {strategy.value} caching strategy for Anthropic")
             return cached_messages, True
-        
+
         return messages, False
-    
+
     def update_stats(
         self,
         cache_creation_input_tokens: int = 0,
@@ -282,7 +282,7 @@ class PromptCacheManager:
     ):
         """
         更新缓存统计
-        
+
         Args:
             cache_creation_input_tokens: 缓存创建的 token 数
             cache_read_input_tokens: 缓存读取的 token 数
@@ -293,10 +293,10 @@ class PromptCacheManager:
             self.stats.cached_tokens += cache_read_input_tokens
         else:
             self.stats.cache_misses += 1
-        
+
         self.stats.total_tokens += total_input_tokens
-    
-    def get_stats_summary(self) -> Dict[str, Any]:
+
+    def get_stats_summary(self) -> dict[str, Any]:
         """获取缓存统计摘要"""
         return {
             "cache_hits": self.stats.cache_hits,

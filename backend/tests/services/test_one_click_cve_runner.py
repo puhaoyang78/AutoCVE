@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import func, select
@@ -17,7 +17,6 @@ from app.models.user import User
 from app.services.one_click_cve import runner as one_click_runner
 from app.services.one_click_cve.discovery import GitHubRepositoryCandidate
 from app.services.one_click_cve.runner import _audit_candidate, run_one_click_cve_batch
-
 
 MODEL_PREFLIGHT_STEP = "\u6b63\u5728\u6d4b\u8bd5\u6a21\u578b\u8fde\u901a\u6027"
 
@@ -51,8 +50,8 @@ async def test_audit_candidate_raises_fatal_error_and_synchronizes_all_three_sta
         description="Demo",
         language="Python",
         stars=1,
-        pushed_at=datetime(2026, 7, 1, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 7, 1, tzinfo=timezone.utc),
+        pushed_at=datetime(2026, 7, 1, tzinfo=UTC),
+        updated_at=datetime(2026, 7, 1, tzinfo=UTC),
         default_branch="main",
         version_label="v1",
         version_source="latest_release",
@@ -251,8 +250,8 @@ async def test_audit_candidate_skips_repository_version_already_in_vulnerability
         description="Headless CMS",
         language="TypeScript",
         stars=42800,
-        pushed_at=datetime(2026, 6, 5, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 6, 5, tzinfo=timezone.utc),
+        pushed_at=datetime(2026, 6, 5, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 5, tzinfo=UTC),
         default_branch="main",
         version_label="v3.85.0",
         version_source="latest_release",
@@ -339,8 +338,8 @@ async def test_audit_candidate_records_failure_when_import_raises(monkeypatch):
         description="Open source distributed search engine",
         language="Java",
         stars=13000,
-        pushed_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
+        pushed_at=datetime(2026, 6, 6, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 6, tzinfo=UTC),
         default_branch="main",
         version_label="3.6.0",
         version_source="latest_release",
@@ -514,8 +513,8 @@ async def test_create_agent_task_uses_fifty_minute_timeout():
         description="Demo",
         language="Python",
         stars=1000,
-        pushed_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
+        pushed_at=datetime(2026, 6, 6, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 6, tzinfo=UTC),
         default_branch="main",
         version_label="v1.0.0",
         version_source="latest_release",

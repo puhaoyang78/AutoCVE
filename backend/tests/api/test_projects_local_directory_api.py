@@ -2,28 +2,26 @@ from __future__ import annotations
 
 import asyncio
 import io
-from pathlib import Path
 import shutil
 import tempfile
 import time
-from types import SimpleNamespace
 import zipfile
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from fastapi import FastAPI
-from fastapi import BackgroundTasks
-from fastapi import HTTPException
-from fastapi import UploadFile
+from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+import app.api.v1.endpoints.projects as projects_endpoint
 from app.api import deps
 from app.api.v1.endpoints.projects import router as projects_router
 from app.db.base import Base
-from app.models.user import User
-import app.api.v1.endpoints.projects as projects_endpoint
 from app.models.project import Project
+from app.models.user import User
 from app.services.zip_storage import save_project_zip
+
 
 def build_test_app() -> FastAPI:
     app = FastAPI()
@@ -772,8 +770,6 @@ async def test_upload_project_zip_extracts_persistent_source_and_can_skip_archiv
     source_root = managed_root / "project-sources"
     original_managed_root = projects_endpoint.settings.MANAGED_PROJECTS_ROOT
     original_zip_root = projects_endpoint.settings.ZIP_STORAGE_PATH
-    original_source_root = projects_endpoint.settings.PROJECT_SOURCE_STORAGE_PATH
-    original_session_factory = projects_endpoint.AsyncSessionLocal
     projects_endpoint.settings.MANAGED_PROJECTS_ROOT = str(managed_root)
     projects_endpoint.settings.ZIP_STORAGE_PATH = str(zip_root)
     projects_endpoint.settings.PROJECT_SOURCE_STORAGE_PATH = str(source_root)

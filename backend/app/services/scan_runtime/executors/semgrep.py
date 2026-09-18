@@ -7,7 +7,11 @@ from json import JSONDecoder
 from pathlib import Path
 from typing import Any
 
-from app.services.scan_runtime.models import DEFAULT_SEMGREP_CONFIGS, ScannerExecutionResult, ScannerRequest
+from app.services.scan_runtime.models import (
+    DEFAULT_SEMGREP_CONFIGS,
+    ScannerExecutionResult,
+    ScannerRequest,
+)
 from app.services.scan_runtime.normalizers import normalize_semgrep_results
 from app.services.scan_runtime.store import ScanResultStore
 

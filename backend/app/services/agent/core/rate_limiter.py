@@ -7,8 +7,7 @@ Prevents overwhelming external services with too many requests.
 
 import asyncio
 import time
-from dataclasses import dataclass, field
-from typing import Dict, Optional
+from dataclasses import dataclass
 from functools import wraps
 
 
@@ -48,7 +47,7 @@ class TokenBucketRateLimiter:
         self.last_update = time.monotonic()
         self._lock = asyncio.Lock()
 
-    async def acquire(self, tokens: int = 1, timeout: Optional[float] = None) -> bool:
+    async def acquire(self, tokens: int = 1, timeout: float | None = None) -> bool:
         """
         Acquire tokens, waiting if necessary.
 
@@ -113,7 +112,7 @@ class TokenBucketRateLimiter:
         elapsed = time.monotonic() - self.last_update
         return min(self.burst, self.tokens + elapsed * self.rate)
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get current status"""
         return {
             "name": self.name,
@@ -137,7 +136,7 @@ class SlidingWindowRateLimiter:
         self.requests: list = []
         self._lock = asyncio.Lock()
 
-    async def acquire(self, timeout: Optional[float] = None) -> bool:
+    async def acquire(self, timeout: float | None = None) -> bool:
         """Acquire permission to make a request"""
         start_time = time.monotonic()
 
@@ -179,7 +178,7 @@ class RateLimiterRegistry:
     """Registry for managing multiple rate limiters"""
 
     def __init__(self):
-        self._limiters: Dict[str, TokenBucketRateLimiter] = {}
+        self._limiters: dict[str, TokenBucketRateLimiter] = {}
         self._lock = asyncio.Lock()
 
     def get_or_create(
@@ -193,17 +192,17 @@ class RateLimiterRegistry:
             self._limiters[name] = TokenBucketRateLimiter(rate, burst, name)
         return self._limiters[name]
 
-    def get(self, name: str) -> Optional[TokenBucketRateLimiter]:
+    def get(self, name: str) -> TokenBucketRateLimiter | None:
         """Get limiter by name"""
         return self._limiters.get(name)
 
-    def get_all_status(self) -> Dict[str, Dict]:
+    def get_all_status(self) -> dict[str, dict]:
         """Get status of all limiters"""
         return {name: limiter.get_status() for name, limiter in self._limiters.items()}
 
 
 # Global registry
-_global_registry: Optional[RateLimiterRegistry] = None
+_global_registry: RateLimiterRegistry | None = None
 
 
 def get_rate_limiter_registry() -> RateLimiterRegistry:

@@ -2,20 +2,21 @@
 SSH密钥管理API端点
 """
 
+import json
 import logging
-from typing import Any, Optional
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from pydantic import BaseModel
-import json
 
 from app.api import deps
+from app.core.encryption import decrypt_sensitive_data, encrypt_sensitive_data
 from app.db.session import get_db
 from app.models.user import User
 from app.models.user_config import UserConfig
-from app.services.git_ssh_service import SSHKeyService, GitSSHOperations, clear_known_hosts
-from app.core.encryption import encrypt_sensitive_data, decrypt_sensitive_data
+from app.services.git_ssh_service import GitSSHOperations, SSHKeyService, clear_known_hosts
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,8 +30,8 @@ class SSHKeyGenerateResponse(BaseModel):
 
 class SSHKeyResponse(BaseModel):
     has_key: bool
-    public_key: Optional[str] = None
-    fingerprint: Optional[str] = None
+    public_key: str | None = None
+    fingerprint: str | None = None
 
 
 class SSHKeyTestRequest(BaseModel):
@@ -40,7 +41,7 @@ class SSHKeyTestRequest(BaseModel):
 class SSHKeyTestResponse(BaseModel):
     success: bool
     message: str
-    output: Optional[str] = None
+    output: str | None = None
 
 
 @router.post("/generate", response_model=SSHKeyGenerateResponse)
@@ -96,7 +97,7 @@ async def generate_ssh_key(
 
     except Exception as e:
         logger.error(f"Failed to generate SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="生成SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="生成SSH密钥失败，请稍后重试") from e
 
 
 @router.get("/", response_model=SSHKeyResponse)
@@ -134,7 +135,7 @@ async def get_ssh_key(
 
     except Exception as e:
         logger.error(f"Failed to get SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="获取SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="获取SSH密钥失败，请稍后重试") from e
 
 
 @router.delete("/")
@@ -174,7 +175,7 @@ async def delete_ssh_key(
         raise
     except Exception as e:
         logger.error(f"Failed to delete SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="删除SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="删除SSH密钥失败，请稍后重试") from e
 
 
 @router.post("/test", response_model=SSHKeyTestResponse)
@@ -230,7 +231,7 @@ async def test_ssh_key(
         raise
     except Exception as e:
         logger.error(f"Failed to test SSH key for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="测试SSH密钥失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="测试SSH密钥失败，请稍后重试") from e
 
 
 @router.delete("/known-hosts")
@@ -258,4 +259,4 @@ async def clear_known_hosts_file(
         raise
     except Exception as e:
         logger.error(f"Failed to clear known_hosts for user {current_user.id}: {e}")
-        raise HTTPException(status_code=500, detail="清理失败，请稍后重试")
+        raise HTTPException(status_code=500, detail="清理失败，请稍后重试") from e

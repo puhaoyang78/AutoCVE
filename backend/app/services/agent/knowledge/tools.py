@@ -5,11 +5,11 @@
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Type
+
 from pydantic import BaseModel, Field
 
 from ..tools.base import AgentTool, ToolResult
-from .rag_knowledge import security_knowledge_rag, KnowledgeCategory
+from .rag_knowledge import KnowledgeCategory, security_knowledge_rag
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class SecurityKnowledgeQueryInput(BaseModel):
     """安全知识查询输入"""
     query: str = Field(..., description="搜索查询，如漏洞类型、技术名称、安全概念等")
-    category: Optional[str] = Field(
+    category: str | None = Field(
         None,
         description="知识类别过滤: vulnerability, best_practice, remediation, code_pattern, compliance"
     )
@@ -27,14 +27,14 @@ class SecurityKnowledgeQueryInput(BaseModel):
 class SecurityKnowledgeQueryTool(AgentTool):
     """
     安全知识查询工具
-    
+
     用于查询安全漏洞知识、最佳实践、修复建议等
     """
-    
+
     @property
     def name(self) -> str:
         return "query_security_knowledge"
-    
+
     @property
     def description(self) -> str:
         return """查询安全知识库，获取漏洞类型、检测方法、修复建议等专业知识。
@@ -51,15 +51,15 @@ class SecurityKnowledgeQueryTool(AgentTool):
 - "SSRF vulnerability patterns"
 - "hardcoded credentials"
 """
-    
+
     @property
-    def args_schema(self) -> Type[BaseModel]:
+    def args_schema(self) -> type[BaseModel]:
         return SecurityKnowledgeQueryInput
-    
+
     async def _execute(
         self,
         query: str,
-        category: Optional[str] = None,
+        category: str | None = None,
         top_k: int = 3,
     ) -> ToolResult:
         """执行知识查询"""
@@ -71,21 +71,21 @@ class SecurityKnowledgeQueryTool(AgentTool):
                     knowledge_category = KnowledgeCategory(category.lower())
                 except ValueError:
                     pass
-            
+
             # 执行搜索
             results = await security_knowledge_rag.search(
                 query=query,
                 category=knowledge_category,
                 top_k=top_k,
             )
-            
+
             if not results:
                 return ToolResult(
                     success=True,
                     data="未找到相关的安全知识。请尝试使用不同的关键词。",
                     metadata={"query": query, "results_count": 0},
                 )
-            
+
             # 格式化结果
             formatted_results = []
             for i, result in enumerate(results, 1):
@@ -99,9 +99,9 @@ class SecurityKnowledgeQueryTool(AgentTool):
                     formatted += f"CWE: {', '.join(result['cwe_ids'])}\n"
                 formatted += f"\n{result.get('content', '')}"
                 formatted_results.append(formatted)
-            
+
             output = f"找到 {len(results)} 条相关知识:\n\n" + "\n\n---\n\n".join(formatted_results)
-            
+
             return ToolResult(
                 success=True,
                 data=output,
@@ -111,7 +111,7 @@ class SecurityKnowledgeQueryTool(AgentTool):
                     "results": results,
                 },
             )
-            
+
         except Exception as e:
             logger.error(f"Knowledge query failed: {e}")
             return ToolResult(
@@ -126,7 +126,7 @@ class VulnerabilityKnowledgeInput(BaseModel):
         ...,
         description="漏洞类型，如: sql_injection, xss, command_injection, path_traversal, ssrf, deserialization, hardcoded_secrets, auth_bypass"
     )
-    project_language: Optional[str] = Field(
+    project_language: str | None = Field(
         None,
         description="目标项目的主要编程语言（如 python, php, javascript, rust, go），用于过滤相关示例"
     )
@@ -135,14 +135,14 @@ class VulnerabilityKnowledgeInput(BaseModel):
 class GetVulnerabilityKnowledgeTool(AgentTool):
     """
     获取特定漏洞类型的完整知识
-    
+
     返回该漏洞类型的检测方法、危险模式、修复建议等完整信息
     """
-    
+
     @property
     def name(self) -> str:
         return "get_vulnerability_knowledge"
-    
+
     @property
     def description(self) -> str:
         return """获取特定漏洞类型的完整专业知识。
@@ -164,12 +164,12 @@ class GetVulnerabilityKnowledgeTool(AgentTool):
 - 安全实践
 - 修复示例
 """
-    
+
     @property
-    def args_schema(self) -> Type[BaseModel]:
+    def args_schema(self) -> type[BaseModel]:
         return VulnerabilityKnowledgeInput
-    
-    async def _execute(self, vulnerability_type: str, project_language: Optional[str] = None) -> ToolResult:
+
+    async def _execute(self, vulnerability_type: str, project_language: str | None = None) -> ToolResult:
         """获取漏洞知识"""
         try:
             knowledge = await security_knowledge_rag.get_vulnerability_knowledge(
@@ -239,7 +239,7 @@ class GetVulnerabilityKnowledgeTool(AgentTool):
                 error=f"获取漏洞知识失败: {str(e)}",
             )
 
-    def _detect_code_language(self, content: str) -> Optional[str]:
+    def _detect_code_language(self, content: str) -> str | None:
         """检测知识内容中的主要代码语言"""
         # 检测代码块中的语言标记
         import re
@@ -271,7 +271,7 @@ class GetVulnerabilityKnowledgeTool(AgentTool):
 
 class ListKnowledgeModulesInput(BaseModel):
     """列出知识模块输入"""
-    category: Optional[str] = Field(
+    category: str | None = Field(
         None,
         description="按类别过滤: vulnerability, best_practice, remediation"
     )
@@ -281,35 +281,35 @@ class ListKnowledgeModulesTool(AgentTool):
     """
     列出所有可用的知识模块
     """
-    
+
     @property
     def name(self) -> str:
         return "list_knowledge_modules"
-    
+
     @property
     def description(self) -> str:
         return "列出所有可用的安全知识模块，包括漏洞类型、最佳实践等"
-    
+
     @property
-    def args_schema(self) -> Type[BaseModel]:
+    def args_schema(self) -> type[BaseModel]:
         return ListKnowledgeModulesInput
-    
-    async def _execute(self, category: Optional[str] = None) -> ToolResult:
+
+    async def _execute(self, category: str | None = None) -> ToolResult:
         """列出知识模块"""
         try:
             modules = security_knowledge_rag.get_all_vulnerability_types()
-            
+
             output = "可用的安全知识模块:\n\n"
             output += "## 漏洞类型\n"
             for module in modules:
                 output += f"- {module}\n"
-            
+
             return ToolResult(
                 success=True,
                 data=output,
                 metadata={"modules": modules},
             )
-            
+
         except Exception as e:
             logger.error(f"List knowledge modules failed: {e}")
             return ToolResult(

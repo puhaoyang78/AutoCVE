@@ -2,7 +2,7 @@
 CSRF（跨站请求伪造）漏洞知识模块
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 CSRF = KnowledgeDocument(
     id="vuln_csrf",

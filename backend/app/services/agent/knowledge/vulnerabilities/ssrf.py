@@ -2,8 +2,7 @@
 SSRF (服务端请求伪造) 漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 SSRF = KnowledgeDocument(
     id="vuln_ssrf",
@@ -88,24 +87,24 @@ from urllib.parse import urlparse
 def is_safe_url(url):
     try:
         parsed = urlparse(url)
-        
+
         # 只允许http/https
         if parsed.scheme not in ['http', 'https']:
             return False
-        
+
         # 解析IP
         import socket
         ip = socket.gethostbyname(parsed.hostname)
         ip_obj = ipaddress.ip_address(ip)
-        
+
         # 禁止私有IP
         if ip_obj.is_private or ip_obj.is_loopback:
             return False
-        
+
         # 白名单域名
         if parsed.hostname not in ALLOWED_HOSTS:
             return False
-            
+
         return True
     except:
         return False

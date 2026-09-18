@@ -13,9 +13,8 @@ import json
 import os
 import shutil
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from app.core.config import settings
 
@@ -105,7 +104,7 @@ def _save_project_zip_sync(
     meta = {
         "original_filename": original_filename,
         "file_size": file_size,
-        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "uploaded_at": datetime.now(UTC).isoformat(),
         "project_id": project_id,
         "import_status": import_status,
         "import_error": None,
@@ -143,7 +142,7 @@ def _materialize_project_source_from_zip_sync(project_id: str, file_path: str) -
     _collapse_single_root_directory(source_root)
     return {
         "path": str(source_root.resolve()),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -151,30 +150,30 @@ async def materialize_project_source_from_zip(project_id: str, file_path: str) -
     return await asyncio.to_thread(_materialize_project_source_from_zip_sync, project_id, file_path)
 
 
-async def load_project_zip(project_id: str) -> Optional[str]:
+async def load_project_zip(project_id: str) -> str | None:
     zip_path = get_project_zip_path(project_id)
     if zip_path.exists():
         return str(zip_path)
     return None
 
 
-async def get_project_zip_meta(project_id: str) -> Optional[dict]:
+async def get_project_zip_meta(project_id: str) -> dict | None:
     meta_path = get_project_zip_meta_path(project_id)
     if not meta_path.exists():
         return None
-    with open(meta_path, "r", encoding="utf-8") as handle:
+    with open(meta_path, encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def _update_project_zip_meta_sync(project_id: str, **updates) -> dict:
     meta_path = get_project_zip_meta_path(project_id)
     if meta_path.exists():
-        with open(meta_path, "r", encoding="utf-8") as handle:
+        with open(meta_path, encoding="utf-8") as handle:
             meta = json.load(handle)
     else:
         meta = {"project_id": project_id}
     meta.update(updates)
-    meta["updated_at"] = datetime.now(timezone.utc).isoformat()
+    meta["updated_at"] = datetime.now(UTC).isoformat()
     with open(meta_path, "w", encoding="utf-8") as handle:
         json.dump(meta, handle)
     return meta
@@ -184,13 +183,13 @@ async def update_project_zip_meta(project_id: str, **updates) -> dict:
     return await asyncio.to_thread(_update_project_zip_meta_sync, project_id, **updates)
 
 
-async def get_project_persistent_source_meta(project_id: str) -> Optional[dict[str, str]]:
+async def get_project_persistent_source_meta(project_id: str) -> dict[str, str] | None:
     source_root = get_project_persistent_source_path(project_id)
     if not source_root.exists() or not source_root.is_dir():
         return None
     return {
         "path": str(source_root.resolve()),
-        "updated_at": datetime.fromtimestamp(source_root.stat().st_mtime, tz=timezone.utc).isoformat(),
+        "updated_at": datetime.fromtimestamp(source_root.stat().st_mtime, tz=UTC).isoformat(),
     }
 
 

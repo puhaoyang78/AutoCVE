@@ -6,7 +6,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class KnowledgeCategory(Enum):
@@ -26,13 +26,13 @@ class KnowledgeDocument:
     title: str
     content: str
     category: KnowledgeCategory
-    tags: List[str] = field(default_factory=list)
-    severity: Optional[str] = None
-    cwe_ids: List[str] = field(default_factory=list)
-    owasp_ids: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    tags: list[str] = field(default_factory=list)
+    severity: str | None = None
+    cwe_ids: list[str] = field(default_factory=list)
+    owasp_ids: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "title": self.title,
@@ -44,7 +44,7 @@ class KnowledgeDocument:
             "owasp_ids": self.owasp_ids,
             "metadata": self.metadata,
         }
-    
+
     def to_embedding_text(self) -> str:
         """生成用于嵌入的文本"""
         parts = [

@@ -8,9 +8,8 @@ Enables tracking of requests across agents, tools, and services.
 import contextvars
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
-
 
 # ============ Context Variables ============
 
@@ -27,15 +26,15 @@ _task_id: contextvars.ContextVar[str] = contextvars.ContextVar(
 )
 
 # Global context variable for current agent
-_current_agent: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+_current_agent: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     'current_agent',
     default=None
 )
 
 # Global context variable for trace path
-_trace_path: contextvars.ContextVar[List[str]] = contextvars.ContextVar(
-    'trace_path',
-    default=[]
+_trace_path: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "trace_path",
+    default=(),
 )
 
 
@@ -65,7 +64,7 @@ def set_task_id(task_id: str) -> contextvars.Token:
     return _task_id.set(task_id)
 
 
-def get_current_agent() -> Optional[str]:
+def get_current_agent() -> str | None:
     """Get the current agent name"""
     return _current_agent.get()
 
@@ -75,18 +74,18 @@ def set_current_agent(agent_name: str) -> contextvars.Token:
     return _current_agent.set(agent_name)
 
 
-def get_trace_path() -> List[str]:
+def get_trace_path() -> list[str]:
     """Get the current trace path (list of agent names)"""
-    return _trace_path.get().copy()
+    return list(_trace_path.get())
 
 
 def push_trace(agent_name: str) -> None:
     """Add an agent to the trace path"""
     current = _trace_path.get()
-    _trace_path.set([*current, agent_name])
+    _trace_path.set((*current, agent_name))
 
 
-def pop_trace() -> Optional[str]:
+def pop_trace() -> str | None:
     """Remove the last agent from the trace path"""
     current = _trace_path.get()
     if current:
@@ -112,14 +111,14 @@ class ExecutionContext:
     """
     correlation_id: str = field(default_factory=generate_correlation_id)
     task_id: str = ""
-    parent_agent_id: Optional[str] = None
-    current_agent_id: Optional[str] = None
-    current_agent_name: Optional[str] = None
-    trace_path: List[str] = field(default_factory=list)
+    parent_agent_id: str | None = None
+    current_agent_id: str | None = None
+    current_agent_name: str | None = None
+    trace_path: list[str] = field(default_factory=list)
     iteration: int = 0
     depth: int = 0
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def child_context(
         self,
@@ -191,7 +190,7 @@ class ExecutionContext:
         agent = self.current_agent_id or "unknown"
         return f"{self.correlation_id}:{agent}:{self.iteration}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary for serialization"""
         return {
             "correlation_id": self.correlation_id,
@@ -207,7 +206,7 @@ class ExecutionContext:
             "metadata": self.metadata,
         }
 
-    def to_log_dict(self) -> Dict[str, Any]:
+    def to_log_dict(self) -> dict[str, Any]:
         """Get minimal context for logging"""
         return {
             "correlation_id": self.correlation_id,
@@ -219,7 +218,7 @@ class ExecutionContext:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ExecutionContext":
+    def from_dict(cls, data: dict[str, Any]) -> "ExecutionContext":
         """Create context from dictionary"""
         return cls(
             correlation_id=data.get("correlation_id", generate_correlation_id()),
@@ -249,7 +248,7 @@ class ExecutionContextManager:
 
     def __init__(self, context: ExecutionContext):
         self.context = context
-        self._tokens: List[contextvars.Token] = []
+        self._tokens: list[contextvars.Token] = []
 
     def __enter__(self) -> ExecutionContext:
         """Enter context and set context variables"""
@@ -281,7 +280,7 @@ class ExecutionContextManager:
 
 def create_context(
     task_id: str,
-    correlation_id: Optional[str] = None,
+    correlation_id: str | None = None,
     **metadata
 ) -> ExecutionContext:
     """

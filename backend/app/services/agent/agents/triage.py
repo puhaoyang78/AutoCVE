@@ -1,9 +1,8 @@
 ﻿import json
-from typing import Any, Dict
+from typing import Any
 
 from .analysis_workflow import AnalysisWorkflowAgent
 from .base import AgentType
-
 
 TRIAGE_SYSTEM_PROMPT = """你是 AutoCVE 的研判 Agent，负责复核扫描结果、过滤误报，并补全代码级证据。
 
@@ -193,7 +192,7 @@ Action Input: {"file_path": "app/db/query.py", "start_line": 45, "end_line": 70}
 class TriageAgent(AnalysisWorkflowAgent):
     finding_origin = "scan_triage"
 
-    def __init__(self, llm_service, tools: Dict[str, Any], event_emitter=None):
+    def __init__(self, llm_service, tools: dict[str, Any], event_emitter=None):
         super().__init__(
             name="Triage",
             agent_type=AgentType.TRIAGE,
@@ -204,7 +203,7 @@ class TriageAgent(AnalysisWorkflowAgent):
             max_iterations=18,
         )
 
-    def _build_initial_message(self, context: Dict[str, Any]) -> str:
+    def _build_initial_message(self, context: dict[str, Any]) -> str:
         previous_results = context["previous_results"]
         scan_result = previous_results.get("scan", {})
         if isinstance(scan_result, dict) and "data" in scan_result:
@@ -223,7 +222,7 @@ class TriageAgent(AnalysisWorkflowAgent):
 - 输出必须是标准 findings，且 origin=scan_triage。
 - 即使 verification agent 后续会继续验证，你现在也必须给出基于代码证据的候选漏洞报告，而不是只给一段简短结论。"""
 
-    def _normalize_finding(self, finding: Dict[str, Any], *, origin: str | None = None) -> Dict[str, Any]:
+    def _normalize_finding(self, finding: dict[str, Any], *, origin: str | None = None) -> dict[str, Any]:
         normalized = super()._normalize_finding(finding, origin=origin or "scan_triage")
         normalized["is_false_positive"] = finding.get("is_false_positive", False)
         return normalized

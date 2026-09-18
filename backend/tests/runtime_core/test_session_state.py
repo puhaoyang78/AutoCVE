@@ -42,7 +42,7 @@ def test_session_runtime_state_tracks_progressive_skill_loading_per_agent():
         invocation_id="inv-2",
         turn_id="turn-2",
     )
-    third = state.mark_skill_invoked(
+    state.mark_skill_invoked(
         agent_type="verification",
         skill_ref="verification-skill",
         skill_stage="body",

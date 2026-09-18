@@ -2,11 +2,14 @@
 
 import asyncio
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.db.base import Base
 from app.services.agent.tools.base import AgentTool, ToolResult
 from app.services.finding_runtime.session_store import AuditSessionStore
-from app.db.base import Base
-from app.services.runtime_core.runtime_tool_registry import build_runtime_tool_registry
 from app.services.runtime_core.runtime_guardrails import register_shell_approval
+from app.services.runtime_core.runtime_tool_registry import build_runtime_tool_registry
 from app.services.runtime_core.shell_runtime_tools import (
     BashRuntimeTool,
     BashToolInput,
@@ -14,8 +17,6 @@ from app.services.runtime_core.shell_runtime_tools import (
     PowerShellToolInput,
 )
 from app.services.runtime_core.tool_runtime import ToolExecutionContext
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 class FakeExecAgentTool(AgentTool):

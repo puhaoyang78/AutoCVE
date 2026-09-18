@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from types import SimpleNamespace
 import json
 import shutil
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -14,18 +14,31 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import selectinload
 
-from app.api import deps
 import app.api.v1.endpoints.agent_tasks as agent_tasks_endpoint
+import app.services.agent.tools as agent_tools_module
+from app.api import deps
 from app.api.v1.endpoints.agent_tasks import router as agent_tasks_router
 from app.db.base import Base
-from app.models.agent_task import AgentEvent, AgentEventType, AgentFinding, AgentTask, AgentTaskStatus
-from app.models.audit_session import AuditSession, AuditSessionMessage, AuditSessionTurn, AuditToolCall
+from app.models.agent_task import (
+    AgentEvent,
+    AgentEventType,
+    AgentFinding,
+    AgentTask,
+    AgentTaskStatus,
+)
+from app.models.audit_session import (
+    AuditSession,
+    AuditSessionMessage,
+    AuditSessionTurn,
+    AuditToolCall,
+)
 from app.models.managed_vulnerability import ManagedVulnerability
 from app.models.project import Project
 from app.models.user import User
-from app.services.vulnerability_report_generation import GeneratedReportBundle, VulnerabilityReportGenerationService
-import app.services.agent.tools as agent_tools_module
-import app.services.rag as rag_module
+from app.services.vulnerability_report_generation import (
+    GeneratedReportBundle,
+    VulnerabilityReportGenerationService,
+)
 
 
 class CapturingEventEmitter:
@@ -214,7 +227,7 @@ async def test_agent_task_routes_include_runtime_session_id():
             version_label='runtime-test',
             status=AgentTaskStatus.RUNNING,
             current_phase='analysis',
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         session = AuditSession(
             id='session-1',
@@ -284,7 +297,7 @@ async def test_agent_task_detail_uses_persisted_runtime_turn_and_tool_stats():
             current_phase='analysis',
             total_iterations=0,
             tool_calls_count=0,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         session = AuditSession(
             id='session-1',
@@ -334,7 +347,7 @@ async def test_agent_task_detail_exposes_finding_outcome_semantics():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with session_factory() as db:
         user = User(
             id='user-1',
@@ -474,7 +487,7 @@ async def test_agent_task_events_list_returns_history_for_activity_log():
             version_label='runtime-test',
             status=AgentTaskStatus.RUNNING,
             current_phase='analysis',
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         event = AgentEvent(
             id='event-1',
@@ -483,7 +496,7 @@ async def test_agent_task_events_list_returns_history_for_activity_log():
             sequence=1,
             phase='analysis',
             message='thinking...',
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         db.add_all([user, project, task, event])
         await db.commit()
@@ -544,7 +557,7 @@ async def test_stream_agent_events_does_not_require_progress_percent_attribute()
             version_label='runtime-test',
             status=AgentTaskStatus.CANCELLED,
             current_phase='analysis',
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         event = AgentEvent(
             id='event-1',
@@ -554,7 +567,7 @@ async def test_stream_agent_events_does_not_require_progress_percent_attribute()
             phase='analysis',
             message='thinking...',
             event_metadata={'progress_percent': 30},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         db.add_all([user, project, task, event])
         await db.commit()
@@ -1228,21 +1241,21 @@ async def test_runtime_task_stats_include_agent_event_counts_and_tokens():
                 task_id='task-1',
                 event_type='llm_action',
                 sequence=1,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
             AgentEvent(
                 id='event-llm-2',
                 task_id='task-1',
                 event_type='llm_action',
                 sequence=2,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
             AgentEvent(
                 id='event-tool-1',
                 task_id='task-1',
                 event_type='tool_call',
                 sequence=3,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
             AgentEvent(
                 id='event-usage-1',
@@ -1250,7 +1263,7 @@ async def test_runtime_task_stats_include_agent_event_counts_and_tokens():
                 event_type='llm_usage',
                 sequence=4,
                 tokens_used=6612,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
         ])
         await db.commit()

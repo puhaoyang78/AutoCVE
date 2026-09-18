@@ -2,10 +2,10 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent, TaskHandoff
 from ..prompts import MULTI_AGENT_RULES
+from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent, TaskHandoff
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,9 @@ class OrchestratorAgent(BaseAgent):
     def __init__(
         self,
         llm_service,
-        tools: Dict[str, Any],
+        tools: dict[str, Any],
         event_emitter=None,
-        sub_agents: Optional[Dict[str, BaseAgent]] = None,
+        sub_agents: dict[str, BaseAgent] | None = None,
         tracer=None,
     ):
         config = AgentConfig(
@@ -61,12 +61,12 @@ class OrchestratorAgent(BaseAgent):
         super().__init__(config, llm_service, tools, event_emitter)
         self.sub_agents = sub_agents or {}
         self.tracer = tracer
-        self._agent_results: Dict[str, Dict[str, Any]] = {}
-        self._agent_handoffs: Dict[str, TaskHandoff] = {}
-        self._all_findings: List[Dict[str, Any]] = []
-        self._runtime_context: Dict[str, Any] = {}
+        self._agent_results: dict[str, dict[str, Any]] = {}
+        self._agent_handoffs: dict[str, TaskHandoff] = {}
+        self._all_findings: list[dict[str, Any]] = []
+        self._runtime_context: dict[str, Any] = {}
 
-    def _resolve_workflow_state(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_workflow_state(self, config: dict[str, Any]) -> dict[str, Any]:
         configured_agents = {
             "orchestrator": True,
             "recon": True,
@@ -95,7 +95,7 @@ class OrchestratorAgent(BaseAgent):
             effective_agents["triage"] or effective_agents["finding"]
         )
 
-        active_edges: List[tuple[str, str]] = [("orchestrator", "recon")]
+        active_edges: list[tuple[str, str]] = [("orchestrator", "recon")]
         if effective_agents["scan"]:
             active_edges.append(("recon", "scan"))
         if effective_agents["triage"]:
@@ -114,14 +114,14 @@ class OrchestratorAgent(BaseAgent):
         }
 
     def _build_skipped_result(self, agent_name: str, reason: str, *, output_key: str = "findings") -> AgentResult:
-        data: Dict[str, Any] = {"summary": reason}
+        data: dict[str, Any] = {"summary": reason}
         data[output_key] = []
         if output_key != "findings":
             data["findings"] = []
         return AgentResult(success=True, data=data, metadata={"skipped": True, "reason": reason, "agent": agent_name})
 
     @staticmethod
-    def _result_tokens_used(result: Optional[AgentResult]) -> int:
+    def _result_tokens_used(result: AgentResult | None) -> int:
         if result is None:
             return 0
         try:
@@ -129,7 +129,7 @@ class OrchestratorAgent(BaseAgent):
         except (TypeError, ValueError):
             return 0
 
-    def _sum_result_tokens(self, *results: Optional[AgentResult]) -> int:
+    def _sum_result_tokens(self, *results: AgentResult | None) -> int:
         return sum(self._result_tokens_used(result) for result in results)
 
     def register_sub_agent(self, name: str, agent: BaseAgent):
@@ -141,7 +141,7 @@ class OrchestratorAgent(BaseAgent):
             if hasattr(agent, "cancel"):
                 agent.cancel()
 
-    def _build_execution_plan(self, project_info: Dict[str, Any], config: Dict[str, Any]) -> ExecutionPlan:
+    def _build_execution_plan(self, project_info: dict[str, Any], config: dict[str, Any]) -> ExecutionPlan:
         file_count = project_info.get("file_count", 0)
         target_files = config.get("target_files") or []
         if target_files and len(target_files) <= 20:
@@ -159,7 +159,7 @@ class OrchestratorAgent(BaseAgent):
             verification_limit=20,
         )
 
-    async def _run_sub_agent(self, name: str, payload: Dict[str, Any]) -> AgentResult:
+    async def _run_sub_agent(self, name: str, payload: dict[str, Any]) -> AgentResult:
         agent = self.sub_agents[name]
         await self.emit_debug_payload(
             "handoff_out",
@@ -206,7 +206,7 @@ class OrchestratorAgent(BaseAgent):
 
         return SandboxManager()
 
-    def _build_scan_handoff(self, scan_data: Dict[str, Any]) -> TaskHandoff:
+    def _build_scan_handoff(self, scan_data: dict[str, Any]) -> TaskHandoff:
         summary = scan_data.get("summary") if isinstance(scan_data.get("summary"), dict) else {}
         total_candidates = int(summary.get("total_candidates") or 0) if isinstance(summary, dict) else 0
         return TaskHandoff(
@@ -227,9 +227,9 @@ class OrchestratorAgent(BaseAgent):
     async def _run_scan_pipeline(
         self,
         *,
-        input_data: Dict[str, Any],
+        input_data: dict[str, Any],
         recon_result: AgentResult,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> AgentResult:
         from app.services.scan_runtime import ScanPipeline
 
@@ -247,7 +247,7 @@ class OrchestratorAgent(BaseAgent):
             metadata={"phase": "scan", "scanner": "SemgrepScan"},
         )
 
-        async def emit_scan_activity(event: Dict[str, Any]) -> None:
+        async def emit_scan_activity(event: dict[str, Any]) -> None:
             metadata = dict(event.get("metadata") or {})
             metadata.setdefault("phase", "scan")
             metadata.setdefault("agent", "scan")
@@ -303,7 +303,7 @@ class OrchestratorAgent(BaseAgent):
         )
         return result
 
-    def _triage_runtime_turn_limit(self, config: Dict[str, Any]) -> int:
+    def _triage_runtime_turn_limit(self, config: dict[str, Any]) -> int:
         for key in ("triage_runtime_max_iterations", "triage_runtime_max_turns"):
             try:
                 parsed = int(config.get(key))
@@ -322,10 +322,10 @@ class OrchestratorAgent(BaseAgent):
     def _build_triage_runtime_payload(
         self,
         *,
-        input_data: Dict[str, Any],
+        input_data: dict[str, Any],
         recon_result: AgentResult,
         scan_result: AgentResult,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         scan_data = scan_result.data if isinstance(scan_result.data, dict) else {}
         scan_handoff = scan_result.handoff.to_dict() if scan_result.handoff else None
         return {
@@ -337,7 +337,7 @@ class OrchestratorAgent(BaseAgent):
             "handoff": scan_handoff,
         }
 
-    def _build_triage_handoff(self, triage_data: Dict[str, Any]) -> TaskHandoff | None:
+    def _build_triage_handoff(self, triage_data: dict[str, Any]) -> TaskHandoff | None:
         findings = triage_data.get("findings", []) if isinstance(triage_data, dict) else []
         if not isinstance(findings, list) or not findings:
             return None
@@ -354,10 +354,10 @@ class OrchestratorAgent(BaseAgent):
     async def _run_runtime_triage(
         self,
         *,
-        input_data: Dict[str, Any],
+        input_data: dict[str, Any],
         recon_result: AgentResult,
         scan_result: AgentResult,
-        config: Dict[str, Any],
+        config: dict[str, Any],
     ) -> AgentResult:
         from app.services.agent_runtime import AgentRuntimeBridge, build_triage_runtime_spec
         from app.services.triage_runtime.queue import TriageQueue
@@ -387,7 +387,7 @@ class OrchestratorAgent(BaseAgent):
         max_turns = self._triage_runtime_turn_limit(config)
         total_count = int(initial_coverage.get("total_count") or 0)
         max_batches = max(1, (total_count + 4) // 5 + 5)
-        batch_runs: List[Dict[str, Any]] = []
+        batch_runs: list[dict[str, Any]] = []
 
         await self.emit_event(
             "phase_start",
@@ -478,7 +478,7 @@ class OrchestratorAgent(BaseAgent):
         )
         return result
 
-    def _normalize_finding(self, finding: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _normalize_finding(self, finding: dict[str, Any]) -> dict[str, Any] | None:
         if not isinstance(finding, dict):
             return None
         normalized = dict(finding)
@@ -517,8 +517,8 @@ class OrchestratorAgent(BaseAgent):
         except Exception:
             return False
 
-    def _merge_findings(self, findings_groups: List[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
-        merged: Dict[str, Dict[str, Any]] = {}
+    def _merge_findings(self, findings_groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        merged: dict[str, dict[str, Any]] = {}
         for group in findings_groups:
             for finding in group:
                 normalized = self._normalize_finding(finding)
@@ -570,7 +570,7 @@ class OrchestratorAgent(BaseAgent):
                 current["report_status"] = self._derive_report_status(current)
         return list(merged.values())
 
-    def _merge_context_data(self, base: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
+    def _merge_context_data(self, base: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
         merged = dict(base)
         for key, value in (incoming or {}).items():
             existing = merged.get(key)
@@ -584,21 +584,21 @@ class OrchestratorAgent(BaseAgent):
                 merged[key] = value
         return merged
 
-    def _merge_handoffs(self, handoffs: List[Optional[TaskHandoff]]) -> Optional[TaskHandoff]:
+    def _merge_handoffs(self, handoffs: list[TaskHandoff | None]) -> TaskHandoff | None:
         valid_handoffs = [handoff for handoff in handoffs if handoff]
         if not valid_handoffs:
             return None
         if len(valid_handoffs) == 1:
             return valid_handoffs[0]
 
-        merged_context: Dict[str, Any] = {}
-        key_findings: List[Dict[str, Any]] = []
-        work_completed: List[str] = []
-        insights: List[str] = []
-        suggested_actions: List[Dict[str, Any]] = []
-        attention_points: List[str] = []
-        priority_areas: List[str] = []
-        summaries: List[str] = []
+        merged_context: dict[str, Any] = {}
+        key_findings: list[dict[str, Any]] = []
+        work_completed: list[str] = []
+        insights: list[str] = []
+        suggested_actions: list[dict[str, Any]] = []
+        attention_points: list[str] = []
+        priority_areas: list[str] = []
+        summaries: list[str] = []
 
         for handoff in valid_handoffs:
             if handoff.summary:
@@ -629,7 +629,7 @@ class OrchestratorAgent(BaseAgent):
             confidence=max(handoff.confidence for handoff in valid_handoffs),
         )
 
-    def _finding_key(self, finding: Dict[str, Any]) -> str:
+    def _finding_key(self, finding: dict[str, Any]) -> str:
         return "|".join(
             [
                 str(finding.get("file_path", "")),
@@ -638,7 +638,7 @@ class OrchestratorAgent(BaseAgent):
             ]
         )
 
-    def _derive_report_status(self, finding: Dict[str, Any]) -> str:
+    def _derive_report_status(self, finding: dict[str, Any]) -> str:
         verdict = str(finding.get("verdict", "") or "").lower()
         if verdict in {"confirmed", "false_positive", "candidate", "likely", "uncertain"}:
             return "candidate" if verdict == "likely" else verdict
@@ -648,7 +648,7 @@ class OrchestratorAgent(BaseAgent):
             return "false_positive"
         return "candidate"
 
-    def _finalize_findings(self, merged_findings: List[Dict[str, Any]], verification_result: Optional[AgentResult]) -> List[Dict[str, Any]]:
+    def _finalize_findings(self, merged_findings: list[dict[str, Any]], verification_result: AgentResult | None) -> list[dict[str, Any]]:
         baseline = [dict(item, report_status=self._derive_report_status(item)) for item in merged_findings]
         if not verification_result or not verification_result.success or not isinstance(verification_result.data, dict):
             return baseline
@@ -669,7 +669,7 @@ class OrchestratorAgent(BaseAgent):
             final_map[key] = merged
         return list(final_map.values())
 
-    def _select_findings_for_verification(self, findings: List[Dict[str, Any]], plan: ExecutionPlan) -> List[Dict[str, Any]]:
+    def _select_findings_for_verification(self, findings: list[dict[str, Any]], plan: ExecutionPlan) -> list[dict[str, Any]]:
         selected = []
         for finding in findings:
             severity = finding.get("severity", "low")
@@ -680,7 +680,7 @@ class OrchestratorAgent(BaseAgent):
                 selected.append(finding)
         return selected[: plan.verification_limit]
 
-    async def run(self, input_data: Dict[str, Any]) -> AgentResult:
+    async def run(self, input_data: dict[str, Any]) -> AgentResult:
         import time
 
         start_time = time.time()
@@ -727,12 +727,6 @@ class OrchestratorAgent(BaseAgent):
             recon_result = await self._run_sub_agent("recon", recon_payload)
             previous_results = {"recon": recon_result.to_dict()}
 
-            scan_payload = {
-                **input_data,
-                "previous_results": previous_results,
-                "task": "mandatory scanner execution",
-                "task_context": "Run scanner tools only and produce raw findings.",
-            }
             finding_payload = {
                 **input_data,
                 "previous_results": previous_results,
@@ -829,8 +823,8 @@ class OrchestratorAgent(BaseAgent):
             merged_findings = self._merge_findings([triage_findings, direct_findings])
             self._all_findings = merged_findings
 
-            verification_candidates: List[Dict[str, Any]] = []
-            verification_result: Optional[AgentResult] = None
+            verification_candidates: list[dict[str, Any]] = []
+            verification_result: AgentResult | None = None
             if workflow_state["effective_agents"]["verification"]:
                 verification_candidates = self._select_findings_for_verification(merged_findings, plan)
                 candidate_handoff = self._merge_handoffs([triage_result.handoff, finding_result.handoff])

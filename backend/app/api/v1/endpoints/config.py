@@ -2,9 +2,9 @@
 
 import json
 from copy import deepcopy
-from typing import Any, Dict, Optional
+from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -59,106 +59,106 @@ PROVIDER_KEY_MAP = {
 
 class AgentModelConfigSchema(BaseModel):
     enabled: bool = False
-    llmProvider: Optional[str] = None
-    llmApiKey: Optional[str] = None
-    llmModel: Optional[str] = None
-    llmBaseUrl: Optional[str] = None
-    llmTimeout: Optional[int] = None
-    llmTemperature: Optional[float] = Field(default=None, ge=0, le=2)
-    llmTopP: Optional[float] = Field(default=None, ge=0, le=1)
-    llmMaxTokens: Optional[int] = None
-    endpointProtocol: Optional[str] = None
-    toolMessageFormat: Optional[str] = None
-    maxIterations: Optional[int] = None
-    env: Dict[str, str] = Field(default_factory=dict)
-    alwaysThinkingEnabled: Optional[bool] = None
+    llmProvider: str | None = None
+    llmApiKey: str | None = None
+    llmModel: str | None = None
+    llmBaseUrl: str | None = None
+    llmTimeout: int | None = None
+    llmTemperature: float | None = Field(default=None, ge=0, le=2)
+    llmTopP: float | None = Field(default=None, ge=0, le=1)
+    llmMaxTokens: int | None = None
+    endpointProtocol: str | None = None
+    toolMessageFormat: str | None = None
+    maxIterations: int | None = None
+    env: dict[str, str] = Field(default_factory=dict)
+    alwaysThinkingEnabled: bool | None = None
 
 
 class ModelProfileSchema(BaseModel):
     id: str
     name: str
     isDefault: bool = False
-    llmProvider: Optional[str] = None
-    llmApiKey: Optional[str] = None
-    llmModel: Optional[str] = None
-    llmBaseUrl: Optional[str] = None
-    llmTimeout: Optional[int] = None
-    llmTemperature: Optional[float] = Field(default=None, ge=0, le=2)
-    llmTopP: Optional[float] = Field(default=None, ge=0, le=1)
-    llmMaxTokens: Optional[int] = None
-    endpointProtocol: Optional[str] = None
-    toolMessageFormat: Optional[str] = None
-    env: Dict[str, str] = Field(default_factory=dict)
+    llmProvider: str | None = None
+    llmApiKey: str | None = None
+    llmModel: str | None = None
+    llmBaseUrl: str | None = None
+    llmTimeout: int | None = None
+    llmTemperature: float | None = Field(default=None, ge=0, le=2)
+    llmTopP: float | None = Field(default=None, ge=0, le=1)
+    llmMaxTokens: int | None = None
+    endpointProtocol: str | None = None
+    toolMessageFormat: str | None = None
+    env: dict[str, str] = Field(default_factory=dict)
 
 
 class LLMConfigSchema(BaseModel):
-    llmProvider: Optional[str] = None
-    llmApiKey: Optional[str] = None
-    llmModel: Optional[str] = None
-    llmBaseUrl: Optional[str] = None
-    llmTimeout: Optional[int] = None
-    llmTemperature: Optional[float] = Field(default=None, ge=0, le=2)
-    llmTopP: Optional[float] = Field(default=None, ge=0, le=1)
-    llmMaxTokens: Optional[int] = None
-    endpointProtocol: Optional[str] = None
-    toolMessageFormat: Optional[str] = None
-    llmCustomHeaders: Optional[str] = None
-    llmFirstTokenTimeout: Optional[int] = None
-    llmStreamTimeout: Optional[int] = None
-    agentTimeout: Optional[int] = None
-    subAgentTimeout: Optional[int] = None
-    toolTimeout: Optional[int] = None
-    geminiApiKey: Optional[str] = None
-    openaiApiKey: Optional[str] = None
-    claudeApiKey: Optional[str] = None
-    qwenApiKey: Optional[str] = None
-    deepseekApiKey: Optional[str] = None
-    zhipuApiKey: Optional[str] = None
-    moonshotApiKey: Optional[str] = None
-    baiduApiKey: Optional[str] = None
-    minimaxApiKey: Optional[str] = None
-    doubaoApiKey: Optional[str] = None
-    mimoApiKey: Optional[str] = None
-    ollamaBaseUrl: Optional[str] = None
-    env: Dict[str, str] = Field(default_factory=dict)
-    alwaysThinkingEnabled: Optional[bool] = None
-    agentConfigs: Dict[str, AgentModelConfigSchema] = Field(default_factory=dict)
+    llmProvider: str | None = None
+    llmApiKey: str | None = None
+    llmModel: str | None = None
+    llmBaseUrl: str | None = None
+    llmTimeout: int | None = None
+    llmTemperature: float | None = Field(default=None, ge=0, le=2)
+    llmTopP: float | None = Field(default=None, ge=0, le=1)
+    llmMaxTokens: int | None = None
+    endpointProtocol: str | None = None
+    toolMessageFormat: str | None = None
+    llmCustomHeaders: str | None = None
+    llmFirstTokenTimeout: int | None = None
+    llmStreamTimeout: int | None = None
+    agentTimeout: int | None = None
+    subAgentTimeout: int | None = None
+    toolTimeout: int | None = None
+    geminiApiKey: str | None = None
+    openaiApiKey: str | None = None
+    claudeApiKey: str | None = None
+    qwenApiKey: str | None = None
+    deepseekApiKey: str | None = None
+    zhipuApiKey: str | None = None
+    moonshotApiKey: str | None = None
+    baiduApiKey: str | None = None
+    minimaxApiKey: str | None = None
+    doubaoApiKey: str | None = None
+    mimoApiKey: str | None = None
+    ollamaBaseUrl: str | None = None
+    env: dict[str, str] = Field(default_factory=dict)
+    alwaysThinkingEnabled: bool | None = None
+    agentConfigs: dict[str, AgentModelConfigSchema] = Field(default_factory=dict)
     modelProfiles: list[ModelProfileSchema] = Field(default_factory=list)
 
 
 class OtherConfigSchema(BaseModel):
-    githubToken: Optional[str] = None
-    gitlabToken: Optional[str] = None
-    maxAnalyzeFiles: Optional[int] = None
-    llmConcurrency: Optional[int] = None
-    llmGapMs: Optional[int] = None
-    outputLanguage: Optional[str] = None
-    workflowConfig: Optional[Dict[str, Any]] = None
+    githubToken: str | None = None
+    gitlabToken: str | None = None
+    maxAnalyzeFiles: int | None = None
+    llmConcurrency: int | None = None
+    llmGapMs: int | None = None
+    outputLanguage: str | None = None
+    workflowConfig: dict[str, Any] | None = None
 
 
 class UserConfigRequest(BaseModel):
-    llmConfig: Optional[LLMConfigSchema] = None
-    otherConfig: Optional[OtherConfigSchema] = None
+    llmConfig: LLMConfigSchema | None = None
+    otherConfig: OtherConfigSchema | None = None
 
 
 class UserConfigResponse(BaseModel):
     id: str
     user_id: str
-    llmConfig: Dict[str, Any]
-    otherConfig: Dict[str, Any]
+    llmConfig: dict[str, Any]
+    otherConfig: dict[str, Any]
     created_at: str
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
 
 
 class LLMConnectionTestRequest(BaseModel):
     provider: str
-    apiKey: Optional[str] = None
-    model: Optional[str] = None
-    baseUrl: Optional[str] = None
-    temperature: Optional[float] = Field(default=None, ge=0, le=2)
-    topP: Optional[float] = Field(default=None, ge=0, le=1)
-    endpointProtocol: Optional[str] = None
-    toolMessageFormat: Optional[str] = None
+    apiKey: str | None = None
+    model: str | None = None
+    baseUrl: str | None = None
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    topP: float | None = Field(default=None, ge=0, le=1)
+    endpointProtocol: str | None = None
+    toolMessageFormat: str | None = None
     prompt: str = "请只回复：模型连接成功。"
 
 
@@ -166,7 +166,7 @@ class AgentModelTestRequest(BaseModel):
     agent_type: str
     prompt: str = "请介绍你当前加载到的 Skills，并说明你最适合执行什么任务。"
     include_skills: bool = True
-    agent_model_config: Optional[AgentModelConfigSchema] = None
+    agent_model_config: AgentModelConfigSchema | None = None
     messages: list[dict[str, str]] = Field(default_factory=list)
 
 
@@ -205,7 +205,7 @@ def _build_agent_test_messages(
     return conversation
 
 
-def _default_agent_configs() -> Dict[str, Dict[str, Any]]:
+def _default_agent_configs() -> dict[str, dict[str, Any]]:
     return {
         agent: {
             "enabled": False,
@@ -225,7 +225,7 @@ def _default_agent_configs() -> Dict[str, Dict[str, Any]]:
     }
 
 
-def _default_workflow_config() -> Dict[str, Any]:
+def _default_workflow_config() -> dict[str, Any]:
     return {
         "agentStates": {
             agent: {
@@ -237,7 +237,7 @@ def _default_workflow_config() -> Dict[str, Any]:
     }
 
 
-def _normalize_workflow_config(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _normalize_workflow_config(config: dict[str, Any] | None) -> dict[str, Any]:
     defaults = _default_workflow_config()
     normalized = deepcopy(defaults)
     incoming_states = (config or {}).get("agentStates", {})
@@ -257,7 +257,7 @@ def _normalize_workflow_config(config: Optional[Dict[str, Any]]) -> Dict[str, An
     return normalized
 
 
-def _merge_other_config_with_defaults(other_config: Dict[str, Any], defaults: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_other_config_with_defaults(other_config: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
     merged = {**defaults, **(other_config or {})}
     merged["workflowConfig"] = _normalize_workflow_config((other_config or {}).get("workflowConfig"))
     return merged
@@ -286,7 +286,7 @@ def _normalize_model_profiles(model_profiles: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-def _encrypt_config(config: Dict[str, Any], sensitive_fields: list[str]) -> Dict[str, Any]:
+def _encrypt_config(config: dict[str, Any], sensitive_fields: list[str]) -> dict[str, Any]:
     encrypted = deepcopy(config)
     for field in sensitive_fields:
         if encrypted.get(field):
@@ -324,7 +324,7 @@ def _encrypt_config(config: Dict[str, Any], sensitive_fields: list[str]) -> Dict
     return encrypted
 
 
-def _decrypt_config(config: Dict[str, Any], sensitive_fields: list[str]) -> Dict[str, Any]:
+def _decrypt_config(config: dict[str, Any], sensitive_fields: list[str]) -> dict[str, Any]:
     decrypted = deepcopy(config)
     for field in sensitive_fields:
         if decrypted.get(field):
@@ -362,7 +362,7 @@ def _decrypt_config(config: Dict[str, Any], sensitive_fields: list[str]) -> Dict
     return decrypted
 
 
-def get_default_config() -> Dict[str, Any]:
+def get_default_config() -> dict[str, Any]:
     return {
         "llmConfig": {
             "llmProvider": settings.LLM_PROVIDER,
@@ -410,12 +410,12 @@ def get_default_config() -> Dict[str, Any]:
     }
 
 
-async def _get_user_config_record(db: AsyncSession, user_id: str) -> Optional[UserConfig]:
+async def _get_user_config_record(db: AsyncSession, user_id: str) -> UserConfig | None:
     result = await db.execute(select(UserConfig).where(UserConfig.user_id == user_id))
     return result.scalar_one_or_none()
 
 
-def _merge_user_config(record: Optional[UserConfig]) -> Dict[str, Any]:
+def _merge_user_config(record: UserConfig | None) -> dict[str, Any]:
     defaults = get_default_config()
     if record is None:
         return defaults
@@ -435,7 +435,7 @@ def _merge_user_config(record: Optional[UserConfig]) -> Dict[str, Any]:
     return {"llmConfig": merged_llm, "otherConfig": merged_other}
 
 
-def _response_from_record(record: Optional[UserConfig], user_id: str) -> UserConfigResponse:
+def _response_from_record(record: UserConfig | None, user_id: str) -> UserConfigResponse:
     merged = _merge_user_config(record)
     return UserConfigResponse(
         id=record.id if record else "",
@@ -447,7 +447,7 @@ def _response_from_record(record: Optional[UserConfig], user_id: str) -> UserCon
     )
 
 
-def _build_test_user_config(saved_config: Dict[str, Any], agent_type: Optional[str] = None, override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _build_test_user_config(saved_config: dict[str, Any], agent_type: str | None = None, override: dict[str, Any] | None = None) -> dict[str, Any]:
     payload = deepcopy(saved_config)
     payload.setdefault("llmConfig", {})
     payload["llmConfig"].setdefault("agentConfigs", _default_agent_configs())
@@ -481,7 +481,7 @@ def _build_test_user_config(saved_config: Dict[str, Any], agent_type: Optional[s
 
 
 def _apply_llm_connection_test_overrides(
-    llm_config: Dict[str, Any], payload: LLMConnectionTestRequest
+    llm_config: dict[str, Any], payload: LLMConnectionTestRequest
 ) -> None:
     """Apply the unsaved values shown in the global model form to a test config."""
     llm_config["llmProvider"] = payload.provider
@@ -504,7 +504,7 @@ def _apply_llm_connection_test_overrides(
         llm_config["toolMessageFormat"] = payload.toolMessageFormat
 
 
-def _explicit_sampling_updates(config: LLMConfigSchema) -> Dict[str, Optional[float]]:
+def _explicit_sampling_updates(config: LLMConfigSchema) -> dict[str, float | None]:
     return {
         field: getattr(config, field)
         for field in ("llmTemperature", "llmTopP")

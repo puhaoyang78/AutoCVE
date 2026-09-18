@@ -1,23 +1,22 @@
-from datetime import datetime, timedelta, timezone
-from typing import Any, Union
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import bcrypt
 from jose import jwt
 
 from app.core.config import settings
 
-
 ALGORITHM = settings.ALGORITHM
 
 
 def create_access_token(
-    subject: Union[str, Any],
+    subject: str | Any,
     expires_delta: timedelta | None = None,
 ) -> str:
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = datetime.now(UTC) + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode = {"exp": expire, "sub": str(subject)}

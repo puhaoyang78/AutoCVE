@@ -2,8 +2,7 @@
 FastAPI 框架安全知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 FASTAPI_SECURITY = KnowledgeDocument(
     id="framework_fastapi",

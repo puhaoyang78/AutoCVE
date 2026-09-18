@@ -5,8 +5,9 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import AsyncGenerator
 from copy import deepcopy
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any
 
 from app.core.config import settings
 from app.services.agent.core.errors import LLMConnectionError, LLMRateLimitError, LLMTimeoutError
@@ -28,16 +29,16 @@ logger = logging.getLogger(__name__)
 class LLMService:
     """LLM service with per-agent model override, chat completion, and code analysis helpers."""
 
-    _provider_semaphores: Dict[str, asyncio.Semaphore] = {}
-    _provider_semaphore_limits: Dict[str, int] = {}
-    _provider_gap_locks: Dict[str, asyncio.Lock] = {}
-    _provider_last_request_at: Dict[str, float] = {}
+    _provider_semaphores: dict[str, asyncio.Semaphore] = {}
+    _provider_semaphore_limits: dict[str, int] = {}
+    _provider_gap_locks: dict[str, asyncio.Lock] = {}
+    _provider_last_request_at: dict[str, float] = {}
 
-    def __init__(self, user_config: Optional[Dict[str, Any]] = None):
-        self._config: Optional[LLMConfig] = None
+    def __init__(self, user_config: dict[str, Any] | None = None):
+        self._config: LLMConfig | None = None
         self._user_config = user_config or {}
 
-    def _resolve_llm_payload(self, agent_type: Optional[str] = None) -> Dict[str, Any]:
+    def _resolve_llm_payload(self, agent_type: str | None = None) -> dict[str, Any]:
         user_llm_config = deepcopy(self._user_config.get("llmConfig", {}) or {})
         if agent_type:
             agent_configs = user_llm_config.get("agentConfigs") or {}
@@ -73,7 +74,7 @@ class LLMService:
                     user_llm_config["env"] = {**base_env, **override_env}
         return user_llm_config
 
-    def _get_runtime_env(self, llm_payload: Dict[str, Any]) -> Dict[str, str]:
+    def _get_runtime_env(self, llm_payload: dict[str, Any]) -> dict[str, str]:
         env_payload = llm_payload.get("env")
         if not isinstance(env_payload, dict):
             return {}
@@ -83,7 +84,7 @@ class LLMService:
             if value not in (None, "")
         }
 
-    def _provider_env_candidates(self, provider: LLMProvider) -> Dict[str, List[str]]:
+    def _provider_env_candidates(self, provider: LLMProvider) -> dict[str, list[str]]:
         prefix_map = {
             LLMProvider.CLAUDE: "ANTHROPIC",
             LLMProvider.OPENAI: "OPENAI",
@@ -106,14 +107,14 @@ class LLMService:
             "timeout_ms": ["API_TIMEOUT_MS", "LLM_TIMEOUT_MS"],
         }
 
-    def _first_env_value(self, env_payload: Dict[str, str], keys: List[str]) -> Optional[str]:
+    def _first_env_value(self, env_payload: dict[str, str], keys: list[str]) -> str | None:
         for key in keys:
             value = env_payload.get(key)
             if value not in (None, ""):
                 return value
         return None
 
-    def get_agent_timeout_config(self, agent_type: Optional[str] = None) -> Dict[str, int]:
+    def get_agent_timeout_config(self, agent_type: str | None = None) -> dict[str, int]:
         user_llm_config = self._resolve_llm_payload(agent_type)
         return {
             "llm_first_token_timeout": int(user_llm_config.get("llmFirstTokenTimeout") or getattr(settings, "LLM_FIRST_TOKEN_TIMEOUT", 30)),
@@ -141,7 +142,7 @@ class LLMService:
         }
         return provider_map.get((provider_str or "").lower(), LLMProvider.OPENAI)
 
-    def _get_provider_api_key_from_user_config(self, provider: LLMProvider, user_llm_config: Dict[str, Any]) -> Optional[str]:
+    def _get_provider_api_key_from_user_config(self, provider: LLMProvider, user_llm_config: dict[str, Any]) -> str | None:
         provider_key_map = {
             LLMProvider.OPENAI: "openaiApiKey",
             LLMProvider.GEMINI: "geminiApiKey",
@@ -177,7 +178,7 @@ class LLMService:
             return getattr(settings, key_name, "") or ""
         return "ollama"
 
-    def _get_provider_base_url(self, provider: LLMProvider) -> Optional[str]:
+    def _get_provider_base_url(self, provider: LLMProvider) -> str | None:
         if provider == LLMProvider.OPENAI:
             return getattr(settings, "OPENAI_BASE_URL", None)
         if provider == LLMProvider.OLLAMA:
@@ -197,7 +198,7 @@ class LLMService:
             return DEFAULT_BASE_URLS.get(provider)
         return None
 
-    def get_agent_config(self, agent_type: Optional[str] = None) -> LLMConfig:
+    def get_agent_config(self, agent_type: str | None = None) -> LLMConfig:
         user_llm_config = self._resolve_llm_payload(agent_type)
         provider = self._parse_provider(user_llm_config.get("llmProvider") or getattr(settings, "LLM_PROVIDER", "openai"))
         runtime_env = self._get_runtime_env(user_llm_config)
@@ -265,7 +266,7 @@ class LLMService:
         user_other_config = self._user_config.get("otherConfig", {}) or {}
         return user_other_config.get("outputLanguage") or getattr(settings, "OUTPUT_LANGUAGE", "zh-CN")
 
-    def _get_runtime_llm_limits(self) -> Dict[str, int]:
+    def _get_runtime_llm_limits(self) -> dict[str, int]:
         other_config = self._user_config.get("otherConfig", {}) or {}
         raw_concurrency = other_config.get("llmConcurrency")
         raw_gap_ms = other_config.get("llmGapMs")
@@ -479,7 +480,7 @@ class LLMService:
             )
             await asyncio.sleep(delay)
 
-    def _normalize_stream_error_event(self, event: Dict[str, Any]) -> Exception:
+    def _normalize_stream_error_event(self, event: dict[str, Any]) -> Exception:
         error_type = str(event.get("error_type") or "").strip().lower()
         error_message = str(event.get("error") or event.get("user_message") or "LLM streaming request failed").strip()
 
@@ -526,7 +527,7 @@ class LLMService:
         return "unknown", "模型服务暂时不可用，"
 
     @classmethod
-    def _build_llm_retry_event(cls, *, error: Exception, attempt: int, max_attempts: int) -> Dict[str, Any]:
+    def _build_llm_retry_event(cls, *, error: Exception, attempt: int, max_attempts: int) -> dict[str, Any]:
         error_type, prefix = cls._describe_stream_error(error)
         return {
             "type": "llm_retry",
@@ -542,10 +543,10 @@ class LLMService:
         cls,
         error: Exception,
         *,
-        base_event: Dict[str, Any] | None,
+        base_event: dict[str, Any] | None,
         max_attempts: int,
         attempts_used: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         payload = dict(base_event or {})
         error_type, _ = cls._describe_stream_error(error)
         if isinstance(error, (LLMConnectionError, LLMTimeoutError, LLMRateLimitError)) and attempts_used >= max_attempts:
@@ -601,7 +602,7 @@ class LLMService:
             indent=2,
         )
 
-    def _analysis_system_prompt(self, output_language: Optional[str] = None) -> str:
+    def _analysis_system_prompt(self, output_language: str | None = None) -> str:
         is_chinese = (output_language or self._get_output_language()).lower().startswith("zh")
         schema = self._build_analysis_schema()
         if is_chinese:
@@ -622,13 +623,13 @@ class LLMService:
 
     async def chat_completion(
         self,
-        messages: List[Dict[str, str]],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        agent_type: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        parallel_tool_calls: Optional[bool] = None,
-    ) -> Dict[str, Any]:
+        messages: list[dict[str, str]],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        agent_type: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        parallel_tool_calls: bool | None = None,
+    ) -> dict[str, Any]:
         config = self.get_agent_config(agent_type)
         adapter = LLMFactory.create_adapter(config)
         request = LLMRequest(
@@ -660,11 +661,11 @@ class LLMService:
 
     async def chat_completion_raw(
         self,
-        messages: List[Dict[str, str]],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        agent_type: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        messages: list[dict[str, str]],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        agent_type: str | None = None,
+    ) -> dict[str, Any]:
         return await self.chat_completion(
             messages=messages,
             temperature=temperature,
@@ -674,14 +675,14 @@ class LLMService:
 
     async def chat_completion_stream(
         self,
-        messages: List[Dict[str, str]],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        agent_type: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        parallel_tool_calls: Optional[bool] = None,
+        messages: list[dict[str, str]],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        agent_type: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        parallel_tool_calls: bool | None = None,
         retry_enabled: bool = True,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> AsyncGenerator[dict[str, Any], None]:
         config = self.get_agent_config(agent_type)
         adapter = LLMFactory.create_adapter(config)
         request = LLMRequest(
@@ -753,7 +754,7 @@ class LLMService:
         text = re.sub(r"\t+", " ", text)
         return text
 
-    def _extract_from_markdown(self, text: str) -> Dict[str, Any]:
+    def _extract_from_markdown(self, text: str) -> dict[str, Any]:
         match = re.search(r"```json\s*(\{.*?\})\s*```", text or "", flags=re.IGNORECASE | re.DOTALL)
         if not match:
             match = re.search(r"```\s*(\{.*?\})\s*```", text or "", flags=re.DOTALL)
@@ -761,7 +762,7 @@ class LLMService:
             raise ValueError("No JSON block found in markdown")
         return json.loads(match.group(1))
 
-    def _extract_json_object(self, text: str) -> Dict[str, Any]:
+    def _extract_json_object(self, text: str) -> dict[str, Any]:
         clean = self._clean_text(text)
         try:
             return json.loads(clean)
@@ -781,7 +782,7 @@ class LLMService:
             return json.loads(repaired) if isinstance(repaired, str) else repaired
         raise ValueError("LLM did not return valid JSON")
 
-    def _fix_truncated_json(self, text: str) -> Dict[str, Any]:
+    def _fix_truncated_json(self, text: str) -> dict[str, Any]:
         start_idx = text.find("{")
         if start_idx == -1:
             raise ValueError("Cannot fix truncated JSON")
@@ -791,7 +792,7 @@ class LLMService:
         json_str = re.sub(r",(\s*[}\]])", r"\1", json_str)
         return json.loads(json_str)
 
-    def _repair_json_with_library(self, text: str) -> Dict[str, Any]:
+    def _repair_json_with_library(self, text: str) -> dict[str, Any]:
         if not JSON_REPAIR_AVAILABLE:
             raise ValueError("json-repair library not available")
         start_idx = text.find("{")
@@ -806,7 +807,7 @@ class LLMService:
             return json.loads(repaired)
         raise ValueError(f"json-repair returned unexpected type: {type(repaired)}")
 
-    def _get_default_response(self) -> Dict[str, Any]:
+    def _get_default_response(self) -> dict[str, Any]:
         return {
             "issues": [],
             "quality_score": 80,
@@ -825,7 +826,7 @@ class LLMService:
             },
         }
 
-    def _parse_json(self, text: str) -> Dict[str, Any]:
+    def _parse_json(self, text: str) -> dict[str, Any]:
         if not text or not text.strip():
             raise ValueError("LLM response content is empty")
         clean = self._clean_text(text)
@@ -838,7 +839,7 @@ class LLMService:
             lambda: json.loads(self.aggressive_fix_json(clean)),
             lambda: self._repair_json_with_library(clean),
         ]
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for attempt in attempts:
             try:
                 result = attempt()
@@ -848,7 +849,7 @@ class LLMService:
                 last_error = exc
         raise ValueError(f"Failed to parse JSON from LLM response: {last_error}")
 
-    def _normalize_analysis(self, payload: Dict[str, Any], code: str = "") -> Dict[str, Any]:
+    def _normalize_analysis(self, payload: dict[str, Any], code: str = "") -> dict[str, Any]:
         issues = payload.get("issues") if isinstance(payload.get("issues"), list) else []
         normalized_issues = []
         for issue in issues:
@@ -897,7 +898,7 @@ class LLMService:
             },
         }
 
-    async def analyze_code(self, code: str, language: str, output_language: Optional[str] = None) -> Dict[str, Any]:
+    async def analyze_code(self, code: str, language: str, output_language: str | None = None) -> dict[str, Any]:
         actual_language = output_language or self._get_output_language()
         is_chinese = actual_language.lower().startswith("zh")
         code_with_lines = "\n".join(f"{i + 1}| {line}" for i, line in enumerate(code.split("\n")))
@@ -927,9 +928,9 @@ class LLMService:
         code: str,
         language: str,
         custom_prompt: str,
-        output_language: Optional[str] = None,
-        rules: Optional[list] = None,
-    ) -> Dict[str, Any]:
+        output_language: str | None = None,
+        rules: list | None = None,
+    ) -> dict[str, Any]:
         actual_language = output_language or self._get_output_language()
         code_with_lines = "\n".join(f"{i + 1}| {line}" for i, line in enumerate(code.split("\n")))
         rules_prompt = ""
@@ -952,12 +953,12 @@ class LLMService:
         self,
         code: str,
         language: str,
-        rule_set_id: Optional[str] = None,
-        prompt_template_id: Optional[str] = None,
+        rule_set_id: str | None = None,
+        prompt_template_id: str | None = None,
         db_session: Any = None,
         use_default_template: bool = True,
-        output_language: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        output_language: str | None = None,
+    ) -> dict[str, Any]:
         custom_prompt = None
         rules = None
 
@@ -965,8 +966,9 @@ class LLMService:
             try:
                 from sqlalchemy import select
                 from sqlalchemy.orm import selectinload
-                from app.models.prompt_template import PromptTemplate
+
                 from app.models.audit_rule import AuditRuleSet
+                from app.models.prompt_template import PromptTemplate
 
                 actual_language = output_language or self._get_output_language()
                 is_chinese = actual_language.lower().startswith("zh")
@@ -979,8 +981,8 @@ class LLMService:
                 elif use_default_template:
                     result = await db_session.execute(
                         select(PromptTemplate).where(
-                            PromptTemplate.is_default == True,
-                            PromptTemplate.is_active == True,
+                            PromptTemplate.is_default.is_(True),
+                            PromptTemplate.is_active.is_(True),
                             PromptTemplate.template_type == "system",
                         )
                     )

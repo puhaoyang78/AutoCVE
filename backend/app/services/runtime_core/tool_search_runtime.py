@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from app.services.finding_runtime.models import ToolExecutionPayload
 from app.services.runtime_core.tool_runtime import RuntimeTool, ToolExecutionContext, ToolRegistry
-
 
 TOOL_SEARCH_TOOL_NAME = "ToolSearch"
 

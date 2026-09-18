@@ -7,19 +7,20 @@ import asyncio
 import io
 import json
 import logging
-import tempfile
-import os
 import ntpath
+import os
 import posixpath
 import socket
-import shutil
 import tarfile
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+import tempfile
 from dataclasses import dataclass
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from app.core.config import settings
 
 from .base import AgentTool, ToolResult
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -56,13 +57,13 @@ class SandboxManager:
     沙箱管理器
     管理 Docker 容器的创建、执行和清理
     """
-    
-    def __init__(self, config: Optional[SandboxConfig] = None):
+
+    def __init__(self, config: SandboxConfig | None = None):
         self.config = config or SandboxConfig()
         self._docker_client = None
         self._initialized = False
         self._init_error = None
-    
+
     async def initialize(self):
         """初始化 Docker 客户端"""
         if self._initialized:
@@ -88,34 +89,34 @@ class SandboxManager:
             logger.warning(f"Docker connection traceback: {traceback.format_exc()}")
             self._docker_client = None
             self._init_error = f"{type(e).__name__}: {str(e)}"
-    
+
     @property
     def is_available(self) -> bool:
         """检查 Docker 是否可用"""
         return self._docker_client is not None
-        
+
     def get_diagnosis(self) -> str:
         """获取诊断信息"""
         if self.is_available:
             return "Docker Service Available"
         return f"Docker Service Unavailable. Error: {self._init_error or 'Not initialized'}"
-    
+
     async def execute_command(
         self,
         command: str,
-        working_dir: Optional[str] = None,
-        env: Optional[Dict[str, str]] = None,
-        timeout: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        working_dir: str | None = None,
+        env: dict[str, str] | None = None,
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
         """
         在沙箱中执行命令
-        
+
         Args:
             command: 要执行的命令
             working_dir: 工作目录
             env: 环境变量
             timeout: 超时时间（秒）
-            
+
         Returns:
             执行结果
         """
@@ -172,20 +173,20 @@ class SandboxManager:
                     container_config["cap_drop"] = self.config.cap_drop
                 if self.config.no_new_privileges:
                     container_config["security_opt"] = ["no-new-privileges:true"]
-                
+
                 # 创建并启动容器
                 container = await asyncio.to_thread(
                     self._docker_client.containers.run,
                     **container_config
                 )
-                
+
                 try:
                     # 等待执行完成
                     result = await asyncio.wait_for(
                         asyncio.to_thread(container.wait),
                         timeout=timeout
                     )
-                    
+
                     # 获取日志
                     stdout = await asyncio.to_thread(
                         container.logs, stdout=True, stderr=False
@@ -193,7 +194,7 @@ class SandboxManager:
                     stderr = await asyncio.to_thread(
                         container.logs, stdout=False, stderr=True
                     )
-                    
+
                     return {
                         "success": result["StatusCode"] == 0,
                         "stdout": stdout.decode('utf-8', errors='ignore')[:10000],
@@ -201,8 +202,8 @@ class SandboxManager:
                         "exit_code": result["StatusCode"],
                         "error": None,
                     }
-                    
-                except asyncio.TimeoutError:
+
+                except TimeoutError:
                     await asyncio.to_thread(container.kill)
                     return {
                         "success": False,
@@ -211,11 +212,11 @@ class SandboxManager:
                         "stderr": "",
                         "exit_code": -1,
                     }
-                    
+
                 finally:
                     # 清理容器
                     await asyncio.to_thread(container.remove, force=True)
-                    
+
         except Exception as e:
             logger.error(f"Sandbox execution error: {e}")
             return {
@@ -225,26 +226,26 @@ class SandboxManager:
                 "stderr": "",
                 "exit_code": -1,
             }
-    
+
     async def execute_tool_command(
         self,
         command: str,
         host_workdir: str,
-        timeout: Optional[int] = None,
-        env: Optional[Dict[str, str]] = None,
+        timeout: int | None = None,
+        env: dict[str, str] | None = None,
         network_mode: str = "none",
-        artifact_paths: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        artifact_paths: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
         在沙箱中对指定目录执行工具命令
-        
+
         Args:
             command: 要执行的命令
             host_workdir: 宿主机上的工作目录（将被挂载到 /workspace）
             timeout: 超时时间
             env: 环境变量
             network_mode: 网络模式 (none, bridge, host)
-            
+
         Returns:
             执行结果
         """
@@ -257,7 +258,7 @@ class SandboxManager:
                 "exit_code": -1,
                 "artifacts": {},
             }
-        
+
         timeout = timeout or self.config.timeout
 
         # 禁用代理环境变量，防止 Docker 自动注入的代理干扰容器网络
@@ -307,20 +308,20 @@ class SandboxManager:
                 container_config["cap_drop"] = self.config.cap_drop
             if self.config.no_new_privileges:
                 container_config["security_opt"] = ["no-new-privileges:true"]
-            
+
             # 创建并启动容器
             container = await asyncio.to_thread(
                 self._docker_client.containers.run,
                 **container_config
             )
-            
+
             try:
                 # 等待执行完成
                 result = await asyncio.wait_for(
                     asyncio.to_thread(container.wait),
                     timeout=timeout
                 )
-                
+
                 # 获取日志
                 stdout = await asyncio.to_thread(
                     container.logs, stdout=True, stderr=False
@@ -340,8 +341,8 @@ class SandboxManager:
                     "host_workdir": host_workdir,
                     "docker_host_workdir": docker_host_workdir,
                 }
-                
-            except asyncio.TimeoutError:
+
+            except TimeoutError:
                 await asyncio.to_thread(container.kill)
                 return {
                     "success": False,
@@ -351,11 +352,11 @@ class SandboxManager:
                     "exit_code": -1,
                     "artifacts": {},
                 }
-                
+
             finally:
                 # 清理容器
                 await asyncio.to_thread(container.remove, force=True)
-                
+
         except Exception as e:
             logger.error(f"Tool execution error: {e}")
             return {
@@ -370,7 +371,7 @@ class SandboxManager:
     @staticmethod
     def _resolve_docker_host_workdir(host_workdir: str, docker_client: Any = None) -> str:
         candidate = os.path.abspath(str(host_workdir or ""))
-        mappings: List[tuple[str, str]] = []
+        mappings: list[tuple[str, str]] = []
 
         host_project_root = os.getenv("HOST_PROJECT_ROOT", "").strip().rstrip("/\\")
         if host_project_root:
@@ -391,7 +392,7 @@ class SandboxManager:
         return host_workdir
 
     @staticmethod
-    def _current_container_mount_mappings(docker_client: Any) -> List[tuple[str, str]]:
+    def _current_container_mount_mappings(docker_client: Any) -> list[tuple[str, str]]:
         try:
             container = docker_client.containers.get(socket.gethostname())
             mounts = container.attrs.get("Mounts") or []
@@ -399,7 +400,7 @@ class SandboxManager:
             logger.debug("Unable to inspect current container mounts for sandbox workdir mapping", exc_info=True)
             return []
 
-        mappings: List[tuple[str, str]] = []
+        mappings: list[tuple[str, str]] = []
         for mount in mounts:
             destination = str(mount.get("Destination") or "").strip()
             source = str(mount.get("Source") or "").strip()
@@ -424,8 +425,8 @@ class SandboxManager:
             return ntpath.normpath(ntpath.join(cleaned_root, *cleaned_relative.split("/")))
         return posixpath.normpath(posixpath.join(cleaned_root, cleaned_relative))
 
-    async def _read_container_artifacts(self, container, artifact_paths: List[str]) -> Dict[str, Dict[str, Any]]:
-        artifacts: Dict[str, Dict[str, Any]] = {}
+    async def _read_container_artifacts(self, container, artifact_paths: list[str]) -> dict[str, dict[str, Any]]:
+        artifacts: dict[str, dict[str, Any]] = {}
         for artifact_path in artifact_paths:
             normalized_path = str(artifact_path or "").strip()
             if not normalized_path:
@@ -460,15 +461,15 @@ class SandboxManager:
     async def execute_python(
         self,
         code: str,
-        timeout: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        timeout: int | None = None,
+    ) -> dict[str, Any]:
         """
         在沙箱中执行 Python 代码
-        
+
         Args:
             code: Python 代码
             timeout: 超时时间
-            
+
         Returns:
             执行结果
         """
@@ -476,49 +477,49 @@ class SandboxManager:
         escaped_code = code.replace("'", "'\\''")
         command = f"python3 -c '{escaped_code}'"
         return await self.execute_command(command, timeout=timeout)
-    
+
     async def execute_http_request(
         self,
         method: str,
         url: str,
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[str] = None,
+        headers: dict[str, str] | None = None,
+        data: str | None = None,
         timeout: int = 30,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         在沙箱中执行 HTTP 请求
-        
+
         Args:
             method: HTTP 方法
             url: URL
             headers: 请求头
             data: 请求体
             timeout: 超时
-            
+
         Returns:
             HTTP 响应
         """
         # 构建 curl 命令
         curl_parts = ["curl", "-s", "-S", "-w", "'\\n%{http_code}'", "-X", method]
-        
+
         if headers:
             for key, value in headers.items():
                 curl_parts.extend(["-H", f"'{key}: {value}'"])
-        
+
         if data:
             curl_parts.extend(["-d", f"'{data}'"])
-        
+
         curl_parts.append(f"'{url}'")
-        
+
         command = " ".join(curl_parts)
-        
+
         # 使用带网络的镜像
         original_network = self.config.network_mode
         self.config.network_mode = "bridge"  # 允许网络访问
-        
+
         try:
             result = await self.execute_command(command, timeout=timeout)
-            
+
             if result["success"] and result["stdout"]:
                 lines = result["stdout"].strip().split('\n')
                 if lines:
@@ -530,33 +531,33 @@ class SandboxManager:
                         "body": body[:5000],
                         "error": None,
                     }
-            
+
             return {
                 "success": False,
                 "status_code": 0,
                 "body": "",
                 "error": result.get("error") or result.get("stderr"),
             }
-            
+
         finally:
             self.config.network_mode = original_network
-    
+
     async def verify_vulnerability(
         self,
         vulnerability_type: str,
         target_url: str,
         payload: str,
-        expected_pattern: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        expected_pattern: str | None = None,
+    ) -> dict[str, Any]:
         """
         验证漏洞
-        
+
         Args:
             vulnerability_type: 漏洞类型
             target_url: 目标 URL
             payload: 攻击载荷
             expected_pattern: 期望在响应中匹配的模式
-            
+
         Returns:
             验证结果
         """
@@ -568,7 +569,7 @@ class SandboxManager:
             "evidence": None,
             "error": None,
         }
-        
+
         try:
             # 发送请求
             response = await self.execute_http_request(
@@ -576,14 +577,14 @@ class SandboxManager:
                 url=target_url,
                 data=payload if "?" not in target_url else None,
             )
-            
+
             if not response["success"]:
                 verification_result["error"] = response.get("error")
                 return verification_result
-            
+
             body = response.get("body", "")
             status_code = response.get("status_code", 0)
-            
+
             # 检查响应
             if expected_pattern:
                 import re
@@ -606,24 +607,24 @@ class SandboxManager:
                             verification_result["is_vulnerable"] = True
                             verification_result["evidence"] = f"SQL错误信息: {pattern}"
                             break
-                
+
                 elif vulnerability_type == "xss":
                     if payload in body:
                         verification_result["is_vulnerable"] = True
                         verification_result["evidence"] = "XSS payload 被反射到响应中"
-                
+
                 elif vulnerability_type == "command_injection":
                     # 检查命令执行结果
                     if "uid=" in body or "root:" in body:
                         verification_result["is_vulnerable"] = True
                         verification_result["evidence"] = "命令执行成功"
-            
+
             verification_result["response_status"] = status_code
             verification_result["response_length"] = len(body)
-            
+
         except Exception as e:
             verification_result["error"] = str(e)
-        
+
         return verification_result
 
 
@@ -658,15 +659,15 @@ class SandboxTool(AgentTool):
         "timeout", "time", "sleep", "true", "false",
         "md5sum", "sha256sum", "strings",
     ]
-    
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None):
+
+    def __init__(self, sandbox_manager: SandboxManager | None = None):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
-    
+
     @property
     def name(self) -> str:
         return "sandbox_exec"
-    
+
     @property
     def description(self) -> str:
         return """在安全沙箱中执行命令或代码。
@@ -684,11 +685,11 @@ class SandboxTool(AgentTool):
 - 验证命令注入漏洞
 - 执行 PoC 代码
 - 测试 payload 效果"""
-    
+
     @property
     def args_schema(self):
         return SandboxCommandInput
-    
+
     async def _execute(
         self,
         command: str,
@@ -698,45 +699,45 @@ class SandboxTool(AgentTool):
         """执行沙箱命令"""
         # 初始化沙箱
         await self.sandbox_manager.initialize()
-        
+
         if not self.sandbox_manager.is_available:
             return ToolResult(
                 success=False,
                 error="沙箱环境不可用（Docker 未安装或未运行）",
             )
-        
+
         # 安全检查：验证命令是否允许
         cmd_parts = command.strip().split()
         if not cmd_parts:
             return ToolResult(success=False, error="命令不能为空")
-        
+
         base_cmd = cmd_parts[0]
         if not any(base_cmd.startswith(allowed) for allowed in self.ALLOWED_COMMANDS):
             return ToolResult(
                 success=False,
                 error=f"命令 '{base_cmd}' 不在允许列表中。允许的命令: {', '.join(self.ALLOWED_COMMANDS)}",
             )
-        
+
         # 执行命令
         result = await self.sandbox_manager.execute_command(
             command=command,
             timeout=timeout,
         )
-        
+
         # 格式化输出
         output_parts = ["🐳 沙箱执行结果\n"]
         output_parts.append(f"命令: {command}")
         output_parts.append(f"退出码: {result['exit_code']}")
-        
+
         if result["stdout"]:
             output_parts.append(f"\n标准输出:\n```\n{result['stdout']}\n```")
-        
+
         if result["stderr"]:
             output_parts.append(f"\n标准错误:\n```\n{result['stderr']}\n```")
-        
+
         if result.get("error"):
             output_parts.append(f"\n错误: {result['error']}")
-        
+
         return ToolResult(
             success=result["success"],
             data="\n".join(output_parts),
@@ -752,8 +753,8 @@ class HttpRequestInput(BaseModel):
     """HTTP 请求输入"""
     method: str = Field(default="GET", description="HTTP 方法 (GET, POST, PUT, DELETE)")
     url: str = Field(description="请求 URL")
-    headers: Optional[Dict[str, str]] = Field(default=None, description="请求头")
-    data: Optional[str] = Field(default=None, description="请求体")
+    headers: dict[str, str] | None = Field(default=None, description="请求头")
+    data: str | None = Field(default=None, description="请求体")
     timeout: int = Field(default=30, description="超时时间（秒）")
 
 
@@ -762,15 +763,15 @@ class SandboxHttpTool(AgentTool):
     沙箱 HTTP 请求工具
     在沙箱中发送 HTTP 请求
     """
-    
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None):
+
+    def __init__(self, sandbox_manager: SandboxManager | None = None):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
-    
+
     @property
     def name(self) -> str:
         return "sandbox_http"
-    
+
     @property
     def description(self) -> str:
         return """在沙箱中发送 HTTP 请求。
@@ -788,17 +789,17 @@ class SandboxHttpTool(AgentTool):
 - 测试 XSS payload
 - 验证 SSRF 漏洞
 - 测试认证绕过"""
-    
+
     @property
     def args_schema(self):
         return HttpRequestInput
-    
+
     async def _execute(
         self,
         url: str,
         method: str = "GET",
-        headers: Optional[Dict[str, str]] = None,
-        data: Optional[str] = None,
+        headers: dict[str, str] | None = None,
+        data: str | None = None,
         timeout: int = 30,
         **kwargs
     ) -> ToolResult:
@@ -807,13 +808,13 @@ class SandboxHttpTool(AgentTool):
             await self.sandbox_manager.initialize()
         except Exception as e:
             logger.warning(f"Sandbox init failed during execution: {e}")
-        
+
         if not self.sandbox_manager.is_available:
             return ToolResult(
                 success=False,
                 error="沙箱环境不可用 (Docker Unavailable)",
             )
-        
+
         result = await self.sandbox_manager.execute_http_request(
             method=method,
             url=url,
@@ -821,27 +822,27 @@ class SandboxHttpTool(AgentTool):
             data=data,
             timeout=timeout,
         )
-        
+
         output_parts = ["🌐 HTTP 请求结果\n"]
         output_parts.append(f"请求: {method} {url}")
-        
+
         if headers:
             output_parts.append(f"请求头: {json.dumps(headers, ensure_ascii=False)}")
-        
+
         if data:
             output_parts.append(f"请求体: {data[:500]}")
-        
+
         output_parts.append(f"\n状态码: {result.get('status_code', 'N/A')}")
-        
+
         if result.get("body"):
             body = result["body"]
             if len(body) > 2000:
                 body = body[:2000] + f"\n... (截断，共 {len(result['body'])} 字符)"
             output_parts.append(f"\n响应内容:\n```\n{body}\n```")
-        
+
         if result.get("error"):
             output_parts.append(f"\n错误: {result['error']}")
-        
+
         return ToolResult(
             success=result["success"],
             data="\n".join(output_parts),
@@ -860,7 +861,7 @@ class VulnerabilityVerifyInput(BaseModel):
     vulnerability_type: str = Field(description="漏洞类型 (sql_injection, xss, command_injection, etc.)")
     target_url: str = Field(description="目标 URL")
     payload: str = Field(description="攻击载荷")
-    expected_pattern: Optional[str] = Field(default=None, description="期望在响应中匹配的正则模式")
+    expected_pattern: str | None = Field(default=None, description="期望在响应中匹配的正则模式")
 
 
 class VulnerabilityVerifyTool(AgentTool):
@@ -868,15 +869,15 @@ class VulnerabilityVerifyTool(AgentTool):
     漏洞验证工具
     在沙箱中验证漏洞是否真实存在
     """
-    
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None):
+
+    def __init__(self, sandbox_manager: SandboxManager | None = None):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
-    
+
     @property
     def name(self) -> str:
         return "verify_vulnerability"
-    
+
     @property
     def description(self) -> str:
         return """验证漏洞是否真实存在。
@@ -894,17 +895,17 @@ class VulnerabilityVerifyTool(AgentTool):
 - command_injection: 命令注入
 - path_traversal: 路径遍历
 - ssrf: 服务端请求伪造"""
-    
+
     @property
     def args_schema(self):
         return VulnerabilityVerifyInput
-    
+
     async def _execute(
         self,
         vulnerability_type: str,
         target_url: str,
         payload: str,
-        expected_pattern: Optional[str] = None,
+        expected_pattern: str | None = None,
         **kwargs
     ) -> ToolResult:
         """执行漏洞验证"""
@@ -912,36 +913,36 @@ class VulnerabilityVerifyTool(AgentTool):
             await self.sandbox_manager.initialize()
         except Exception as e:
             logger.warning(f"Sandbox init failed during execution: {e}")
-        
+
         if not self.sandbox_manager.is_available:
             return ToolResult(
                 success=False,
                 error="沙箱环境不可用 (Docker Unavailable)",
             )
-        
+
         result = await self.sandbox_manager.verify_vulnerability(
             vulnerability_type=vulnerability_type,
             target_url=target_url,
             payload=payload,
             expected_pattern=expected_pattern,
         )
-        
+
         output_parts = ["🔍 漏洞验证结果\n"]
         output_parts.append(f"漏洞类型: {vulnerability_type}")
         output_parts.append(f"目标: {target_url}")
         output_parts.append(f"Payload: {payload[:200]}")
-        
+
         if result["is_vulnerable"]:
-            output_parts.append(f"\n🔴 结果: 漏洞已确认!")
+            output_parts.append("\n🔴 结果: 漏洞已确认!")
             output_parts.append(f"证据: {result.get('evidence', 'N/A')}")
         else:
-            output_parts.append(f"\n🟢 结果: 未能确认漏洞")
+            output_parts.append("\n🟢 结果: 未能确认漏洞")
             if result.get("error"):
                 output_parts.append(f"错误: {result['error']}")
-        
+
         if result.get("response_status"):
             output_parts.append(f"\nHTTP 状态码: {result['response_status']}")
-        
+
         return ToolResult(
             success=True,
             data="\n".join(output_parts),
@@ -957,10 +958,10 @@ class VulnerabilityVerifyTool(AgentTool):
 
 class PhpTestInput(BaseModel):
     """PHP 测试输入"""
-    php_code: Optional[str] = Field(default=None, description="要执行的 PHP 代码（可选，与 file_path 二选一）")
-    file_path: Optional[str] = Field(default=None, description="要测试的 PHP 文件路径（可选，与 php_code 二选一）")
-    get_params: Optional[Dict[str, str]] = Field(default=None, description="模拟的 GET 参数，如 {'cmd': 'whoami'}")
-    post_params: Optional[Dict[str, str]] = Field(default=None, description="模拟的 POST 参数")
+    php_code: str | None = Field(default=None, description="要执行的 PHP 代码（可选，与 file_path 二选一）")
+    file_path: str | None = Field(default=None, description="要测试的 PHP 文件路径（可选，与 php_code 二选一）")
+    get_params: dict[str, str] | None = Field(default=None, description="模拟的 GET 参数，如 {'cmd': 'whoami'}")
+    post_params: dict[str, str] | None = Field(default=None, description="模拟的 POST 参数")
     timeout: int = Field(default=30, description="超时时间（秒）")
 
 
@@ -970,7 +971,7 @@ class PhpTestTool(AgentTool):
     在沙箱中执行 PHP 代码，支持模拟 GET/POST 参数
     """
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -1007,10 +1008,10 @@ class PhpTestTool(AgentTool):
 
     async def _execute(
         self,
-        php_code: Optional[str] = None,
-        file_path: Optional[str] = None,
-        get_params: Optional[Dict[str, str]] = None,
-        post_params: Optional[Dict[str, str]] = None,
+        php_code: str | None = None,
+        file_path: str | None = None,
+        get_params: dict[str, str] | None = None,
+        post_params: dict[str, str] | None = None,
         timeout: int = 30,
         **kwargs
     ) -> ToolResult:
@@ -1036,7 +1037,7 @@ class PhpTestTool(AgentTool):
                     success=False,
                     error=f"文件不存在: {file_path}",
                 )
-            with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(full_path, encoding='utf-8', errors='ignore') as f:
                 php_code = f.read()
 
         if not php_code:
@@ -1077,7 +1078,6 @@ class PhpTestTool(AgentTool):
 
         # 在沙箱中执行
         # 使用 php -r 直接执行代码
-        import shlex
         escaped_code = full_php_code.replace("'", "'\"'\"'")
         command = f"php -r '{escaped_code}'"
 
@@ -1122,7 +1122,7 @@ class PhpTestTool(AgentTool):
                     expected = cmd_value[5:].lower()
                     if expected in stdout_lower:
                         is_vulnerable = True
-                        evidence = f"Echo 命令执行成功"
+                        evidence = "Echo 命令执行成功"
                 else:
                     # 通用检查：有输出就可能成功
                     if len(result["stdout"].strip()) > 0:
@@ -1132,7 +1132,7 @@ class PhpTestTool(AgentTool):
         if is_vulnerable:
             output_parts.append(f"\n🔴 **漏洞确认**: {evidence}")
         else:
-            output_parts.append(f"\n🟡 未能确认漏洞执行（可能需要检查输出）")
+            output_parts.append("\n🟡 未能确认漏洞执行（可能需要检查输出）")
 
         return ToolResult(
             success=True,
@@ -1162,7 +1162,7 @@ class CommandInjectionTestTool(AgentTool):
     智能检测和验证命令注入漏洞
     """
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -1224,7 +1224,7 @@ class CommandInjectionTestTool(AgentTool):
             )
 
         # 读取文件内容
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code_content = f.read()
 
         output_parts = ["🎯 命令注入测试\n"]
@@ -1269,7 +1269,7 @@ class CommandInjectionTestTool(AgentTool):
                 expected = test_command[5:]
                 if expected in stdout:
                     is_vulnerable = True
-                    evidence = f"Echo 测试成功"
+                    evidence = "Echo 测试成功"
                     poc = f"curl 'http://target/{target_file}?{param_name}=echo+test'"
             else:
                 if len(stdout) > 0:
@@ -1278,13 +1278,13 @@ class CommandInjectionTestTool(AgentTool):
                     poc = f"curl 'http://target/{target_file}?{param_name}={test_command}'"
 
         if is_vulnerable:
-            output_parts.append(f"\n\n🔴 **漏洞已确认!**")
+            output_parts.append("\n\n🔴 **漏洞已确认!**")
             output_parts.append(f"证据: {evidence}")
             output_parts.append(f"\nPoC: `{poc}`")
         else:
-            output_parts.append(f"\n\n🟡 未能确认漏洞")
+            output_parts.append("\n\n🟡 未能确认漏洞")
             if result.get("stderr"):
-                output_parts.append(f"可能原因: 执行错误或参数未正确传递")
+                output_parts.append("可能原因: 执行错误或参数未正确传递")
 
         return ToolResult(
             success=True,
@@ -1297,7 +1297,7 @@ class CommandInjectionTestTool(AgentTool):
             }
         )
 
-    async def _test_php_injection(self, code: str, param_name: str, test_command: str) -> Dict[str, Any]:
+    async def _test_php_injection(self, code: str, param_name: str, test_command: str) -> dict[str, Any]:
         """测试 PHP 命令注入"""
         # 构建模拟环境
         wrapper = f"""<?php
@@ -1322,7 +1322,7 @@ $_REQUEST['{param_name}'] = '{test_command}';
 
         return await self.sandbox_manager.execute_command(command, timeout=30)
 
-    async def _test_python_injection(self, code: str, param_name: str, test_command: str) -> Dict[str, Any]:
+    async def _test_python_injection(self, code: str, param_name: str, test_command: str) -> dict[str, Any]:
         """测试 Python 命令注入"""
         # 模拟 request.args.get
         wrapper = f"""

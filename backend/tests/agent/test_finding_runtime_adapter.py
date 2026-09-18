@@ -8,7 +8,13 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.models.audit_session import AuditMemoryKind
 from app.services.finding_runtime.adapters.finding import FindingRuntimeAdapter
-from app.services.finding_runtime.models import RuntimeMemoryBundle, RuntimeMemoryRecord, RuntimeMessageRole, RuntimeStopReason, TranscriptItem
+from app.services.finding_runtime.models import (
+    RuntimeMemoryBundle,
+    RuntimeMemoryRecord,
+    RuntimeMessageRole,
+    RuntimeStopReason,
+    TranscriptItem,
+)
 from app.services.finding_runtime.query_state import QueryLoopState
 from app.services.finding_runtime.session_store import AuditSessionStore
 

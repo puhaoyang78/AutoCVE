@@ -6,7 +6,6 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -141,7 +140,6 @@ POWERSHELL_ALIAS_MAP = {
     "mv": "move-item",
     "move": "move-item",
     "ren": "rename-item",
-    "type": "get-content",
     "ps": "get-process",
 }
 POWERSHELL_SEARCH_COMMANDS = {"select-string", "get-childitem", "findstr", "where.exe"}
@@ -350,7 +348,7 @@ async def _run_local_command(*, executable: str, args: list[str], cwd: str, time
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_ms / 1000)
         timed_out = False
-    except asyncio.TimeoutError:
+    except TimeoutError:
         process.kill()
         stdout, stderr = await process.communicate()
         timed_out = True

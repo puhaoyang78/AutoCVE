@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict
+from typing import Any
 
-from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent
-from .finding_skill_protocol import build_finding_skill_protocol
 from app.services.finding_runtime.bridge import FindingRuntimeBridge
 from app.services.finding_runtime.models import RuntimeCompletionMode
 
+from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent
+from .finding_skill_protocol import build_finding_skill_protocol
 
 FINDING_SYSTEM_PROMPT = """你是 AutoCVE 的 Finding Agent，负责基于项目源码发现真实、可复现的高价值安全漏洞。
 
@@ -31,7 +31,7 @@ FINDING_SYSTEM_PROMPT = """你是 AutoCVE 的 Finding Agent，负责基于项目
 class FindingAgent(BaseAgent):
     """Single-path Finding agent backed exclusively by the persistent runtime."""
 
-    def __init__(self, llm_service, tools: Dict[str, Any], event_emitter=None):
+    def __init__(self, llm_service, tools: dict[str, Any], event_emitter=None):
         system_prompt = f"{FINDING_SYSTEM_PROMPT}\n\n{build_finding_skill_protocol()}"
         config = AgentConfig(
             name="Finding",
@@ -53,7 +53,7 @@ class FindingAgent(BaseAgent):
         )
 
     @staticmethod
-    def _extract_recon_data(input_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_recon_data(input_data: dict[str, Any]) -> dict[str, Any]:
         previous_results = input_data.get("previous_results", {}) or {}
         recon_data = previous_results.get("recon", {})
         if isinstance(recon_data, dict) and isinstance(recon_data.get("data"), dict):
@@ -61,7 +61,7 @@ class FindingAgent(BaseAgent):
         return recon_data if isinstance(recon_data, dict) else {}
 
     @staticmethod
-    def _resolve_max_turns(input_data: Dict[str, Any]) -> int:
+    def _resolve_max_turns(input_data: dict[str, Any]) -> int:
         config = input_data.get("config", {}) or {}
         for raw_value in (config.get("max_iterations"), input_data.get("max_iterations"), 50):
             try:
@@ -73,7 +73,7 @@ class FindingAgent(BaseAgent):
         return 50
 
     @staticmethod
-    def _completion_mode(bridge_result: Dict[str, Any], payload: Dict[str, Any]) -> RuntimeCompletionMode | None:
+    def _completion_mode(bridge_result: dict[str, Any], payload: dict[str, Any]) -> RuntimeCompletionMode | None:
         runner_result = bridge_result.get("runner_result")
         candidates = [
             getattr(runner_result, "completion_mode", None),
@@ -93,7 +93,7 @@ class FindingAgent(BaseAgent):
         return None
 
     @staticmethod
-    def _build_user_message(input_data: Dict[str, Any], recon_data: Dict[str, Any]) -> str:
+    def _build_user_message(input_data: dict[str, Any], recon_data: dict[str, Any]) -> str:
         project_info = input_data.get("project_info", {}) or {}
         config = input_data.get("config", {}) or {}
         task_text = str(input_data.get("task_context") or input_data.get("task") or "").strip()
@@ -124,7 +124,7 @@ class FindingAgent(BaseAgent):
         if self.event_emitter is None:
             return None
 
-        async def event_sink(event: Dict[str, Any]) -> None:
+        async def event_sink(event: dict[str, Any]) -> None:
             event_type = str(event.get("type") or "activity")
             message = str(event.get("message") or event.get("content") or event_type)
             await self.emit_event(
@@ -135,7 +135,7 @@ class FindingAgent(BaseAgent):
 
         return event_sink
 
-    async def run(self, input_data: Dict[str, Any]) -> AgentResult:
+    async def run(self, input_data: dict[str, Any]) -> AgentResult:
         started_at = time.time()
         project_info = input_data.get("project_info", {}) or {}
         config = input_data.get("config", {}) or {}

@@ -7,14 +7,14 @@ import json
 import logging
 import os
 import re
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+from typing import Any
 
-from .base import BaseAgent, AgentConfig, AgentResult, AgentType, AgentPattern, TaskHandoff
-from .schemas import normalize_recon_payload
 from ..json_parser import AgentJsonParser
-from ..skill_service import SkillService
 from ..prompts import TOOL_USAGE_GUIDE
+from ..skill_service import SkillService
+from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent, TaskHandoff
+from .schemas import normalize_recon_payload
 
 logger = logging.getLogger(__name__)
 
@@ -67,25 +67,25 @@ RECON_SYSTEM_PROMPT = LIVE_RECON_SYSTEM_PROMPT
 class ReconStep:
     """Single recon reasoning step."""
     thought: str
-    action: Optional[str] = None
-    action_input: Optional[Dict] = None
-    observation: Optional[str] = None
+    action: str | None = None
+    action_input: dict | None = None
+    observation: str | None = None
     is_final: bool = False
-    final_answer: Optional[Dict] = None
+    final_answer: dict | None = None
 
 
 class ReconAgent(BaseAgent):
     """LLM-driven reconnaissance agent for repository navigation and stack discovery."""
-    
+
     def __init__(
         self,
         llm_service,
-        tools: Dict[str, Any],
+        tools: dict[str, Any],
         event_emitter=None,
     ):
         # Cleaned legacy mojibake comment.
         full_system_prompt = f"{LIVE_RECON_SYSTEM_PROMPT}\n\n{LIVE_RECON_OUTPUT_CONTRACT}\n\n{TOOL_USAGE_GUIDE}"
-        
+
         config = AgentConfig(
             name="Recon",
             agent_type=AgentType.RECON,
@@ -94,14 +94,14 @@ class ReconAgent(BaseAgent):
             system_prompt=full_system_prompt,
         )
         super().__init__(config, llm_service, tools, event_emitter)
-        
-        self._conversation_history: List[Dict[str, str]] = []
-        self._steps: List[ReconStep] = []
 
-    def _normalize_recon_result(self, raw_result: Dict[str, Any], config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        self._conversation_history: list[dict[str, str]] = []
+        self._steps: list[ReconStep] = []
+
+    def _normalize_recon_result(self, raw_result: dict[str, Any], config: dict[str, Any] | None = None) -> dict[str, Any]:
         return normalize_recon_payload(raw_result, config=config or {})
 
-    def _recon_result_has_signal(self, result: Dict[str, Any]) -> bool:
+    def _recon_result_has_signal(self, result: dict[str, Any]) -> bool:
         normalized = self._normalize_recon_result(result)
         project_profile = normalized.get("project_profile", {}) or {}
         project_structure = normalized.get("project_structure", {}) or {}
@@ -120,9 +120,9 @@ class ReconAgent(BaseAgent):
             normalized.get("summary"),
         ])
 
-    def _build_recommended_scanners(self, languages: List[str]) -> Dict[str, Any]:
-        must_use: List[str] = ["semgrep_scan", "gitleaks_scan"]
-        optional: List[str] = []
+    def _build_recommended_scanners(self, languages: list[str]) -> dict[str, Any]:
+        must_use: list[str] = ["semgrep_scan", "gitleaks_scan"]
+        optional: list[str] = []
         normalized_languages = {str(language).strip().lower() for language in languages}
         if "python" in normalized_languages:
             optional.extend(["bandit_scan", "safety_scan"])
@@ -130,7 +130,7 @@ class ReconAgent(BaseAgent):
             optional.append("npm_audit")
         if "java" in normalized_languages:
             optional.append("osv_scan")
-        deduped: List[str] = []
+        deduped: list[str] = []
         for item in must_use + optional:
             if item not in deduped:
                 deduped.append(item)
@@ -142,16 +142,16 @@ class ReconAgent(BaseAgent):
 
     def _merge_recon_with_project_info(
         self,
-        final_result: Dict[str, Any],
-        project_info: Optional[Dict[str, Any]],
-        config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        final_result: dict[str, Any],
+        project_info: dict[str, Any] | None,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         normalized = self._normalize_recon_result(final_result, config=config or {})
         project_info = project_info or {}
         repository_structure = project_info.get("structure") if isinstance(project_info.get("structure"), dict) else {}
 
-        def ordered_strings(*groups: Any) -> List[str]:
-            items: List[str] = []
+        def ordered_strings(*groups: Any) -> list[str]:
+            items: list[str] = []
             for group in groups:
                 if not isinstance(group, list):
                     continue
@@ -202,7 +202,7 @@ class ReconAgent(BaseAgent):
             summary_bits.append(f"entry_points={len(normalized.get('entry_points', []))}")
             normalized["summary"] = "Recon fallback summary: " + "; ".join(summary_bits)
         return normalized
-    
+
     def _parse_llm_response(self, response: str) -> ReconStep:
         """Parse the LLM response into a ReconStep."""
         step = ReconStep(thought="")
@@ -283,24 +283,24 @@ class ReconAgent(BaseAgent):
                 step.thought = response.strip()[:500]
 
         return step
-    
 
-    
-    async def run(self, input_data: Dict[str, Any]) -> AgentResult:
+
+
+    async def run(self, input_data: dict[str, Any]) -> AgentResult:
         """Run repository reconnaissance and return canonical navigation data."""
         import time
         start_time = time.time()
-        
+
         project_info = input_data.get("project_info", {})
         config = input_data.get("config", {})
         skill_context = await SkillService.resolve_agent_skills(config.get("user_id"), self.agent_type.value, {"project_info": project_info, "config": config, "task": input_data.get("task", ""), "task_context": input_data.get("task_context", "")})
         task = input_data.get("task", "")
         task_context = input_data.get("task_context", "")
-        
+
         # Cleaned legacy mojibake comment.
         target_files = config.get("target_files", [])
         exclude_patterns = config.get("exclude_patterns", [])
-        
+
         # Cleaned legacy mojibake comment.
         initial_message = f"""请梳理代码仓库，并为 Finding Agent 收集项目导航上下文。
 
@@ -352,21 +352,21 @@ class ReconAgent(BaseAgent):
         self._steps = []
         final_result = None
         error_message = None  # Runtime error captured during recon execution
-        
+
         await self.emit_thinking("Recon Agent 开始收集仓库导航信息。")
-        
+
         try:
             for iteration in range(self.config.max_iterations):
                 if self.is_cancelled:
                     break
-                
+
                 self._iteration = iteration + 1
-                
+
                 # Cleaned legacy mojibake comment.
                 if self.is_cancelled:
                     await self.emit_thinking("Recon run cancelled before the next model call.")
                     break
-                
+
                 # Cleaned legacy mojibake comment.
                 try:
                     llm_output, tokens_this_round = await self.stream_llm_call(
@@ -376,27 +376,27 @@ class ReconAgent(BaseAgent):
                 except asyncio.CancelledError:
                     logger.info(f"[{self.name}] LLM call cancelled")
                     break
-                
+
                 self._total_tokens += tokens_this_round
-                
+
                 # Cleaned legacy mojibake comment.
                 if not llm_output or not llm_output.strip():
                     empty_retry_count = getattr(self, '_empty_retry_count', 0) + 1
                     self._empty_retry_count = empty_retry_count
-                    
+
                     # Cleaned legacy mojibake comment.
                     logger.warning(
                         f"[{self.name}] Empty LLM response in iteration {self._iteration} "
                         f"(retry {empty_retry_count}/3, tokens_this_round={tokens_this_round})"
                     )
-                    
+
                     if empty_retry_count >= 3:
                         logger.error(f"[{self.name}] Too many empty responses, generating fallback result")
                         error_message = "Recon stopped after repeated empty model responses."
                         await self.emit_event("warning", error_message)
                         # Cleaned legacy mojibake comment.
                         break
-                    
+
                     # Cleaned legacy mojibake comment.
                     retry_prompt = f"""你上一条回复为空或不可用。
 
@@ -412,31 +412,31 @@ Action Input: {{"key": "value"}}
 Thought: [简要总结]
 Final Answer: [规范 Recon JSON]
 """
-                    
+
                     self._conversation_history.append({
                         "role": "user",
                         "content": retry_prompt,
                     })
                     continue
-                
+
                 # Cleaned legacy mojibake comment.
                 self._empty_retry_count = 0
 
                 # Cleaned legacy mojibake comment.
                 step = self._parse_llm_response(llm_output)
                 self._steps.append(step)
-                
+
                 # Cleaned legacy mojibake comment.
                 if step.thought:
                     await self.emit_llm_thought(step.thought, iteration + 1)
-                
+
                 # Cleaned legacy mojibake comment.
                 self._conversation_history.append({
                     "role": "assistant",
                     "content": llm_output,
                 })
                 await self.emit_model_response_debug(llm_output, iteration=self._iteration)
-                
+
                 # Cleaned legacy mojibake comment.
                 if step.is_final:
                     await self.emit_llm_decision("Final answer detected", "LLM returned a final recon payload.")
@@ -446,35 +446,35 @@ Final Answer: [规范 Recon JSON]
                     )
                     final_result = step.final_answer
                     break
-                
+
                 # Cleaned legacy mojibake comment.
                 if step.action:
                     # Cleaned legacy mojibake comment.
                     await self.emit_llm_action(step.action, step.action_input or {})
-                    
+
                     # Cleaned legacy mojibake comment.
                     tool_call_key = f"{step.action}:{json.dumps(step.action_input or {}, sort_keys=True)}"
                     if not hasattr(self, '_failed_tool_calls'):
                         self._failed_tool_calls = {}
-                    
+
                     observation = await self.execute_tool(
                         step.action,
                         step.action_input or {}
                     )
-                    
+
                     # Cleaned legacy mojibake comment.
                     is_tool_error = (
-                        "error" in observation.lower() or 
-                        "failed" in observation.lower() or 
+                        "error" in observation.lower() or
+                        "failed" in observation.lower() or
                         "Exception" in observation or
                         "not found" in observation.lower() or
                         "Error" in observation
                     )
-                    
+
                     if is_tool_error:
                         self._failed_tool_calls[tool_call_key] = self._failed_tool_calls.get(tool_call_key, 0) + 1
                         fail_count = self._failed_tool_calls[tool_call_key]
-                        
+
                         # Cleaned legacy mojibake comment.
                         if fail_count >= 3:
                             logger.warning(f"[{self.name}] Tool call failed {fail_count} times: {tool_call_key}")
@@ -483,24 +483,24 @@ Final Answer: [规范 Recon JSON]
                             observation += "2. 优先使用 search_code 或 list_files 重新获取上下文。\n"
                             observation += "3. 如果已经收集到足够仓库证据，请保守总结。\n"
                             observation += "4. 如果 Recon 已完成，请立即返回 Final Answer。"
-                            
+
                             # Cleaned legacy mojibake comment.
                             self._failed_tool_calls[tool_call_key] = 0
                     else:
                         # Cleaned legacy mojibake comment.
                         if tool_call_key in self._failed_tool_calls:
                             del self._failed_tool_calls[tool_call_key]
-                    
+
                     # Cleaned legacy mojibake comment.
                     if self.is_cancelled:
                         logger.info(f"[{self.name}] Cancelled after tool execution")
                         break
-                    
+
                     step.observation = observation
-                    
+
                     # Cleaned legacy mojibake comment.
                     await self.emit_llm_observation(observation)
-                    
+
                     # Cleaned legacy mojibake comment.
                     self._conversation_history.append({
                         "role": "user",
@@ -513,11 +513,11 @@ Final Answer: [规范 Recon JSON]
                         "role": "user",
                         "content": "你上一条回复没有包含有效 Action。请只用 Thought/Action/Action Input 或 Final Answer 回复。",
                     })
-            
+
             # Cleaned legacy mojibake comment.
             if not final_result and not self.is_cancelled and not error_message:
                 await self.emit_thinking("Recon is forcing a final canonical summary.")
-                
+
                 # Cleaned legacy mojibake comment.
                 self._conversation_history.append({
                     "role": "user",
@@ -538,13 +538,13 @@ Final Answer: [规范 Recon JSON]
 
 Final Answer:""",
                 })
-                
+
                 try:
                     summary_output, _ = await self.stream_llm_call(
                         self._conversation_history,
                         # Cleaned legacy mojibake comment.
                     )
-                    
+
                     if summary_output and summary_output.strip():
                         summary_text = summary_output.strip()
                         summary_text = re.sub(r'```json\s*', '', summary_text)
@@ -560,7 +560,7 @@ Final Answer:""",
                             final_result = parsed_result if self._recon_result_has_signal(parsed_result) else fallback_result
                 except Exception as e:
                     logger.warning(f"[{self.name}] Failed to generate summary: {e}")
-            
+
             # Cleaned legacy mojibake comment.
             # Finalize result state
             duration_ms = int((time.time() - start_time) * 1000)
@@ -627,27 +627,27 @@ Final Answer:""",
         except Exception as e:
             logger.error(f"Recon Agent failed: {e}", exc_info=True)
             return AgentResult(success=False, error=str(e))
-    
-    def _summarize_from_steps(self, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+    def _summarize_from_steps(self, config: dict[str, Any] | None = None) -> dict[str, Any]:
         """Derive a conservative canonical recon payload from observed steps."""
         config = config or {}
         observations = [step.observation for step in self._steps if step.observation]
         thoughts = [step.thought.strip() for step in self._steps if step.thought]
 
-        languages: List[str] = []
-        frameworks: List[str] = []
-        databases: List[str] = []
-        key_files: List[str] = []
-        key_directories: List[str] = []
-        priority_paths: List[str] = []
-        entry_points: List[Dict[str, Any]] = []
+        languages: list[str] = []
+        frameworks: list[str] = []
+        databases: list[str] = []
+        key_files: list[str] = []
+        key_directories: list[str] = []
+        priority_paths: list[str] = []
+        entry_points: list[dict[str, Any]] = []
 
-        def push_text(bucket: List[str], value: str) -> None:
+        def push_text(bucket: list[str], value: str) -> None:
             text = str(value or "").strip()
             if text and text not in bucket:
                 bucket.append(text)
 
-        def push_entry(entry: Dict[str, Any]) -> None:
+        def push_entry(entry: dict[str, Any]) -> None:
             if entry not in entry_points:
                 entry_points.append(entry)
 
@@ -752,15 +752,15 @@ Final Answer:""",
             'summary': summary,
         }
         return self._normalize_recon_result(result, config=config)
-    def get_conversation_history(self) -> List[Dict[str, str]]:
+    def get_conversation_history(self) -> list[dict[str, str]]:
         """Return the recorded conversation history for debugging."""
         return self._conversation_history
 
-    def get_steps(self) -> List[ReconStep]:
+    def get_steps(self) -> list[ReconStep]:
         """Return the collected recon steps."""
         return self._steps
 
-    def _create_recon_handoff(self, final_result: Dict[str, Any]) -> TaskHandoff:
+    def _create_recon_handoff(self, final_result: dict[str, Any]) -> TaskHandoff:
         normalized = self._normalize_recon_result(final_result)
         project_profile = normalized.get("project_profile", {}) or {}
         languages = project_profile.get("languages", [])

@@ -2,7 +2,11 @@ import os
 
 import pytest
 
-from app.services.skills_runtime.access import list_skill_resources, read_skill_body, read_skill_resource
+from app.services.skills_runtime.access import (
+    list_skill_resources,
+    read_skill_body,
+    read_skill_resource,
+)
 from app.services.skills_runtime.discovery import discover_skill_entries
 
 

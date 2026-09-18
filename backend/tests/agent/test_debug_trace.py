@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.api.v1.endpoints import agent_tasks
 
@@ -25,7 +25,7 @@ def _event(
         "tool_input": None,
         "tool_output": None,
         "tool_duration_ms": None,
-        "created_at": datetime(2026, 3, 18, 12, sequence, tzinfo=timezone.utc),
+        "created_at": datetime(2026, 3, 18, 12, sequence, tzinfo=UTC),
         "event_metadata": {
             "agent_name": agent_name,
             "agent_type": agent_type,
@@ -96,7 +96,7 @@ def test_build_debug_task_item_uses_latest_event_timestamp():
         task_name="Flow",
         project_id="project-1",
         status="completed",
-        created_at=datetime(2026, 3, 18, 1, 0, tzinfo=timezone.utc),
+        created_at=datetime(2026, 3, 18, 1, 0, tzinfo=UTC),
         events=[
             _event(
                 event_id="a",

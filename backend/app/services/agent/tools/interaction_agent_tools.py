@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from app.services.runtime_core.interaction_runtime import InteractionRuntime
 from app.services.runtime_core.session_state import (
     SessionRuntimeState,
-    build_legacy_agent_runtime_state,
-    sync_legacy_agent_metadata_from_runtime_state,
+    build_agent_runtime_state,
+    sync_agent_metadata_from_runtime_state,
 )
 
 from .base import AgentTool, ToolResult
@@ -21,7 +21,7 @@ class TodoWriteInput(BaseModel):
 
 class AskUserInput(BaseModel):
     question: str = Field(..., min_length=1)
-    context: Dict[str, str] = Field(default_factory=dict)
+    context: dict[str, str] = Field(default_factory=dict)
 
 
 class PlanModeInput(BaseModel):
@@ -31,14 +31,14 @@ class PlanModeInput(BaseModel):
 _INTERACTION_RUNTIME = InteractionRuntime()
 
 
-def _require_agent(kwargs: Dict[str, Any]):
+def _require_agent(kwargs: dict[str, Any]):
     agent = kwargs.pop("_agent", None)
     if agent is None:
         raise ValueError("Interaction tools require agent context")
     return agent
 
 
-def _interaction_state(agent) -> Dict[str, Any]:
+def _interaction_state(agent) -> dict[str, Any]:
     metadata = agent.state.metadata
     state = metadata.setdefault("interaction_runtime", {})
     state.setdefault("pending_todos", [])
@@ -51,7 +51,7 @@ def _interaction_state(agent) -> Dict[str, Any]:
 
 
 def _build_runtime_state(agent) -> SessionRuntimeState:
-    return build_legacy_agent_runtime_state(
+    return build_agent_runtime_state(
         session_id=agent.agent_id,
         agent_type=agent.agent_type.value,
         interaction_state=_interaction_state(agent),
@@ -60,8 +60,8 @@ def _build_runtime_state(agent) -> SessionRuntimeState:
     )
 
 
-def _sync_runtime_state(agent, runtime_state: SessionRuntimeState) -> Dict[str, Any]:
-    stored, tool_runtime = sync_legacy_agent_metadata_from_runtime_state(
+def _sync_runtime_state(agent, runtime_state: SessionRuntimeState) -> dict[str, Any]:
+    stored, tool_runtime = sync_agent_metadata_from_runtime_state(
         runtime_state,
         agent_type=agent.agent_type.value,
         interaction_state=_interaction_state(agent),
@@ -72,7 +72,7 @@ def _sync_runtime_state(agent, runtime_state: SessionRuntimeState) -> Dict[str, 
     return stored
 
 
-def _write_back_record(runtime_state: SessionRuntimeState, *, agent, bucket: str, record: Dict[str, Any]) -> Dict[str, Any]:
+def _write_back_record(runtime_state: SessionRuntimeState, *, agent, bucket: str, record: dict[str, Any]) -> dict[str, Any]:
     enriched = dict(record)
     enriched["agent_id"] = agent.agent_id
     enriched["agent_type"] = agent.agent_type.value
@@ -135,7 +135,7 @@ class AskUserTool(AgentTool):
     def args_schema(self):
         return AskUserInput
 
-    async def _execute(self, question: str, context: Dict[str, str] | None = None, **kwargs) -> ToolResult:
+    async def _execute(self, question: str, context: dict[str, str] | None = None, **kwargs) -> ToolResult:
         agent = _require_agent(kwargs)
         runtime_state = _build_runtime_state(agent)
         entry = _INTERACTION_RUNTIME.ask_user(

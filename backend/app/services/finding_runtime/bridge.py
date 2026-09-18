@@ -26,12 +26,12 @@ from app.services.finding_runtime.tools.finalize_finding import FinalizeFindingT
 from app.services.finding_runtime.tools.finalize_vulnerability_reports import (
     FinalizeVulnerabilityReportsTool,
 )
+from app.services.llm.protocols.registry import resolve_tool_message_format
 from app.services.runtime_core import build_runtime_tool_registry
 from app.services.runtime_core.tool_message_codec import (
     ToolMessageFormat,
     build_runtime_model_messages,
 )
-from app.services.llm.protocols.registry import resolve_tool_message_format
 
 READ_SAFE_RUNTIME_TOOLS = {"Read", "Glob", "Grep", "Skill"}
 REPORT_GENERATION_RUNTIME_TOOLS = {"Read", "Glob", "Grep"}

@@ -6,10 +6,11 @@ Agent 事件管理器
 import asyncio
 import json
 import logging
-from typing import Optional, Dict, Any, List, AsyncGenerator, Callable
-from datetime import datetime, timezone
-from dataclasses import dataclass
 import uuid
+from collections.abc import AsyncGenerator, Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from app.core.config import settings
 
@@ -30,15 +31,15 @@ CRITICAL_EVENT_TYPES = {
 class AgentEventData:
     """Agent 事件数据"""
     event_type: str
-    phase: Optional[str] = None
-    message: Optional[str] = None
-    tool_name: Optional[str] = None
-    tool_input: Optional[Dict[str, Any]] = None
-    tool_output: Optional[Dict[str, Any]] = None
-    tool_duration_ms: Optional[int] = None
-    finding_id: Optional[str] = None
+    phase: str | None = None
+    message: str | None = None
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    tool_output: dict[str, Any] | None = None
+    tool_duration_ms: int | None = None
+    finding_id: str | None = None
     tokens_used: int = 0
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if self.tokens_used or not isinstance(self.metadata, dict):
@@ -47,8 +48,8 @@ class AgentEventData:
             self.tokens_used = int(self.metadata.get("tokens_used") or 0)
         except (TypeError, ValueError):
             self.tokens_used = 0
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "event_type": self.event_type,
             "phase": self.phase,
@@ -68,25 +69,25 @@ class AgentEventEmitter:
     Agent 事件发射器
     用于在 Agent 执行过程中发射事件
     """
-    
+
     def __init__(self, task_id: str, event_manager: 'EventManager'):
         self.task_id = task_id
         self.event_manager = event_manager
         self._sequence = 0
         self._current_phase = None
-    
+
     async def emit(self, event_data: AgentEventData):
         """发射事件"""
         self._sequence += 1
         event_data.phase = event_data.phase or self._current_phase
-        
+
         await self.event_manager.add_event(
             task_id=self.task_id,
             sequence=self._sequence,
             **event_data.to_dict()
         )
-    
-    async def emit_phase_start(self, phase: str, message: Optional[str] = None):
+
+    async def emit_phase_start(self, phase: str, message: str | None = None):
         """发射阶段开始事件"""
         self._current_phase = phase
         await self.emit(AgentEventData(
@@ -94,23 +95,23 @@ class AgentEventEmitter:
             phase=phase,
             message=message or f"开始 {phase} 阶段",
         ))
-    
-    async def emit_phase_complete(self, phase: str, message: Optional[str] = None):
+
+    async def emit_phase_complete(self, phase: str, message: str | None = None):
         """发射阶段完成事件"""
         await self.emit(AgentEventData(
             event_type="phase_complete",
             phase=phase,
             message=message or f"{phase} 阶段完成",
         ))
-    
-    async def emit_thinking(self, message: str, metadata: Optional[Dict] = None):
+
+    async def emit_thinking(self, message: str, metadata: dict | None = None):
         """发射思考事件"""
         await self.emit(AgentEventData(
             event_type="thinking",
             message=message,
             metadata=metadata,
         ))
-    
+
     async def emit_llm_thought(self, thought: str, iteration: int = 0):
         """发射 LLM 思考内容事件 - 核心！展示 LLM 在想什么"""
         display = thought[:500] + "..." if len(thought) > 500 else thought
@@ -119,7 +120,7 @@ class AgentEventEmitter:
             message=f"💭 LLM 思考:\n{display}",
             metadata={"thought": thought, "iteration": iteration},
         ))
-    
+
     async def emit_llm_decision(self, decision: str, reason: str = ""):
         """发射 LLM 决策事件"""
         await self.emit(AgentEventData(
@@ -127,22 +128,21 @@ class AgentEventEmitter:
             message=f"💡 LLM 决策: {decision}" + (f" ({reason})" if reason else ""),
             metadata={"decision": decision, "reason": reason},
         ))
-    
-    async def emit_llm_action(self, action: str, action_input: Dict):
+
+    async def emit_llm_action(self, action: str, action_input: dict):
         """发射 LLM 动作事件"""
-        import json
         input_str = json.dumps(action_input, ensure_ascii=False)[:200]
         await self.emit(AgentEventData(
             event_type="llm_action",
             message=f"⚡ LLM 动作: {action}\n   参数: {input_str}",
             metadata={"action": action, "action_input": action_input},
         ))
-    
+
     async def emit_tool_call(
         self,
         tool_name: str,
-        tool_input: Dict[str, Any],
-        message: Optional[str] = None,
+        tool_input: dict[str, Any],
+        message: str | None = None,
     ):
         """发射工具调用事件"""
         await self.emit(AgentEventData(
@@ -151,13 +151,13 @@ class AgentEventEmitter:
             tool_input=tool_input,
             message=message or f"调用工具: {tool_name}",
         ))
-    
+
     async def emit_tool_result(
         self,
         tool_name: str,
         tool_output: Any,
         duration_ms: int,
-        message: Optional[str] = None,
+        message: str | None = None,
     ):
         """发射工具结果事件"""
         # 处理输出，确保可序列化
@@ -167,7 +167,7 @@ class AgentEventEmitter:
             output_data = {"result": tool_output[:2000]}  # 截断长输出
         else:
             output_data = {"result": str(tool_output)[:2000]}
-        
+
         await self.emit(AgentEventData(
             event_type="tool_result",
             tool_name=tool_name,
@@ -175,7 +175,7 @@ class AgentEventEmitter:
             tool_duration_ms=duration_ms,
             message=message or f"工具 {tool_name} 执行完成 ({duration_ms}ms)",
         ))
-    
+
     async def emit_finding(
         self,
         finding_id: str,
@@ -198,36 +198,36 @@ class AgentEventEmitter:
                 "is_verified": is_verified,
             },
         ))
-    
-    async def emit_info(self, message: str, metadata: Optional[Dict] = None):
+
+    async def emit_info(self, message: str, metadata: dict | None = None):
         """发射信息事件"""
         await self.emit(AgentEventData(
             event_type="info",
             message=message,
             metadata=metadata,
         ))
-    
-    async def emit_warning(self, message: str, metadata: Optional[Dict] = None):
+
+    async def emit_warning(self, message: str, metadata: dict | None = None):
         """发射警告事件"""
         await self.emit(AgentEventData(
             event_type="warning",
             message=message,
             metadata=metadata,
         ))
-    
-    async def emit_error(self, message: str, metadata: Optional[Dict] = None):
+
+    async def emit_error(self, message: str, metadata: dict | None = None):
         """发射错误事件"""
         await self.emit(AgentEventData(
             event_type="error",
             message=message,
             metadata=metadata,
         ))
-    
+
     async def emit_progress(
         self,
         current: int,
         total: int,
-        message: Optional[str] = None,
+        message: str | None = None,
     ):
         """发射进度事件"""
         percentage = (current / total * 100) if total > 0 else 0
@@ -240,12 +240,12 @@ class AgentEventEmitter:
                 "percentage": percentage,
             },
         ))
-    
+
     async def emit_task_complete(
         self,
         findings_count: int,
         duration_ms: int,
-        message: Optional[str] = None,
+        message: str | None = None,
     ):
         """发射任务完成事件"""
         await self.emit(AgentEventData(
@@ -256,16 +256,16 @@ class AgentEventEmitter:
                 "duration_ms": duration_ms,
             },
         ))
-    
-    async def emit_task_error(self, error: str, message: Optional[str] = None):
+
+    async def emit_task_error(self, error: str, message: str | None = None):
         """发射任务错误事件"""
         await self.emit(AgentEventData(
             event_type="task_error",
             message=message or f"❌ 任务失败: {error}",
             metadata={"error": error},
         ))
-    
-    async def emit_task_cancelled(self, message: Optional[str] = None):
+
+    async def emit_task_cancelled(self, message: str | None = None):
         """发射任务取消事件"""
         await self.emit(AgentEventData(
             event_type="task_cancel",
@@ -278,39 +278,39 @@ class EventManager:
     事件管理器
     负责事件的存储和检索
     """
-    
-    def __init__(self, db_session_factory=None, queue_max_size: Optional[int] = None, event_stream=None):
+
+    def __init__(self, db_session_factory=None, queue_max_size: int | None = None, event_stream=None):
         self.db_session_factory = db_session_factory
         self.queue_max_size = max(1, int(queue_max_size or settings.AGENT_EVENT_QUEUE_MAX_SIZE))
         self.event_stream = event_stream
-        self._event_queues: Dict[str, asyncio.Queue] = {}
-        self._event_callbacks: Dict[str, List[Callable]] = {}
-    
+        self._event_queues: dict[str, asyncio.Queue] = {}
+        self._event_callbacks: dict[str, list[Callable]] = {}
+
     async def add_event(
         self,
         task_id: str,
         event_type: str,
         sequence: int = 0,
-        phase: Optional[str] = None,
-        message: Optional[str] = None,
-        tool_name: Optional[str] = None,
-        tool_input: Optional[Dict] = None,
-        tool_output: Optional[Dict] = None,
-        tool_duration_ms: Optional[int] = None,
-        finding_id: Optional[str] = None,
+        phase: str | None = None,
+        message: str | None = None,
+        tool_name: str | None = None,
+        tool_input: dict | None = None,
+        tool_output: dict | None = None,
+        tool_duration_ms: int | None = None,
+        finding_id: str | None = None,
         tokens_used: int = 0,
-        metadata: Optional[Dict] = None,
+        metadata: dict | None = None,
     ):
         """添加事件"""
         event_id = str(uuid.uuid4())
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
         metadata = self._normalize_event_metadata(event_type, metadata)
         if not tokens_used and isinstance(metadata, dict):
             try:
                 tokens_used = int(metadata.get("tokens_used") or 0)
             except (TypeError, ValueError):
                 tokens_used = 0
-        
+
         event_data = {
             "id": event_id,
             "task_id": task_id,
@@ -327,7 +327,7 @@ class EventManager:
             "metadata": metadata,
             "timestamp": timestamp.isoformat(),
         }
-        
+
         # 保存到数据库（跳过高频事件如 thinking_token）
         skip_db_events = {"thinking_token"}
         if self.db_session_factory and event_type not in skip_db_events:
@@ -341,7 +341,7 @@ class EventManager:
                 await self.event_stream.publish_event(task_id, event_data)
             except Exception as e:
                 logger.warning(f"Failed to publish event stream for task {task_id}: {e}")
-        
+
         # 推送到队列（非阻塞）
         if task_id in self._event_queues:
             queue = self._event_queues[task_id]
@@ -355,7 +355,7 @@ class EventManager:
                         logger.debug(f"[EventQueue] Added thinking_token #{sequence} to queue, size: {queue.qsize()}")
             else:
                 logger.warning(f"Event queue full for task {task_id}, dropping event: {event_type}")
-        
+
         # 调用回调
         if task_id in self._event_callbacks:
             for callback in self._event_callbacks[task_id]:
@@ -366,10 +366,10 @@ class EventManager:
                         callback(event_data)
                 except Exception as e:
                     logger.error(f"Event callback error: {e}")
-        
+
         return event_id
 
-    def _normalize_event_metadata(self, event_type: str, metadata: Optional[Dict]) -> Optional[Dict]:
+    def _normalize_event_metadata(self, event_type: str, metadata: dict | None) -> dict | None:
         if not isinstance(metadata, dict):
             return metadata
         if event_type == "thinking_token":
@@ -378,7 +378,7 @@ class EventManager:
             return normalized
         return metadata
 
-    def _enqueue_event(self, queue: asyncio.Queue, event_data: Dict[str, Any]) -> bool:
+    def _enqueue_event(self, queue: asyncio.Queue, event_data: dict[str, Any]) -> bool:
         try:
             queue.put_nowait(event_data)
             return True
@@ -387,7 +387,7 @@ class EventManager:
             if event_type not in CRITICAL_EVENT_TYPES:
                 return False
 
-            retained: List[Dict[str, Any]] = []
+            retained: list[dict[str, Any]] = []
             dropped_low_priority = False
             while not queue.empty():
                 queued_event = queue.get_nowait()
@@ -408,8 +408,8 @@ class EventManager:
                 return True
             except asyncio.QueueFull:
                 return False
-    
-    async def _save_event_to_db(self, event_data: Dict):
+
+    async def _save_event_to_db(self, event_data: dict):
         """保存事件到数据库"""
         from app.models.agent_task import AgentEvent
 
@@ -456,43 +456,44 @@ class EventManager:
             )
             db.add(event)
             await db.commit()
-    
+
     def create_queue(self, task_id: str) -> asyncio.Queue:
         """创建或获取事件队列"""
         if task_id not in self._event_queues:
             # 🔥 使用较大的队列容量，缓存更多 token 事件
             self._event_queues[task_id] = asyncio.Queue(maxsize=self.queue_max_size)
         return self._event_queues[task_id]
-    
+
     def remove_queue(self, task_id: str):
         """移除事件队列"""
         if task_id in self._event_queues:
             del self._event_queues[task_id]
-    
+
     def add_callback(self, task_id: str, callback: Callable):
         """添加事件回调"""
         if task_id not in self._event_callbacks:
             self._event_callbacks[task_id] = []
         self._event_callbacks[task_id].append(callback)
-    
+
     def remove_callback(self, task_id: str, callback: Callable):
         """移除事件回调"""
         if task_id in self._event_callbacks:
             self._event_callbacks[task_id].remove(callback)
-    
+
     async def get_events(
         self,
         task_id: str,
         after_sequence: int = 0,
         limit: int = 100,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """获取事件列表"""
         if not self.db_session_factory:
             return []
-        
+
         from sqlalchemy.future import select
+
         from app.models.agent_task import AgentEvent
-        
+
         async with self.db_session_factory() as db:
             result = await db.execute(
                 select(AgentEvent)
@@ -503,12 +504,12 @@ class EventManager:
             )
             events = result.scalars().all()
             return [event.to_sse_dict() for event in events]
-    
+
     async def stream_events(
         self,
         task_id: str,
         after_sequence: int = 0,
-    ) -> AsyncGenerator[Dict, None]:
+    ) -> AsyncGenerator[dict, None]:
         """流式获取事件
 
         🔥 重要: 此方法会先排空队列中已缓存的事件（在 SSE 连接前产生的），
@@ -533,7 +534,7 @@ class EventManager:
         buffered_count = 0
         skipped_count = 0
         max_drain = initial_queue_size  # 只消耗这么多事件，避免无限循环
-        
+
         for _ in range(max_drain):
             try:
                 buffered_event = queue.get_nowait()
@@ -595,25 +596,25 @@ class EventManager:
                     if event.get("event_type") in ["task_complete", "task_error", "task_cancel"]:
                         break
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # 发送心跳
-                    yield {"event_type": "heartbeat", "timestamp": datetime.now(timezone.utc).isoformat()}
+                    yield {"event_type": "heartbeat", "timestamp": datetime.now(UTC).isoformat()}
 
         except GeneratorExit:
             # SSE 连接断开
             logger.debug(f"SSE stream closed for task {task_id}")
         # 🔥 不要移除队列，让 AgentRunner 管理队列的生命周期
-    
+
     def create_emitter(self, task_id: str) -> AgentEventEmitter:
         """创建事件发射器"""
         return AgentEventEmitter(task_id, self)
-    
+
     async def close(self):
         """关闭事件管理器，清理资源"""
         # 清理所有队列
         for task_id in list(self._event_queues.keys()):
             self.remove_queue(task_id)
-        
+
         # 清理所有回调
         self._event_callbacks.clear()
 

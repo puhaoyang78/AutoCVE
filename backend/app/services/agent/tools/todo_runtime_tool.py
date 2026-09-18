@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -86,7 +86,7 @@ class TodoWriteRuntimeTool(RuntimeTool):
                 "details": str(parsed_input.details or "").strip() or None,
                 "disposition": parsed_input.disposition,
                 "supporting_facts": list(parsed_input.supporting_facts),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(UTC).isoformat(),
             }
             candidate_decisions[candidate_id] = decision
             self._session_store.replace_runtime_state(context.session_id, runtime_state)
