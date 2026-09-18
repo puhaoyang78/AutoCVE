@@ -281,12 +281,13 @@ class CodeRetriever:
 
         # 转换结果
         results = []
-        for i, (id_, doc, meta, dist) in enumerate(zip(
+        for id_, doc, meta, dist in zip(
             raw_results["ids"],
             raw_results["documents"],
             raw_results["metadatas"],
             raw_results["distances"],
-        )):
+            strict=True,
+        ):
             # 将距离转换为相似度分数 (余弦距离)
             score = 1 - dist
 
@@ -355,6 +356,7 @@ class CodeRetriever:
             raw_results["documents"],
             raw_results["metadatas"],
             raw_results["distances"],
+            strict=True,
         ):
             result = RetrievalResult(
                 chunk_id=id_,

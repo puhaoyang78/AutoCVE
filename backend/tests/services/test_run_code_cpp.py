@@ -1,5 +1,7 @@
 import subprocess
 
+import pytest
+
 from app.services.agent.tools.run_code import RunCodeTool
 
 
@@ -68,9 +70,6 @@ class _BrokenSandbox(_FakeSandbox):
 
 def test_run_code_language_schema_mentions_cpp_alias():
     assert "c++" in RunCodeTool().description
-
-
-import pytest
 
 
 @pytest.mark.asyncio

@@ -748,7 +748,7 @@ class EmbeddingService:
                 try:
                     results = await self._provider.embed_texts(batch)
 
-                    for idx, result in zip(batch_indices, results):
+                    for idx, result in zip(batch_indices, results, strict=True):
                         embeddings[idx] = result.embedding
 
                         # 存入缓存

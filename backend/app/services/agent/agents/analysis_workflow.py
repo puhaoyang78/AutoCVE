@@ -330,7 +330,7 @@ class AnalysisWorkflowAgent(BaseAgent):
                     for prepared in batch
                 ]
 
-            for prepared, observation in zip(batch, raw_observations):
+            for prepared, observation in zip(batch, raw_observations, strict=True):
                 observations.append(
                     self._render_action_observation(
                         index=len(observations) + 1,

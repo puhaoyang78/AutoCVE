@@ -560,7 +560,7 @@ class InMemoryVectorStore(VectorStore):
         metadatas: list[dict[str, Any]],
     ):
         """添加文档"""
-        for id_, emb, doc, meta in zip(ids, embeddings, documents, metadatas):
+        for id_, emb, doc, meta in zip(ids, embeddings, documents, metadatas, strict=True):
             self._documents[id_] = {
                 "embedding": emb,
                 "document": doc,
@@ -607,7 +607,7 @@ class InMemoryVectorStore(VectorStore):
         import math
 
         def cosine_similarity(a: list[float], b: list[float]) -> float:
-            dot = sum(x * y for x, y in zip(a, b))
+            dot = sum(x * y for x, y in zip(a, b, strict=True))
             norm_a = math.sqrt(sum(x * x for x in a))
             norm_b = math.sqrt(sum(x * x for x in b))
             if norm_a == 0 or norm_b == 0:
