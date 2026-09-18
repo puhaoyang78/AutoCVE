@@ -53,7 +53,38 @@ FRAMEWORK_REFERENCES = {
     "rails": "references/frameworks/rails.md",
     "rust web": "references/frameworks/rust_web.md",
     "spring": "references/frameworks/spring.md",
+    "graphql": "references/security/graphql.md",
+    "dotnet": "references/frameworks/dotnet.md",
 }
+SECURITY_REFERENCE_RULES = (
+    (
+        {"auth", "authorization", "authentication", "idor", "jwt", "login", "oauth", "permission", "rbac", "role", "session", "tenant", "ownership"},
+        ("references/security/authentication_authorization.md", "references/security/business_logic.md"),
+    ),
+    (
+        {"archive", "download", "export", "file", "import", "path", "template", "traversal", "upload", "zip"},
+        ("references/security/file_operations.md",),
+    ),
+    (
+        {"body", "form", "input", "param", "parameter", "parser", "payload", "query", "schema", "serialize", "validation"},
+        ("references/security/input_validation.md",),
+    ),
+    (
+        {"api", "endpoint", "gateway", "graphql", "grpc", "http", "rest", "router"},
+        ("references/security/api_security.md", "references/security/api_gateway_proxy.md"),
+    ),
+    (
+        {"approval", "balance", "concurrent", "duplicate", "idempot", "inventory", "order", "payment", "queue", "race", "retry", "stock", "wallet"},
+        ("references/security/race_conditions.md",),
+    ),
+    ({"internal", "service", "trust", "microservice", "signature"}, ("references/security/cross_service_trust.md",)),
+    ({"async", "consumer", "kafka", "mq", "queue", "rabbitmq", "stream"}, ("references/security/message_queue_async.md",)),
+    ({"oauth", "oidc", "saml"}, ("references/security/oauth_oidc_saml.md",)),
+    ({"realtime", "socket", "websocket", "ws"}, ("references/security/realtime_protocols.md",)),
+    ({"cron", "job", "schedule", "scheduler", "task"}, ("references/security/scheduled_tasks.md",)),
+    ({"function", "lambda", "serverless"}, ("references/security/serverless.md",)),
+    ({"agent", "llm", "model", "prompt", "rag"}, ("references/security/llm_security.md",)),
+)
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "in", "is", "it", "of", "on",
     "or", "that", "the", "to", "with", "this", "these", "those", "into", "out", "api", "code", "repo", "project",
@@ -92,7 +123,11 @@ class RuntimeMemoryManager:
 
         recalls: list[RuntimeMemoryRecord] = []
         if agent_type == "finding":
-            route = self._build_recall_route(recon_payload=recon_payload, skill_context=skill_context)
+            route = self._build_recall_route(
+                recon_payload=recon_payload,
+                user_message=user_message,
+                skill_context=skill_context,
+            )
             recalls = self._load_recalled_memories(
                 recon_payload=recon_payload,
                 user_message=user_message,
@@ -104,6 +139,7 @@ class RuntimeMemoryManager:
     def _build_recall_route(
         *,
         recon_payload: dict[str, Any],
+        user_message: str,
         skill_context: dict[str, Any] | None,
     ) -> dict[str, Any]:
         route_plan = dict((skill_context or {}).get("route_plan") or {})
@@ -135,6 +171,18 @@ class RuntimeMemoryManager:
             ref = FRAMEWORK_REFERENCES.get(str(framework).strip().lower())
             if ref:
                 append_unique(mandatory, [ref])
+
+        signal_tokens = RuntimeMemoryManager._tokenize(
+            user_message,
+            recon_payload.get("summary"),
+            recon_payload.get("target_vulnerabilities"),
+            recon_payload.get("focus_vulnerabilities"),
+            recon_payload.get("entry_points"),
+            recon_payload.get("priority_paths"),
+        )
+        for keywords, refs in SECURITY_REFERENCE_RULES:
+            if signal_tokens.intersection(keywords):
+                append_unique(mandatory, refs)
 
         if mandatory:
             append_unique(recommended, ["references/checklists/universal.md"])

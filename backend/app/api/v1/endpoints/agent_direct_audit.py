@@ -366,6 +366,17 @@ async def _ensure_direct_audit_outputs(
     model_name: str | None = None,
     max_turns: int | None = None,
 ) -> dict[str, Any]:
+    report_service = VulnerabilityReportGenerationService()
+    messages = await _load_direct_audit_messages(session_id=session.id, db=db)
+    final_payload = _extract_direct_audit_final_payload(messages)
+    report_bundle = _extract_direct_audit_report_bundle(messages, report_service=report_service)
+    if report_bundle is not None:
+        return {
+            "final_payload": final_payload,
+            "report_bundle": report_bundle,
+            "report_error": None,
+        }
+
     owns_follow_up_context = bridge is None or sandbox_manager is None or model_name is None or max_turns is None
     if owns_follow_up_context:
         bridge, sandbox_manager, model_name, max_turns = await _build_direct_runtime_follow_up_context(
@@ -380,10 +391,6 @@ async def _ensure_direct_audit_outputs(
     assert model_name is not None
     assert max_turns is not None
 
-    report_service = VulnerabilityReportGenerationService()
-    messages = await _load_direct_audit_messages(session_id=session.id, db=db)
-    final_payload = _extract_direct_audit_final_payload(messages)
-    report_bundle = _extract_direct_audit_report_bundle(messages, report_service=report_service)
     report_error: str | None = None
 
     try:

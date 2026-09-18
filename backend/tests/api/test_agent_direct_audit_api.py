@@ -710,7 +710,7 @@ async def test_continue_direct_audit_session_stream_emits_runtime_error_from_che
     assert events == [
         {
             "type": "error",
-            "message_text": "The current LLM API Key is still a placeholder. Configure a real key before retrying direct audit.",
+            "message_text": "当前 LLM API Key 仍是占位符 `sk-your-api-key`，请先在模型配置或 backend/.env 中填入真实可用的 Key，再重试 Agent直审。",
         }
     ]
 

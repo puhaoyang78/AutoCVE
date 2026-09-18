@@ -16,6 +16,7 @@ from app.api.v1.endpoints.agent_tasks import (
 )
 from app.models.agent_task import AgentTask, AgentTaskPhase, AgentTaskStatus
 from app.models.project import Project
+from app.services.finding_runtime.fingerprint import build_finding_fingerprint
 from app.services.finding_runtime.models import RuntimeMemoryBundle, RuntimeMemoryRecord
 
 
@@ -160,7 +161,7 @@ def _build_existing_finding(*, fingerprint: str | None = None, verified: bool = 
         verification_result={'verdict': 'confirmed' if verified else 'candidate'},
         finding_metadata={'raw_finding': {'title': 'SQL injection in api.py'}},
     )
-    finding.fingerprint = fingerprint or finding.generate_fingerprint()
+    finding.fingerprint = fingerprint or build_finding_fingerprint(finding)
     return finding
 
 
