@@ -8,12 +8,11 @@ import type {
   InstantAnalysis,
   CreateProjectForm,
   CreateAuditTaskForm,
-  InstantAnalysisForm,
   ManagedLocalDirectory,
   ProjectFileContent,
 } from "../types/index";
 
-// Implement the same interface as the original localDatabase.ts but using backend API
+// Frontend facade for the backend REST API.
 export const api = {
   // ==================== Profile 相关方法 ====================
 
@@ -33,11 +32,6 @@ export const api = {
     } catch (e) {
       return 0;
     }
-  },
-
-  async createProfiles(profile: Partial<Profile>): Promise<Profile> {
-    // Registration is handled separately via /auth/register
-    return profile as Profile;
   },
 
   async updateProfile(id: string, updates: Partial<Profile>): Promise<Profile> {
@@ -213,12 +207,6 @@ export const api = {
     return taskRes.data;
   },
 
-  async updateAuditTask(id: string, _updates: Partial<AuditTask>): Promise<AuditTask> {
-    // Tasks are updated by backend workers, not frontend
-    const current = await this.getAuditTaskById(id);
-    return current || ({} as AuditTask);
-  },
-
   async cancelAuditTask(id: string): Promise<void> {
     await apiClient.post(`/tasks/${id}/cancel`);
   },
@@ -228,11 +216,6 @@ export const api = {
   async getAuditIssues(taskId: string): Promise<AuditIssue[]> {
     const res = await apiClient.get(`/tasks/${taskId}/issues`);
     return res.data;
-  },
-
-  async createAuditIssue(_issue: Omit<AuditIssue, 'id' | 'created_at' | 'task' | 'resolver'>): Promise<AuditIssue> {
-    // Issues are created by backend workers during scan
-    return {} as AuditIssue;
   },
 
   async updateAuditIssue(taskId: string, issueId: string, updates: Partial<AuditIssue>): Promise<AuditIssue> {
@@ -249,18 +232,6 @@ export const api = {
     } catch (e) {
       return [];
     }
-  },
-
-  async createInstantAnalysis(_analysis: InstantAnalysisForm & {
-    user_id: string;
-    analysis_result?: string;
-    issues_count?: number;
-    quality_score?: number;
-    analysis_time?: number;
-  }): Promise<InstantAnalysis> {
-    // Instant analysis is handled via /scan/instant endpoint
-    // This method is kept for compatibility
-    return {} as InstantAnalysis;
   },
 
   async deleteInstantAnalysis(analysisId: string): Promise<void> {
