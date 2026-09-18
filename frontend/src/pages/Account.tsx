@@ -36,6 +36,7 @@ export default function Account() {
   const [saving, setSaving] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [form, setForm] = useState({
+    email: "",
     full_name: "",
     phone: "",
     github_username: "",
@@ -58,6 +59,7 @@ export default function Account() {
       const res = await apiClient.get('/users/me');
       setProfile(res.data);
       setForm({
+        email: res.data.email || "",
         full_name: res.data.full_name || "",
         phone: res.data.phone || "",
         github_username: res.data.github_username || "",
@@ -86,6 +88,10 @@ export default function Account() {
   };
 
   const handleChangePassword = async () => {
+    if (!passwordForm.current_password) {
+      toast.error("请输入当前密码");
+      return;
+    }
     if (!passwordForm.new_password || !passwordForm.confirm_password) {
       toast.error("请填写新密码");
       return;
@@ -94,14 +100,17 @@ export default function Account() {
       toast.error("两次输入的密码不一致");
       return;
     }
-    if (passwordForm.new_password.length < 6) {
-      toast.error("密码长度至少6位");
+    if (passwordForm.new_password.length < 8) {
+      toast.error("密码长度至少8位");
       return;
     }
 
     try {
       setChangingPassword(true);
-      await apiClient.put('/users/me', { password: passwordForm.new_password });
+      await apiClient.put('/users/me', {
+        current_password: passwordForm.current_password,
+        password: passwordForm.new_password,
+      });
       toast.success("密码已更新");
       setPasswordForm({ current_password: "", new_password: "", confirm_password: "" });
     } catch (error) {
@@ -228,11 +237,12 @@ export default function Account() {
                 </Label>
                 <Input
                   id="email"
-                  value={profile?.email || ""}
-                  disabled
-                  className="cyber-input bg-muted text-muted-foreground cursor-not-allowed"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="请输入邮箱"
+                  className="cyber-input"
                 />
-                <p className="text-xs text-muted-foreground">邮箱不可修改</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="full_name" className="text-xs font-bold text-muted-foreground uppercase flex items-center gap-2">

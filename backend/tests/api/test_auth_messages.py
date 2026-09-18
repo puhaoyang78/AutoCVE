@@ -1,7 +1,7 @@
 import pytest
 from fastapi import HTTPException
 
-from app.api.v1.endpoints.auth import RegisterRequest, login, register
+from app.api.v1.endpoints.auth import login
 from app.main import root
 
 
@@ -11,11 +11,6 @@ class _FakeScalarResult:
 
     def first(self):
         return self._value
-
-    def all(self):
-        if isinstance(self._value, list):
-            return self._value
-        return [self._value] if self._value is not None else []
 
 
 class _FakeExecuteResult:
@@ -33,15 +28,6 @@ class _FakeAsyncSession:
     async def execute(self, _query):
         return _FakeExecuteResult(self._execute_results.pop(0))
 
-    async def commit(self):
-        return None
-
-    async def refresh(self, _instance):
-        return None
-
-    def add(self, _instance):
-        return None
-
 
 class _FakeOAuthForm:
     def __init__(self, username: str, password: str):
@@ -50,11 +36,11 @@ class _FakeOAuthForm:
 
 
 class _FakeUser:
-    def __init__(self, *, email="demo@example.com", hashed_password="hashed", is_active=True):
+    def __init__(self, *, email="user@example.com", hashed_password="hashed", is_active=True):
         self.id = "user-1"
         self.email = email
         self.hashed_password = hashed_password
-        self.full_name = "Demo"
+        self.full_name = "User"
         self.is_active = is_active
         self.is_superuser = False
         self.role = "member"
@@ -65,7 +51,7 @@ async def test_login_invalid_credentials_message(monkeypatch):
     monkeypatch.setattr("app.api.v1.endpoints.auth.security.verify_password", lambda plain, hashed: False)
 
     db = _FakeAsyncSession([_FakeUser()])
-    form = _FakeOAuthForm("demo@example.com", "bad-password")
+    form = _FakeOAuthForm("user@example.com", "bad-password")
 
     with pytest.raises(HTTPException) as exc_info:
         await login(db=db, form_data=form)
@@ -79,7 +65,7 @@ async def test_login_inactive_user_message(monkeypatch):
     monkeypatch.setattr("app.api.v1.endpoints.auth.security.verify_password", lambda plain, hashed: True)
 
     db = _FakeAsyncSession([_FakeUser(is_active=False)])
-    form = _FakeOAuthForm("demo@example.com", "password")
+    form = _FakeOAuthForm("user@example.com", "password")
 
     with pytest.raises(HTTPException) as exc_info:
         await login(db=db, form_data=form)
@@ -89,45 +75,8 @@ async def test_login_inactive_user_message(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_register_existing_email_message(monkeypatch):
-    monkeypatch.setattr("app.api.v1.endpoints.auth.settings.PUBLIC_REGISTRATION_ENABLED", True)
-    db = _FakeAsyncSession([_FakeUser(email="demo@example.com")])
-
-    with pytest.raises(HTTPException) as exc_info:
-        await register(
-            db=db,
-            user_in=RegisterRequest(
-                email="demo@example.com",
-                password="password123",
-                full_name="Demo",
-            ),
-        )
-
-    assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "该邮箱已被注册"
-
-
-@pytest.mark.asyncio
-async def test_root_does_not_expose_demo_credentials():
+async def test_root_does_not_expose_credentials():
     payload = await root()
 
     assert "demo_account" not in payload
-    assert "demo123" not in str(payload)
-
-
-@pytest.mark.asyncio
-async def test_register_disabled_by_default():
-    db = _FakeAsyncSession([])
-
-    with pytest.raises(HTTPException) as exc_info:
-        await register(
-            db=db,
-            user_in=RegisterRequest(
-                email="new@example.com",
-                password="password123",
-                full_name="New User",
-            ),
-        )
-
-    assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == "公开注册已关闭"
+    assert "password" not in str(payload).lower()

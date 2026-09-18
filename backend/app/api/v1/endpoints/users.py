@@ -124,10 +124,23 @@ async def update_user_me(
     update_data.pop('is_superuser', None)
     update_data.pop('is_active', None)
 
-    # 如果更新密码
-    if 'password' in update_data and update_data['password']:
-        update_data['hashed_password'] = security.get_password_hash(update_data['password'])
-    update_data.pop('password', None)
+    requested_email = update_data.get("email")
+    if requested_email and requested_email != current_user.email:
+        result = await db.execute(
+            select(User).where(User.email == requested_email, User.id != current_user.id)
+        )
+        if result.scalars().first():
+            raise HTTPException(status_code=400, detail="该邮箱已被注册")
+
+    new_password = update_data.pop("password", None)
+    current_password = update_data.pop("current_password", None)
+    if new_password:
+        if not current_password or not security.verify_password(
+            current_password,
+            current_user.hashed_password,
+        ):
+            raise HTTPException(status_code=400, detail="当前密码错误")
+        update_data["hashed_password"] = security.get_password_hash(new_password)
 
     for field, value in update_data.items():
         setattr(current_user, field, value)
@@ -169,10 +182,10 @@ async def update_user(
 
     update_data = user_in.model_dump(exclude_unset=True)
 
-    # 如果更新密码
-    if 'password' in update_data and update_data['password']:
-        update_data['hashed_password'] = security.get_password_hash(update_data['password'])
-    update_data.pop('password', None)
+    new_password = update_data.pop("password", None)
+    update_data.pop("current_password", None)
+    if new_password:
+        update_data["hashed_password"] = security.get_password_hash(new_password)
 
     for field, value in update_data.items():
         setattr(user, field, value)

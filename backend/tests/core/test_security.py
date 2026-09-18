@@ -1,6 +1,5 @@
 import bcrypt
 
-from app.core.config import settings
 from app.core.security import get_password_hash, verify_password
 
 
@@ -24,11 +23,3 @@ def test_verify_password_accepts_existing_bcrypt_hashes():
 def test_verify_password_rejects_malformed_hash():
     assert verify_password("password", "not-a-bcrypt-hash") is False
 
-
-def test_insecure_public_secret_is_not_used_by_default():
-    assert settings.SECRET_KEY
-    assert settings.SECRET_KEY != "changethis_in_production_to_a_long_random_string"
-
-
-def test_demo_data_is_disabled_by_default():
-    assert settings.ENABLE_DEMO_DATA is False

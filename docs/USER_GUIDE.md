@@ -50,7 +50,7 @@ AutoCVE 是一个前后端分离的 AI 代码安全审计平台，核心服务�
 
 ### 账号说明
 
-默认情况下，系统不会创建演示账号，并且公开注册关闭。首次部署前，请在 `backend/.env` 中配置一个初始管理员：
+系统不提供公开自注册。首次部署前，请在 `backend/.env` 中配置一个初始管理员；后续账号由管理员在用户管理中创建：
 
 ```env
 SECRET_KEY=<使用 openssl rand -hex 32 生成>
@@ -60,8 +60,6 @@ INITIAL_ADMIN_NAME=Administrator
 ```
 
 首次启动会创建该管理员。创建成功后可以从配置中移除 `INITIAL_ADMIN_PASSWORD`，但 `SECRET_KEY` 必须长期保持不变。
-
-仅在本地演示环境需要示例数据时，才设置 `ENABLE_DEMO_DATA=true`；生产环境不要开启。
 
 ## 2. 快速开始
 

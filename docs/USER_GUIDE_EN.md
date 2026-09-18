@@ -50,7 +50,7 @@ If you do not use Docker and instead run local development directly, you need:
 
 ### Account Notes
 
-By default, the system does not create a demo account and public registration is disabled. Before the first deployment, configure an initial administrator in `backend/.env`:
+The system does not provide public self-registration. Before the first deployment, configure an initial administrator in `backend/.env`; administrators create subsequent accounts through user management:
 
 ```env
 SECRET_KEY=<generate with openssl rand -hex 32>
@@ -60,8 +60,6 @@ INITIAL_ADMIN_NAME=Administrator
 ```
 
 The administrator is created on the first startup. After it is created successfully, `INITIAL_ADMIN_PASSWORD` can be removed from the configuration, while `SECRET_KEY` must remain stable.
-
-Set `ENABLE_DEMO_DATA=true` only for local demonstrations that need sample data. Do not enable it in production.
 
 ## 2. Quick Start
 

@@ -1,5 +1,5 @@
 import { useState, FormEvent, useEffect } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/shared/context/AuthContext";
 import { apiClient } from "@/shared/api/serverClient";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { ArrowRight, CheckCircle2, Lock, Mail } from "lucide-react";
+import { CheckCircle2, Lock, Mail } from "lucide-react";
 import loginBackground from "@/assets/LoginBackground2.png";
 import { getLoginErrorMessage } from "./loginErrorMessage";
 
@@ -170,13 +170,6 @@ export default function Login() {
                 </Button>
               </form>
 
-              <div className="mt-7 flex items-center justify-between rounded-[22px] bg-slate-100/70 px-5 py-4 text-sm">
-                <span className="text-slate-500">{"\u8fd8\u6ca1\u6709\u8d26\u53f7\uff1f"}</span>
-                <Link to="/register" className="inline-flex items-center gap-1.5 font-semibold text-[hsl(var(--primary))]">
-                  {"\u521b\u5efa\u65b0\u8d26\u53f7"}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
             </div>
           </div>
         </section>

@@ -14,8 +14,6 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(48))
-    ENABLE_DEMO_DATA: bool = False
-    PUBLIC_REGISTRATION_ENABLED: bool = False
     INITIAL_ADMIN_EMAIL: str | None = None
     INITIAL_ADMIN_PASSWORD: str | None = None
     INITIAL_ADMIN_NAME: str = "Administrator"
@@ -24,8 +22,13 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_secret_key(cls, v: str | None) -> str:
         value = str(v or "").strip()
-        if not value or value == "changethis_in_production_to_a_long_random_string":
+        if not value:
             return secrets.token_urlsafe(48)
+        if value in {
+            "changethis_in_production_to_a_long_random_string",
+            "your-super-secret-key-change-this-in-production",
+        }:
+            raise ValueError("SECRET_KEY uses an insecure placeholder value")
         return value
 
     ALGORITHM: str = "HS256"
