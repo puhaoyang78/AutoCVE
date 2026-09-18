@@ -241,7 +241,7 @@ class TestAgentConfig:
         assert config.temperature == 0.5
 
 
-class TestLegacyAnalysisWorkflowConcurrency:
+class TestAnalysisWorkflowConcurrency:
     @pytest.mark.asyncio
     async def test_executes_concurrency_safe_batch_actions_in_parallel(self):
         tracker = {"active": 0, "max_active": 0}
@@ -287,7 +287,7 @@ class TestLegacyAnalysisWorkflowConcurrency:
         assert "read_b:beta" in observation
 
 
-class TestLegacyInteractionAgentTools:
+class TestInteractionAgentTools:
     @pytest.fixture
     def recon_agent_with_interactions(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
@@ -303,7 +303,7 @@ class TestLegacyInteractionAgentTools:
         )
 
     @pytest.mark.asyncio
-    async def test_legacy_todo_tool_records_agent_scoped_todos(self, recon_agent_with_interactions):
+    async def test_todo_tool_records_agent_scoped_todos(self, recon_agent_with_interactions):
         result = await recon_agent_with_interactions.execute_tool(
             "TodoWrite",
             {"title": "Review auth middleware", "details": "Trace admin bypass guards"},
@@ -316,7 +316,7 @@ class TestLegacyInteractionAgentTools:
         assert interaction_state["pending_todos"][0]["details"] == "Trace admin bypass guards"
 
     @pytest.mark.asyncio
-    async def test_legacy_ask_user_tool_puts_agent_into_waiting_state(self, recon_agent_with_interactions):
+    async def test_ask_user_tool_puts_agent_into_waiting_state(self, recon_agent_with_interactions):
         result = await recon_agent_with_interactions.execute_tool(
             "AskUser",
             {"question": "Can we use staging credentials?", "context": {"reason": "verification"}},
@@ -332,7 +332,7 @@ class TestLegacyInteractionAgentTools:
         assert interaction_state["questions"][interaction_state["pending_questions"][0]["id"]]["status"] == "pending"
 
     @pytest.mark.asyncio
-    async def test_legacy_plan_mode_tools_toggle_agent_plan_state(self, recon_agent_with_interactions):
+    async def test_plan_mode_tools_toggle_agent_plan_state(self, recon_agent_with_interactions):
         await recon_agent_with_interactions.execute_tool(
             "EnterPlanMode",
             {"reason": "Need user approval before mutation"},
@@ -358,7 +358,7 @@ class TestLegacyInteractionAgentTools:
 
 
     @pytest.mark.asyncio
-    async def test_legacy_plan_mode_blocks_non_read_only_tools_but_allows_read_only_ones(self, mock_llm_service, mock_event_emitter):
+    async def test_plan_mode_blocks_non_read_only_tools_but_allows_read_only_ones(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -380,7 +380,7 @@ class TestLegacyInteractionAgentTools:
 
 
     @pytest.mark.asyncio
-    async def test_legacy_permission_rules_can_require_ask_for_mutating_tools(self, mock_llm_service, mock_event_emitter):
+    async def test_permission_rules_can_require_ask_for_mutating_tools(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -401,7 +401,7 @@ class TestLegacyInteractionAgentTools:
         assert "need human approval" in denied.lower()
 
     @pytest.mark.asyncio
-    async def test_legacy_permission_rules_can_allow_specific_tool_even_in_plan_mode(self, mock_llm_service, mock_event_emitter):
+    async def test_permission_rules_can_allow_specific_tool_even_in_plan_mode(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -423,7 +423,7 @@ class TestLegacyInteractionAgentTools:
 
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_permission_denials_in_runtime_metadata(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_permission_denials_in_runtime_metadata(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -448,7 +448,7 @@ class TestLegacyInteractionAgentTools:
         assert runtime_records[-1]["permission_mode"] == "ask"
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_completed_calls_in_runtime_metadata(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_completed_calls_in_runtime_metadata(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -468,7 +468,7 @@ class TestLegacyInteractionAgentTools:
 
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_runtime_lifecycle_events_for_success(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_runtime_lifecycle_events_for_success(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -486,7 +486,7 @@ class TestLegacyInteractionAgentTools:
         assert runtime_events[-1]["tool_name"] == "read_only_probe"
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_runtime_lifecycle_events_for_permission_denial(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_runtime_lifecycle_events_for_permission_denial(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -511,7 +511,7 @@ class TestLegacyInteractionAgentTools:
 
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_hook_matches_for_success_events(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_hook_matches_for_success_events(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -537,7 +537,7 @@ class TestLegacyInteractionAgentTools:
         assert hook_records[-1]["skill_ref"] == "code-audit-finding"
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_hook_matches_for_permission_denials(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_hook_matches_for_permission_denials(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -569,7 +569,7 @@ class TestLegacyInteractionAgentTools:
 
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_checkpoint_style_view_for_hook_matches(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_checkpoint_style_view_for_hook_matches(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -595,7 +595,7 @@ class TestLegacyInteractionAgentTools:
         assert checkpoints[-1]["state_payload"]["matched_hooks"][0]["hooks"] == ["log-post"]
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_records_checkpoint_style_view_for_permission_rule_denial_without_hooks(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_records_checkpoint_style_view_for_permission_rule_denial_without_hooks(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -622,7 +622,7 @@ class TestLegacyInteractionAgentTools:
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio
-    async def test_legacy_agent_can_restore_runtime_session_checkpoint_when_configured(self, mock_llm_service, mock_event_emitter):
+    async def test_agent_can_restore_runtime_session_checkpoint_when_configured(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -644,7 +644,7 @@ class TestLegacyInteractionAgentTools:
         assert kwargs["agent_state"] is agent.state
 
     @pytest.mark.asyncio
-    async def test_legacy_execute_tool_persists_runtime_session_checkpoint_when_configured(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_persists_runtime_session_checkpoint_when_configured(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -665,7 +665,7 @@ class TestLegacyInteractionAgentTools:
         assert kwargs["agent_state"] is agent.state
         assert agent.state.metadata["runtime_session_ref"]["task_id"] == "task-1"
 
-    async def test_legacy_execute_tool_syncs_session_runtime_state_view(self, mock_llm_service, mock_event_emitter):
+    async def test_execute_tool_syncs_session_runtime_state_view(self, mock_llm_service, mock_event_emitter):
         mock_llm_service.chat_completion_stream = MagicMock()
         agent = ReconAgent(
             llm_service=mock_llm_service,
@@ -701,12 +701,12 @@ class TestLegacyInteractionAgentTools:
         assert runtime_state["metadata"]["session_hooks"]["code-audit-finding"]["PostToolUse"][0]["hooks"] == ["log-post"]
         assert runtime_state["metadata"]["tool_runtime"]["records"][-1]["tool_name"] == "TodoWrite"
         session_ref = agent.state.metadata["runtime_session_ref"]
-        assert session_ref["source"] == "legacy"
+        assert session_ref["source"] == "agent"
         assert session_ref["agent_id"] == agent.agent_id
         assert runtime_session_registry.get(session_ref["session_key"])["runtime_state"]["permission_mode"] == "plan"
 
 
-    async def test_legacy_agent_load_runtime_memory_bundle_updates_prompt_and_session_state(self, mock_llm_service, mock_event_emitter):
+    async def test_agent_load_runtime_memory_bundle_updates_prompt_and_session_state(self, mock_llm_service, mock_event_emitter):
         agent = DummyWorkflowAgent()
         original_prompt = agent.config.system_prompt
 

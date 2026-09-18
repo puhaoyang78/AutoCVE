@@ -357,9 +357,6 @@ class RuntimeLLMModelClient:
         if role == "system":
             return None
         if role == "assistant":
-            legacy_tool_summary = RuntimeLLMModelClient._summarize_legacy_tool_call_content(content)
-            if legacy_tool_summary is not None:
-                return {"role": "user", "content": legacy_tool_summary}
             return {"role": "assistant", "content": content}
         if role == "tool_use":
             tool_name = payload.get("tool_name") or getattr(item, "name", "tool")
@@ -443,36 +440,6 @@ class RuntimeLLMModelClient:
                 if extracted:
                     return extracted
         return {}
-
-    @staticmethod
-    def _summarize_legacy_tool_call_content(content: str) -> str | None:
-        text = (content or "").strip()
-        if not text:
-            return None
-
-        tool_call_match = re.match(r"Tool Call:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(.*)$", text, re.DOTALL)
-        if tool_call_match:
-            return RuntimeLLMModelClient._format_tool_history(
-                tool_name=tool_call_match.group(1).strip(),
-                tool_input=RuntimeLLMModelClient._extract_tool_input_payload(
-                    AgentJsonParser.parse_any(tool_call_match.group(2).strip(), default={})
-                ),
-            )
-
-        action_match = re.match(
-            r"Action:\s*([A-Za-z_][A-Za-z0-9_]*)\s*Action Input:\s*(.*)$",
-            text,
-            re.DOTALL,
-        )
-        if action_match:
-            return RuntimeLLMModelClient._format_tool_history(
-                tool_name=action_match.group(1).strip(),
-                tool_input=RuntimeLLMModelClient._extract_tool_input_payload(
-                    AgentJsonParser.parse_any(action_match.group(2).strip(), default={})
-                ),
-            )
-
-        return None
 
     @staticmethod
     def _normalize_tool_call(raw_tool_call: dict[str, Any]) -> dict[str, Any]:
@@ -1107,7 +1074,7 @@ class FindingRuntimeBridge:
                         "title": title,
                         "description": (
                             "Recovered from the runtime assistant transcript after final JSON finalization failed. "
-                            f"Evidence line: {line}"
+                            f"Transcript line: {line}"
                         ),
                         "confidence": 0.84,
                         "needs_verification": True,
@@ -1118,9 +1085,8 @@ class FindingRuntimeBridge:
                         ),
                         "origin": "transcript_recovery",
                         "report_status": "recovered_candidate",
-                        "evidence_type": "transcript_recovery",
                         "not_finalized": True,
-                        "evidence_gaps": ["recovered_after_finalizer_failure"],
+                        "validation_gaps": ["recovered_after_finalizer_failure"],
                         "entry_point_refs": [],
                         "priority_path_refs": [],
                         "business_flow_notes": [line],

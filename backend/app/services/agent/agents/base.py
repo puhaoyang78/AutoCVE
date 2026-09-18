@@ -19,7 +19,7 @@ from app.services.runtime_core.permission_runtime import ToolPermissionDecision,
 from app.services.runtime_core.session_registry import runtime_session_registry
 from app.services.runtime_core.session_state import (
     SessionRuntimeState,
-    build_legacy_agent_runtime_state,
+    build_agent_runtime_state,
 )
 from app.services.runtime_core.tool_runtime import match_runtime_event_hooks
 
@@ -729,7 +729,7 @@ class BaseAgent(ABC):
     def _sync_runtime_session_state_view(self) -> None:
         metadata = self._state.metadata
         task_id = str(metadata.get("task_id") or self._state.task_context.get("task_id") or "").strip() or None
-        runtime_state = build_legacy_agent_runtime_state(
+        runtime_state = build_agent_runtime_state(
             session_id=self.agent_id,
             agent_type=self.agent_type.value,
             interaction_state=metadata.get("interaction_runtime") or {},
@@ -737,14 +737,14 @@ class BaseAgent(ABC):
             memory_runtime=metadata.get("memory_runtime") or {},
         )
         metadata["runtime_session_state"] = runtime_state.model_dump()
-        session_key = f"legacy:{task_id}:{self.agent_id}" if task_id else f"legacy:{self.agent_id}"
+        session_key = f"agent:{task_id}:{self.agent_id}" if task_id else f"agent:{self.agent_id}"
         entry = runtime_session_registry.upsert(
             session_key=session_key,
             runtime_state=runtime_state,
             agent_id=self.agent_id,
             agent_type=self.agent_type.value,
             task_id=task_id,
-            source="legacy",
+            source="agent",
         )
         metadata["runtime_session_ref"] = {
             "session_key": entry["session_key"],

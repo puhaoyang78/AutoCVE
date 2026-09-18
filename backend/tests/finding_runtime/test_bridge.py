@@ -1198,15 +1198,14 @@ def test_runtime_model_client_build_messages_uses_native_openai_tool_history():
         "content": "source",
     }
 
-def test_runtime_model_client_sanitizes_textual_tool_call_history_into_user_context_note():
+def test_runtime_model_client_keeps_assistant_text_as_assistant_content():
+    content = 'Tool Call: Write\n{"input":{"path":".auditai/findings.json","content":"{}"}}'
     mapped = RuntimeLLMModelClient._map_transcript_item(
         TranscriptItem(
             role=RuntimeMessageRole.ASSISTANT,
-            content='Tool Call: Write\n{"input":{"path":".auditai/findings.json","content":"{}"}}',
+            content=content,
         )
     )
 
-    assert mapped is not None
-    assert mapped["role"] == "user"
-    assert "Tool Call:" not in mapped["content"]
-    assert "先前工具请求历史" in mapped["content"]
+    assert mapped == {"role": "assistant", "content": content}
+

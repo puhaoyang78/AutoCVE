@@ -120,7 +120,6 @@ class PreparedToolInvocation:
 
 class AnalysisWorkflowAgent(BaseAgent):
     finding_origin = "analysis"
-    evidence_type = "source-analysis"
     output_key = "findings"
     handoff_target = "verification"
 
@@ -688,7 +687,7 @@ class AnalysisWorkflowAgent(BaseAgent):
     async def _recover_final_result(self) -> Dict[str, Any]:
         return {}
 
-    def _normalize_finding(self, finding: Dict[str, Any], *, origin: Optional[str] = None, evidence_type: Optional[str] = None) -> Dict[str, Any]:
+    def _normalize_finding(self, finding: Dict[str, Any], *, origin: Optional[str] = None) -> Dict[str, Any]:
         line_start = finding.get("line_start") or finding.get("line", 0) or 0
         line_end = finding.get("line_end") or finding.get("line_start") or finding.get("line", 0) or 0
         try:
@@ -703,33 +702,33 @@ class AnalysisWorkflowAgent(BaseAgent):
         file_path = str(finding.get("file_path", "") or "").strip()
         confidence = float(finding.get("confidence", 0.7) or 0.7)
         needs_verification = bool(finding.get("needs_verification", True))
-        evidence_gaps = [
-            item for item in finding.get("evidence_gaps", [])
+        validation_gaps = [
+            item for item in finding.get("validation_gaps", [])
             if isinstance(item, str) and item.strip()
         ]
 
         if not finding.get("source"):
-            evidence_gaps.append("missing_source")
+            validation_gaps.append("missing_source")
             confidence = min(confidence, 0.8)
             needs_verification = True
 
         if not finding.get("sink"):
-            evidence_gaps.append("missing_sink")
+            validation_gaps.append("missing_sink")
             confidence = min(confidence, 0.8)
             needs_verification = True
 
         if not finding.get("description"):
-            evidence_gaps.append("missing_description")
+            validation_gaps.append("missing_description")
             needs_verification = True
 
         if not finding.get("suggestion"):
-            evidence_gaps.append("missing_suggestion")
+            validation_gaps.append("missing_suggestion")
             needs_verification = True
 
         if file_path and getattr(self, "_current_project_root", ""):
             candidate = os.path.join(self._current_project_root, file_path)
             if not os.path.exists(candidate):
-                evidence_gaps.append("unverified_file_path")
+                validation_gaps.append("unverified_file_path")
                 confidence = min(confidence, 0.75)
                 needs_verification = True
 
@@ -748,8 +747,7 @@ class AnalysisWorkflowAgent(BaseAgent):
             "confidence": round(max(min(confidence, 1.0), 0.0), 2),
             "needs_verification": needs_verification,
             "origin": origin or self.finding_origin,
-            "evidence_type": evidence_type or self.evidence_type,
-            "evidence_gaps": sorted(set(evidence_gaps)),
+            "validation_gaps": sorted(set(validation_gaps)),
             "verdict": str(finding.get("verdict", "candidate")).lower(),
             "impact": finding.get("impact", ""),
             "cve_justification": finding.get("cve_justification", ""),

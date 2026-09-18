@@ -197,7 +197,7 @@ class SessionRuntimeState(BaseModel):
         return sorted(state.invoked_skills.keys())
 
 
-def build_legacy_agent_runtime_state(
+def build_agent_runtime_state(
     *,
     session_id: str,
     agent_type: str,
@@ -247,7 +247,7 @@ def build_legacy_agent_runtime_state(
     return runtime_state
 
 
-def sync_legacy_agent_metadata_from_runtime_state(
+def sync_agent_metadata_from_runtime_state(
     runtime_state: SessionRuntimeState,
     *,
     agent_type: str,

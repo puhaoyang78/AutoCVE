@@ -9,8 +9,8 @@ from app.services.runtime_core.session_state import (
     AgentRuntimeState,
     InvokedSkillState,
     SessionRuntimeState,
-    build_legacy_agent_runtime_state,
-    sync_legacy_agent_metadata_from_runtime_state,
+    build_agent_runtime_state,
+    sync_agent_metadata_from_runtime_state,
 )
 
 
@@ -100,7 +100,7 @@ def test_session_store_persists_and_reloads_runtime_state_round_trip():
     assert loaded.agent_states["finding"].invoked_skills["code-audit-finding"].invocation_count == 2
 
 
-def test_legacy_session_runtime_adapter_round_trips_permissions_and_hooks():
+def test_session_runtime_adapter_round_trips_permissions_and_hooks():
     interaction_state = {
         "permission_mode": "plan",
         "pending_todos": [{"id": "todo-1", "title": "Review auth flow"}],
@@ -124,7 +124,7 @@ def test_legacy_session_runtime_adapter_round_trips_permissions_and_hooks():
         },
     }
 
-    runtime_state = build_legacy_agent_runtime_state(
+    runtime_state = build_agent_runtime_state(
         session_id="agent-1",
         agent_type="recon",
         interaction_state=interaction_state,
@@ -138,7 +138,7 @@ def test_legacy_session_runtime_adapter_round_trips_permissions_and_hooks():
 
     interaction_store = {}
     tool_store = {}
-    sync_legacy_agent_metadata_from_runtime_state(
+    sync_agent_metadata_from_runtime_state(
         runtime_state,
         agent_type="recon",
         interaction_state=interaction_store,
@@ -152,7 +152,7 @@ def test_legacy_session_runtime_adapter_round_trips_permissions_and_hooks():
     assert tool_store["records"][-1]["tool_name"] == "TodoWrite"
 
 
-def test_legacy_session_runtime_adapter_preserves_memory_runtime_payload():
+def test_session_runtime_adapter_preserves_memory_runtime_payload():
     interaction_state = {
         "permission_mode": "default",
     }
@@ -174,7 +174,7 @@ def test_legacy_session_runtime_adapter_preserves_memory_runtime_payload():
         "source": "task-bootstrap",
     }
 
-    runtime_state = build_legacy_agent_runtime_state(
+    runtime_state = build_agent_runtime_state(
         session_id="agent-1",
         agent_type="analysis",
         interaction_state=interaction_state,
@@ -187,7 +187,7 @@ def test_legacy_session_runtime_adapter_preserves_memory_runtime_payload():
     interaction_store = {}
     tool_store = {}
     memory_store = {}
-    sync_legacy_agent_metadata_from_runtime_state(
+    sync_agent_metadata_from_runtime_state(
         runtime_state,
         agent_type="analysis",
         interaction_state=interaction_store,

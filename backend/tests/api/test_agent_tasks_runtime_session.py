@@ -375,7 +375,6 @@ async def test_agent_task_detail_exposes_finding_outcome_semantics():
                             'line_start': 42,
                             'report_status': 'recovered_candidate',
                             'origin': 'transcript_recovery',
-                            'evidence_type': 'transcript_recovery',
                             'not_finalized': True,
                         }
                     ],

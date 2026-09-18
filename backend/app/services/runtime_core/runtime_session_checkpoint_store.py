@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.models.agent_task import AgentCheckpoint
 from app.services.runtime_core.session_registry import runtime_session_registry
-from app.services.runtime_core.session_state import SessionRuntimeState, sync_legacy_agent_metadata_from_runtime_state
+from app.services.runtime_core.session_state import SessionRuntimeState, sync_agent_metadata_from_runtime_state
 
 
 class RuntimeSessionCheckpointStore:
@@ -99,7 +99,7 @@ class RuntimeSessionCheckpointStore:
             setattr(agent_state, "metadata", metadata)
         interaction_state = metadata.setdefault("interaction_runtime", {})
         tool_runtime = metadata.setdefault("tool_runtime", {})
-        sync_legacy_agent_metadata_from_runtime_state(
+        sync_agent_metadata_from_runtime_state(
             runtime_state,
             agent_type=str(getattr(agent_state, "agent_type", "")),
             interaction_state=interaction_state,
@@ -108,15 +108,14 @@ class RuntimeSessionCheckpointStore:
         )
         metadata["runtime_session_state"] = runtime_state.model_dump()
 
-        runtime_session_ref = dict(payload.get("runtime_session_ref") or {})
-        session_key = str(runtime_session_ref.get("session_key") or f"legacy:{task_id}:{getattr(agent_state, 'agent_id', '')}")
+        agent_id = str(getattr(agent_state, "agent_id", ""))
         entry = runtime_session_registry.upsert(
-            session_key=session_key,
+            session_key=f"agent:{task_id}:{agent_id}",
             runtime_state=runtime_state,
-            agent_id=str(getattr(agent_state, "agent_id", "")),
+            agent_id=agent_id,
             agent_type=str(getattr(agent_state, "agent_type", "")),
             task_id=str(task_id),
-            source=str(runtime_session_ref.get("source") or "legacy"),
+            source="agent",
         )
         metadata["runtime_session_ref"] = {
             "session_key": entry["session_key"],

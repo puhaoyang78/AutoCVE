@@ -192,7 +192,6 @@ Action Input: {"file_path": "app/db/query.py", "start_line": 45, "end_line": 70}
 
 class TriageAgent(AnalysisWorkflowAgent):
     finding_origin = "scan_triage"
-    evidence_type = "scanner-confirmed"
 
     def __init__(self, llm_service, tools: Dict[str, Any], event_emitter=None):
         super().__init__(
@@ -221,10 +220,10 @@ class TriageAgent(AnalysisWorkflowAgent):
 - 过滤明显误报。
 - 仅保留有真实代码证据的发现。
 - 可根据需要调用 read_file、search_code、function_context、dataflow_analysis、pattern_match。
-- 输出必须是标准 findings，且 origin=scan_triage、evidence_type=scanner-confirmed。
+- 输出必须是标准 findings，且 origin=scan_triage。
 - 即使 verification agent 后续会继续验证，你现在也必须给出基于代码证据的候选漏洞报告，而不是只给一段简短结论。"""
 
-    def _normalize_finding(self, finding: Dict[str, Any], *, origin: str | None = None, evidence_type: str | None = None) -> Dict[str, Any]:
-        normalized = super()._normalize_finding(finding, origin=origin or "scan_triage", evidence_type=evidence_type or "scanner-confirmed")
+    def _normalize_finding(self, finding: Dict[str, Any], *, origin: str | None = None) -> Dict[str, Any]:
+        normalized = super()._normalize_finding(finding, origin=origin or "scan_triage")
         normalized["is_false_positive"] = finding.get("is_false_positive", False)
         return normalized

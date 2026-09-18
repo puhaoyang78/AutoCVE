@@ -185,7 +185,6 @@ Action Input: {"path": "."}
 
 class ScanAgent(AnalysisWorkflowAgent):
     finding_origin = "scan"
-    evidence_type = "scanner-output"
     output_key = "raw_findings"
     handoff_target = "triage"
 
@@ -240,7 +239,7 @@ class ScanAgent(AnalysisWorkflowAgent):
         for finding in raw_result.get("raw_findings", []):
             if not isinstance(finding, dict):
                 continue
-            normalized = self._normalize_finding(finding, origin="scan", evidence_type="scanner-output")
+            normalized = self._normalize_finding(finding, origin="scan")
             normalized["source_tool"] = finding.get("source_tool", "")
             normalized["rule_id"] = finding.get("rule_id", "")
             standardized.append(normalized)
