@@ -455,7 +455,7 @@ async def create_project(
                 Project.owner_id == current_user.id,
                 Project.source_type == "local_directory",
                 Project.local_path == normalized_local_path,
-                Project.is_active == True,
+                Project.is_active.is_(True),
             )
         )
         if existing_result.scalars().first():
@@ -527,7 +527,7 @@ async def read_projects(
     # 只返回当前用户的项目
     query = query.where(Project.owner_id == current_user.id)
     if not include_deleted:
-        query = query.where(Project.is_active == True)
+        query = query.where(Project.is_active.is_(True))
     query = query.order_by(Project.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
@@ -544,7 +544,7 @@ async def read_deleted_projects(
         select(Project)
         .options(selectinload(Project.owner))
         .where(Project.owner_id == current_user.id)
-        .where(Project.is_active == False)
+        .where(Project.is_active.is_(False))
         .order_by(Project.updated_at.desc())
     )
     return result.scalars().all()
@@ -705,7 +705,7 @@ async def update_project(
                 Project.source_type == "local_directory",
                 Project.local_path == normalized_local_path,
                 Project.id != project.id,
-                Project.is_active == True,
+                Project.is_active.is_(True),
             )
         )
         if existing_result.scalars().first():

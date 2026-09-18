@@ -47,7 +47,7 @@ async def list_rule_sets(
 
     # 过滤条件：系统规则集 + 当前用户创建的规则集
     query = query.where(
-        (AuditRuleSet.is_system == True) |
+        (AuditRuleSet.is_system.is_(True)) |
         (AuditRuleSet.created_by == current_user.id)
     )
 
@@ -69,7 +69,7 @@ async def list_rule_sets(
     # 计数
     count_query = select(sql_func.count()).select_from(
         select(AuditRuleSet).where(
-            (AuditRuleSet.is_system == True) |
+            (AuditRuleSet.is_system.is_(True)) |
             (AuditRuleSet.created_by == current_user.id)
         ).subquery()
     )

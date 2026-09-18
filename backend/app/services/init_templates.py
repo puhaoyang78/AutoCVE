@@ -531,7 +531,7 @@ async def init_system_templates(db: AsyncSession) -> None:
         result = await db.execute(
             select(PromptTemplate).where(
                 PromptTemplate.name == template_data["name"],
-                PromptTemplate.is_system == True
+                PromptTemplate.is_system.is_(True)
             )
         )
         existing = result.scalar_one_or_none()
@@ -562,7 +562,7 @@ async def init_system_rule_sets(db: AsyncSession) -> None:
         result = await db.execute(
             select(AuditRuleSet).where(
                 AuditRuleSet.name == rule_set_data["name"],
-                AuditRuleSet.is_system == True
+                AuditRuleSet.is_system.is_(True)
             )
         )
         existing = result.scalar_one_or_none()

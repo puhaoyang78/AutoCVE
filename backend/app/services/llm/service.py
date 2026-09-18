@@ -981,8 +981,8 @@ class LLMService:
                 elif use_default_template:
                     result = await db_session.execute(
                         select(PromptTemplate).where(
-                            PromptTemplate.is_default == True,
-                            PromptTemplate.is_active == True,
+                            PromptTemplate.is_default.is_(True),
+                            PromptTemplate.is_active.is_(True),
                             PromptTemplate.template_type == "system",
                         )
                     )

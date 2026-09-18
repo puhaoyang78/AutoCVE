@@ -41,7 +41,7 @@ async def list_prompt_templates(
 
     # 过滤条件：系统模板 + 当前用户创建的模板
     query = query.where(
-        (PromptTemplate.is_system == True) |
+        (PromptTemplate.is_system.is_(True)) |
         (PromptTemplate.created_by == current_user.id)
     )
 
@@ -360,12 +360,12 @@ async def set_default_template(
     await db.execute(
         select(PromptTemplate)
         .where(PromptTemplate.template_type == template.template_type)
-        .where(PromptTemplate.is_default == True)
+        .where(PromptTemplate.is_default.is_(True))
     )
     same_type_defaults = (await db.execute(
         select(PromptTemplate)
         .where(PromptTemplate.template_type == template.template_type)
-        .where(PromptTemplate.is_default == True)
+        .where(PromptTemplate.is_default.is_(True))
     )).scalars().all()
 
     for t in same_type_defaults:

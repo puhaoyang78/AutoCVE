@@ -414,7 +414,7 @@ async def _get_or_create_project(
             Project.owner_id == user_id,
             Project.source_type == "repository",
             Project.repository_url == candidate.repository_url,
-            Project.is_active == True,
+            Project.is_active.is_(True),
         )
     )
     existing = existing_result.scalar_one_or_none()
