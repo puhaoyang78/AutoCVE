@@ -611,7 +611,7 @@ class CodeSplitter:
             return []
 
         # 计算每个定义的范围
-        for i, defn in enumerate(definitions):
+        for defn in definitions:
             start_line = defn["line"]
             base_indent = defn["indent"]
 

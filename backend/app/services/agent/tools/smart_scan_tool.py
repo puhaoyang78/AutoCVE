@@ -515,8 +515,8 @@ class QuickAuditTool(AgentTool):
         # 代码指标
         audit_result["code_metrics"] = {
             "total_lines": len(lines),
-            "non_empty_lines": len([l for l in lines if l.strip()]),
-            "comment_lines": len([l for l in lines if l.strip().startswith(('#', '//', '/*', '*'))]),
+            "non_empty_lines": len([line for line in lines if line.strip()]),
+            "comment_lines": len([line for line in lines if line.strip().startswith(('#', '//', '/*', '*'))]),
         }
 
         # 执行模式匹配

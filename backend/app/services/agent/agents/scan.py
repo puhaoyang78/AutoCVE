@@ -206,7 +206,6 @@ class ScanAgent(AnalysisWorkflowAgent):
         priority_paths = recon_data.get("priority_paths", recon_data.get("high_risk_areas", []))
         audit_targets = recon_data.get("audit_targets", {})
         target_files = config.get("target_files", audit_targets.get("target_files", []))
-        project_profile = recon_data.get("project_profile", recon_data.get("tech_stack", {}))
         must_use = recommended.get("must_use", [])
         optional = recommended.get("optional", [])
         return f"""执行当前项目的强制扫描阶段。

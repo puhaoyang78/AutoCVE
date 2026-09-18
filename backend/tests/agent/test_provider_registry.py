@@ -114,12 +114,12 @@ def test_factory_routes_native_protocol_adapters() -> None:
 
 def test_factory_cache_distinguishes_sampling_configuration() -> None:
     LLMFactory.clear_cache()
-    base = dict(
-        provider=LLMProvider.MOONSHOT,
-        api_key="moonshot-test",
-        model="kimi-k2.6",
-        endpoint_protocol="openai_chat",
-    )
+    base = {
+        "provider": LLMProvider.MOONSHOT,
+        "api_key": "moonshot-test",
+        "model": "kimi-k2.6",
+        "endpoint_protocol": "openai_chat",
+    }
 
     automatic = LLMFactory.create_adapter(LLMConfig(**base))
     configured = LLMFactory.create_adapter(LLMConfig(**base, temperature=1, top_p=0.95))

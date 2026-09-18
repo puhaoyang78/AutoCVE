@@ -747,8 +747,6 @@ class VerificationAgent(BaseAgent):
                     # 🔥 发射 LLM 动作决策事件
                     await self.emit_llm_action(step.action, step.action_input or {})
 
-                    start_tool_time = time.time()
-
                     # 🔥 智能循环检测: 追踪重复调用 (无论成功与否)
                     tool_call_key = f"{step.action}:{json.dumps(step.action_input or {}, sort_keys=True)}"
 
@@ -1016,7 +1014,6 @@ class VerificationAgent(BaseAgent):
         # 按验证结果分类
         confirmed = [f for f in verified_findings if f.get("verdict") == "confirmed"]
         likely = [f for f in verified_findings if f.get("verdict") == "likely"]
-        false_positives = [f for f in verified_findings if f.get("verdict") == "false_positive"]
 
         # 提取关键发现（已确认的高危漏洞）
         key_findings = []

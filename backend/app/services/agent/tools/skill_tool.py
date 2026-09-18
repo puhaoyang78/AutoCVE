@@ -191,7 +191,7 @@ class SkillResourceTool(AgentTool):
         if isinstance(resource_name, list):
             values = resource_name
         else:
-            values = [part for part in str(resource_name).split(",")]
+            values = list(str(resource_name).split(","))
         normalized = []
         for value in values:
             item = str(value or "").replace("\\", "/").strip().strip("/")

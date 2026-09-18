@@ -483,8 +483,6 @@ class SqlInjectionTestTool(AgentTool):
 
     def _detect_sql_error(self, output: str, db_type: str = "mysql") -> str | None:
         """检测 SQL 错误特征"""
-        output_lower = output.lower()
-
         # 先检测特定数据库
         patterns = self.SQL_ERROR_PATTERNS.get(db_type, [])
         for pattern in patterns:

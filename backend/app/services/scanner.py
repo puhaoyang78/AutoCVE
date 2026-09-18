@@ -390,8 +390,6 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
                 ssh_private_key = decrypt_sensitive_data(user_other_config['sshPrivateKey'])
 
             files: list[dict[str, str]] = []
-            extracted_gitlab_token = None
-
             # 检查是否为SSH URL
             from app.services.git_ssh_service import GitSSHOperations
             is_ssh_url = GitSSHOperations.is_ssh_url(repo_url)
@@ -432,9 +430,6 @@ async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = N
                             files = await get_github_files(repo_url, try_branch, github_token, task_exclude_patterns)
                         elif repo_type == "gitlab":
                             files = await get_gitlab_files(repo_url, try_branch, gitlab_token, task_exclude_patterns)
-                            # GitLab文件可能带有token
-                            if files and 'token' in files[0]:
-                                extracted_gitlab_token = files[0].get('token')
                         elif repo_type == "gitea":
                             files = await get_gitea_files(repo_url, try_branch, gitea_token, task_exclude_patterns)
                         else:

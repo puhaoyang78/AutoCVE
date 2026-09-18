@@ -108,7 +108,7 @@ class SecurityKnowledgeRAG:
                 "content": doc.to_embedding_text(),
             })
 
-        async for progress in self._indexer.index_files(files, base_path="knowledge"):
+        async for _ in self._indexer.index_files(files, base_path="knowledge"):
             pass
 
         logger.info(f"Indexed {len(files)} knowledge documents")

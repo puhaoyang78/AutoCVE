@@ -105,7 +105,7 @@ def build_stop_hook_artifact_messages(result: dict[str, Any]) -> list[Transcript
         hook_event = str(event.get("event") or "").strip() or "Stop"
         last_hook_event = hook_event
         execution_events = [dict(item) for item in (event.get("hook_execution_events") or []) if isinstance(item, dict)]
-        for index, run in enumerate(_hook_runs(event), start=1):
+        for run in _hook_runs(event):
             tool_use_id = str(event.get("tool_use_id") or f"hook-{hook_event.lower()}-{hook_count + 1}").strip()
             event["tool_use_id"] = tool_use_id
             last_tool_use_id = tool_use_id

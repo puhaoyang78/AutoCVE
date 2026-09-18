@@ -115,7 +115,7 @@ async def create_skill(
     if slug in SkillFileService.list_skill_slugs():
         raise HTTPException(status_code=400, detail="Skill slug already exists")
 
-    skill = SkillFileService.write_skill(
+    SkillFileService.write_skill(
         slug=slug,
         name=skill_in.name,
         description=skill_in.description,

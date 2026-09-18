@@ -727,12 +727,6 @@ class OrchestratorAgent(BaseAgent):
             recon_result = await self._run_sub_agent("recon", recon_payload)
             previous_results = {"recon": recon_result.to_dict()}
 
-            scan_payload = {
-                **input_data,
-                "previous_results": previous_results,
-                "task": "mandatory scanner execution",
-                "task_context": "Run scanner tools only and produce raw findings.",
-            }
             finding_payload = {
                 **input_data,
                 "previous_results": previous_results,

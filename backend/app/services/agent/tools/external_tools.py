@@ -272,7 +272,7 @@ Semgrep 是业界领先的静态分析工具，支持 30+ 种编程语言。
 
             severity_icons = {"ERROR": "🔴", "WARNING": "🟠", "INFO": "🟡"}
 
-            for i, finding in enumerate(findings[:max_results]):
+            for finding in findings[:max_results]:
                 sev = finding.get("extra", {}).get("severity", "INFO")
                 icon = severity_icons.get(sev, "⚪")
 
@@ -730,7 +730,7 @@ class NpmAuditTool(AgentTool):
             output_parts = ["📦 npm audit 依赖漏洞扫描结果\n"]
 
             severity_counts = {"critical": 0, "high": 0, "moderate": 0, "low": 0}
-            for name, vuln in vulnerabilities.items():
+            for vuln in vulnerabilities.values():
                 severity = vuln.get("severity", "low")
                 severity_counts[severity] = severity_counts.get(severity, 0) + 1
 

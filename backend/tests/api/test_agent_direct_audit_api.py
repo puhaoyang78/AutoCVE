@@ -828,7 +828,6 @@ async def test_stream_direct_audit_session_creation_emits_session_created_and_me
             "/api/v1/agent-direct-audit/sessions/stream",
             json={"project_id": "project-1", "content": "甯垜瀹炴椂瀹¤杩欎釜椤圭洰"},
         )
-        messages = await client.get("/api/v1/agent-direct-audit/sessions/session-stream-1/messages")
 
     await engine.dispose()
 

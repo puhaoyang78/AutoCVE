@@ -234,8 +234,6 @@ class TestAPIEndpoints:
     async def test_get_project_files_with_exclude(self):
         """测试获取项目文件 API 带排除模式"""
         # 模拟请求参数
-        project_id = "test-project-id"
-        branch = "main"
         exclude_patterns = json.dumps(["*.log", "temp/**"])
 
         # 验证参数格式正确

@@ -770,8 +770,6 @@ async def test_upload_project_zip_extracts_persistent_source_and_can_skip_archiv
     source_root = managed_root / "project-sources"
     original_managed_root = projects_endpoint.settings.MANAGED_PROJECTS_ROOT
     original_zip_root = projects_endpoint.settings.ZIP_STORAGE_PATH
-    original_source_root = projects_endpoint.settings.PROJECT_SOURCE_STORAGE_PATH
-    original_session_factory = projects_endpoint.AsyncSessionLocal
     projects_endpoint.settings.MANAGED_PROJECTS_ROOT = str(managed_root)
     projects_endpoint.settings.ZIP_STORAGE_PATH = str(zip_root)
     projects_endpoint.settings.PROJECT_SOURCE_STORAGE_PATH = str(source_root)

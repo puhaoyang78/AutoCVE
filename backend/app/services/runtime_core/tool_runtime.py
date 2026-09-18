@@ -991,7 +991,7 @@ class StreamingToolExecutor:
         self._batch_context_modifiers: dict[int, list[dict[str, Any]]] = {}
         self._tracked_tools: list[_TrackedStreamingTool] = []
         batch_id = 0
-        for is_concurrency_safe, batch in orchestrator._partition_batches(prepared_calls):
+        for _, batch in orchestrator._partition_batches(prepared_calls):
             for prepared_call in batch:
                 self._tracked_tools.append(
                     _TrackedStreamingTool(
