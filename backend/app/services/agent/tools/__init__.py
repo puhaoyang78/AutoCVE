@@ -10,7 +10,7 @@ Agent 工具集
 - 智能扫描工具（批量扫描、快速审计）
 """
 
-# 新增：Agent协作工具
+# Agent协作工具
 from .agent_tools import (
     AgentFinishTool,
     CollectSubAgentResultsTool,
@@ -35,7 +35,7 @@ from .external_tools import (
 )
 from .file_tool import FileReadTool, FileSearchTool, ListFilesTool, ReadManyFilesTool
 
-# 新增：扫描完成工具
+# 扫描完成工具
 from .finish_tool import FinishScanTool
 from .interaction_agent_tools import (
     AskUserTool,
@@ -44,15 +44,15 @@ from .interaction_agent_tools import (
     TodoWriteTool,
 )
 
-# 新增：Kunlun-M 静态代码分析工具 (MIT License)
+# Kunlun-M 静态代码分析工具 (MIT License)
 from .kunlun_tool import KunlunMTool, KunlunPluginTool, KunlunRuleListTool
 from .pattern_tool import PatternMatchTool
 from .rag_tool import FunctionContextTool, RAGQueryTool, SecurityCodeSearchTool
 
-# 新增：漏洞报告工具
+# 漏洞报告工具
 from .reporting_tool import CreateVulnerabilityReportTool
 
-# 新增：通用代码执行工具 (LLM 驱动的 Fuzzing Harness)
+# 通用代码执行工具 (LLM 驱动的 Fuzzing Harness)
 from .run_code import ExtractFunctionTool, RunCodeTool
 
 # 多语言代码测试工具
@@ -90,10 +90,10 @@ from .shared_catalog import (
     shared_skill_library_roots,
 )
 
-# 新增：智能扫描工具
+# 智能扫描工具
 from .smart_scan_tool import QuickAuditTool, SmartScanTool
 
-# 新增：思考和推理工具
+# 思考和推理工具
 from .thinking_tool import ReflectTool, ThinkTool
 
 __all__ = [
@@ -108,9 +108,7 @@ __all__ = [
 
     # 代码分析
     "PatternMatchTool",
-    "CodeAnalysisTool",
     "DataFlowAnalysisTool",
-    "VulnerabilityValidationTool",
 
     # 文件操作
     "FileReadTool",

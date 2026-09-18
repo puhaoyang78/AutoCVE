@@ -9,6 +9,7 @@ import pytest
 
 # 导入工具
 from app.services.agent.tools import (
+    DataFlowAnalysisTool,
     FileReadTool,
     FileSearchTool,
     ListFilesTool,
@@ -164,6 +165,69 @@ class TestFileTools:
 
         assert result.success is True
         assert "guide.md" in result.data
+
+
+
+class TestDataFlowAnalysisTool:
+    class ValidLLM:
+        async def analyze_code_with_custom_prompt(self, **kwargs):
+            return {
+                "source_type": "user_input",
+                "sanitized": False,
+                "sanitization_methods": [],
+                "dangerous_sinks": ["execute"],
+                "risk_level": "high",
+                "explanation": "User input reaches the sink.",
+                "recommendation": "Validate and parameterize the input.",
+            }
+
+    class TimeoutLLM:
+        async def analyze_code_with_custom_prompt(self, **kwargs):
+            raise TimeoutError
+
+    class InvalidLLM:
+        async def analyze_code_with_custom_prompt(self, **kwargs):
+            return {}
+
+    @pytest.mark.asyncio
+    async def test_dataflow_analysis_returns_llm_result(self):
+        tool = DataFlowAnalysisTool(self.ValidLLM())
+
+        result = await tool.execute(
+            source_code="value = request.args['value']",
+            sink_code="cursor.execute(value)",
+            variable_name="value",
+            file_path="app.py",
+        )
+
+        assert result.success is True
+        assert result.metadata["analysis"]["risk_level"] == "high"
+        assert "HIGH" in result.data
+
+    @pytest.mark.asyncio
+    async def test_dataflow_analysis_timeout_is_failure(self):
+        tool = DataFlowAnalysisTool(self.TimeoutLLM())
+
+        result = await tool.execute(
+            source_code="value = request.args['value']",
+            variable_name="value",
+        )
+
+        assert result.success is False
+        assert "超时" in result.error
+        assert "fallback_used" not in result.metadata
+
+    @pytest.mark.asyncio
+    async def test_dataflow_analysis_invalid_result_is_failure(self):
+        tool = DataFlowAnalysisTool(self.InvalidLLM())
+
+        result = await tool.execute(
+            source_code="value = request.args['value']",
+            variable_name="value",
+        )
+
+        assert result.success is False
+        assert "未返回有效结果" in result.error
 
 
 class TestPatternMatchTool:
