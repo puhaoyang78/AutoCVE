@@ -25,23 +25,37 @@ DEFAULT_DEMO_NAME = "演示用户"
 
 
 async def create_initial_admin(db: AsyncSession) -> User | None:
-    """Create an explicitly configured administrator if it does not already exist."""
+    """Create or promote the explicitly configured initial administrator."""
     email = str(settings.INITIAL_ADMIN_EMAIL or "").strip()
     password = str(settings.INITIAL_ADMIN_PASSWORD or "")
 
     if not email and not password:
         return None
-    if not email or not password:
-        raise RuntimeError("INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD must be configured together")
-    if len(password) < 12:
-        raise RuntimeError("INITIAL_ADMIN_PASSWORD must contain at least 12 characters")
+    if not email:
+        raise RuntimeError("INITIAL_ADMIN_EMAIL is required when INITIAL_ADMIN_PASSWORD is set")
 
     result = await db.execute(select(User).where(User.email == email))
     existing_user = result.scalars().first()
     if existing_user:
+        changed = False
+        if not existing_user.is_active:
+            existing_user.is_active = True
+            changed = True
         if not existing_user.is_superuser:
-            logger.warning("Configured initial admin already exists but is not a superuser: %s", email)
+            existing_user.is_superuser = True
+            changed = True
+        if existing_user.role != "admin":
+            existing_user.role = "admin"
+            changed = True
+        if changed:
+            await db.flush()
+            logger.info("Promoted configured initial administrator: %s", email)
         return existing_user
+
+    if not password:
+        raise RuntimeError("INITIAL_ADMIN_PASSWORD is required to create the configured initial administrator")
+    if len(password) < 12:
+        raise RuntimeError("INITIAL_ADMIN_PASSWORD must contain at least 12 characters")
 
     admin_user = User(
         email=email,

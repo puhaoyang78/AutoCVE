@@ -51,3 +51,26 @@ async def test_create_initial_admin_rejects_partial_configuration(monkeypatch):
 
     with pytest.raises(RuntimeError, match="must be configured together"):
         await create_initial_admin(db)
+
+
+@pytest.mark.asyncio
+async def test_existing_initial_admin_is_promoted_without_password(monkeypatch):
+    existing_user = MagicMock()
+    existing_user.is_active = False
+    existing_user.is_superuser = False
+    existing_user.role = "member"
+
+    monkeypatch.setattr(settings, "INITIAL_ADMIN_EMAIL", "existing@example.com")
+    monkeypatch.setattr(settings, "INITIAL_ADMIN_PASSWORD", None)
+
+    db = MagicMock()
+    db.execute = AsyncMock(return_value=_ExecuteResult(existing_user))
+    db.flush = AsyncMock()
+
+    user = await create_initial_admin(db)
+
+    assert user is existing_user
+    assert user.is_active is True
+    assert user.is_superuser is True
+    assert user.role == "admin"
+    db.flush.assert_awaited_once()
