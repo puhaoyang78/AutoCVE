@@ -8,6 +8,22 @@ from app.core.security import get_password_hash, verify_password
 from app.schemas.user import UserUpdate
 
 
+class _ScalarResult:
+    def __init__(self, value):
+        self._value = value
+
+    def first(self):
+        return self._value
+
+
+class _ExecuteResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalars(self):
+        return _ScalarResult(self._value)
+
+
 class _CurrentUser:
     def __init__(self):
         self.id = "user-1"
@@ -69,8 +85,7 @@ async def test_update_user_me_changes_password_with_current_password():
 @pytest.mark.asyncio
 async def test_update_user_me_changes_email_without_changing_user_identity():
     db = MagicMock()
-    db.execute = AsyncMock()
-    db.execute.return_value.scalars.return_value.first.return_value = None
+    db.execute = AsyncMock(return_value=_ExecuteResult(None))
     db.commit = AsyncMock()
     db.refresh = AsyncMock()
     user = _CurrentUser()
