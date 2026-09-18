@@ -1,0 +1,40 @@
+name: Ruff Auto Fix
+
+on:
+  push:
+    branches:
+      - maintenance/ruff-cleanup
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: maintenance/ruff-cleanup
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Ruff
+        run: python -m pip install --upgrade ruff
+      - name: Apply safe Ruff fixes
+        working-directory: backend
+        run: ruff check app tests --fix
+      - name: Verify diff
+        run: git diff --check
+      - name: Commit fixes
+        run: |
+          if git diff --quiet; then
+            echo "No Ruff changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend
+          git commit -m "Apply safe Ruff fixes"
+          git push origin HEAD:maintenance/ruff-cleanup
