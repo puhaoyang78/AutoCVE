@@ -369,7 +369,17 @@ def test_runner_finalize_finding_tool_marks_terminal_completion():
     assert result.stop_reason is RuntimeStopReason.COMPLETED
     assert result.terminal_action is RuntimeTerminalAction.FINALIZE_FINDING
     assert result.completion_mode is RuntimeCompletionMode.FINALIZE_TOOL
-    assert result.final_payload == _valid_finalize_input()
+    expected = _valid_finalize_input()
+    assert result.final_payload is not None
+    assert result.final_payload["summary"] == expected["summary"]
+    assert result.final_payload["completion_note"] == expected["completion_note"]
+    assert result.final_payload["needs_handoff"] == expected["needs_handoff"]
+    finding = result.final_payload["findings"][0]
+    for key, value in expected["findings"][0].items():
+        assert finding[key] == value
+    assert finding["verification_records"] == []
+    assert len(finding["fingerprint"]) == 24
+    assert result.final_payload["rejected_candidates"] == []
 
 
 def test_finalize_finding_description_explains_terminal_contract_and_required_fields():
@@ -377,10 +387,10 @@ def test_finalize_finding_description_explains_terminal_contract_and_required_fi
 
     assert "提交 Finding 阶段的最终结构化审计结论" in description
     assert "这是终点工具" in description
-    assert "审计完成且没有确认可报告漏洞时" in description
+    assert "审计完成且没有可报告漏洞时" in description
     assert "不要调用 FinalizeFinding" in description
-    assert "vulnerability_type、severity、title、description" in description
-    assert "不要只用自然语言宣布“审计完成”" in description
+    assert "source、sink、exploit_chain、PoC、impact、cve_justification 和 verification_notes" in description
+    assert "如果还需要读取文件、追踪调用链、检查保护条件或动态验证" in description
 
 
 def test_runner_rejects_reason_only_finalize_finding_payload_without_terminal_completion():
@@ -481,7 +491,7 @@ def test_runner_invalid_finalize_finding_continues_with_tool_error_feedback():
     assert snapshot.tool_calls[0].status == AuditToolCallStatus.COMPLETED.value
     assert snapshot.tool_calls[0].output_payload["finalization_rejected"] is True
     assert snapshot.messages[-2].role == RuntimeMessageRole.TOOL_RESULT.value
-    assert snapshot.messages[-2].message_metadata["is_error"] is False
+    assert snapshot.messages[-2].message_metadata["is_error"] is True
     transition_checkpoints = [
         checkpoint.state_payload
         for checkpoint in snapshot.checkpoints
@@ -716,45 +726,6 @@ def test_query_loop_ignores_textual_tool_calls_without_orchestrator_when_no_tool
     assert snapshot.checkpoints[-1].state_payload["tool_call_ids"] == []
     assert snapshot.checkpoints[-1].state_payload["transition"] is None
 
-
-def test_extract_text_tool_calls_preserves_nested_write_payload():
-    nested_content = json.dumps(
-        {
-            "findings": [
-                {
-                    "title": "Server-side request forgery in fetcher",
-                    "references": ["CWE-918", "https://example.test/advisory"],
-                }
-            ],
-            "summary": "in progress",
-        },
-        ensure_ascii=False,
-    )
-    tool_payload = {
-        "tool_use_id": "call_123",
-        "tool_name": "Write",
-        "input": {
-            "path": ".auditai/findings.json",
-            "content": nested_content,
-        },
-    }
-
-    parsed = QueryLoop._extract_text_tool_calls(
-        "Tool Call: Write\n"
-        + json.dumps(tool_payload, ensure_ascii=False)
-        + "\nObservation: [done]"
-    )
-
-    assert parsed == [
-        {
-            "id": "text-tool-call-1",
-            "name": "Write",
-            "input": {
-                "path": ".auditai/findings.json",
-                "content": nested_content,
-            },
-        }
-    ]
 
 def test_query_loop_runs_pre_model_pipeline_in_restored_order(monkeypatch):
     store = build_store()

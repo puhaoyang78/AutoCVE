@@ -746,20 +746,20 @@ def test_bridge_continue_session_refreshes_skill_catalog(monkeypatch):
     assert "use new skill if it helps" in (snapshot.session.system_prompt or "")
     assert refreshed_runtime_state.metadata["skill_catalog"]["finding"]["available_skills"] == ["new-skill"]
     assert refreshed_runtime_state.metadata["last_user_message"] == "continue audit"
-def test_bridge_continue_session_uses_discovery_selected_skill(monkeypatch):
+def test_bridge_continue_session_defers_report_skill_outside_report_phase(monkeypatch):
     async def fake_skill_preload(self, *, user_id, agent_type, context):
         class Snapshot:
             available_skills = [
                 {
-                    "id": "code-audit",
-                    "slug": "code-audit",
+                    "id": "code-audit-finding",
+                    "slug": "code-audit-finding",
                     "name": "Code Audit",
                     "description": "General audit skill",
                     "tags": ["audit", "security"],
                     "match_keywords": ["audit"],
                     "always_include": False,
                     "skill_metadata": {"frontmatter": {"when_to_use": "Audit source code."}},
-                    "paths": {"skill_file_path": "skill_library/code-audit/SKILL.md"},
+                    "paths": {"skill_file_path": "skill_library/code-audit-finding/SKILL.md"},
                 },
                 {
                     "id": "cve-report-writer",
@@ -776,7 +776,7 @@ def test_bridge_continue_session_uses_discovery_selected_skill(monkeypatch):
             matched_skills = list(available_skills)
             prompt = "static prompt"
             route_message = "static route message"
-            route_plan = {"primary_skill": "code-audit", "secondary_skills": ["cve-report-writer"]}
+            route_plan = {"primary_skill": "code-audit-finding", "secondary_skills": ["cve-report-writer"]}
 
         return Snapshot()
 
@@ -831,9 +831,11 @@ def test_bridge_continue_session_uses_discovery_selected_skill(monkeypatch):
     snapshot = store.load_session_snapshot(session_id)
     refreshed_runtime_state = store.load_runtime_state(session_id)
 
-    assert "Discovery scheduler selected: cve-report-writer" in (snapshot.session.system_prompt or "")
+    assert "Phase-aware skill selection: code-audit-finding" in (snapshot.session.system_prompt or "")
+    assert "cve-report-writer" in (snapshot.session.system_prompt or "")
     assert "bootstrap for cve-report-writer" not in (snapshot.session.system_prompt or "")
     assert store.list_skill_invocations(session_id) == []
+    assert refreshed_runtime_state.metadata["skill_catalog"]["finding"]["primary_skill"] == "code-audit-finding"
     assert refreshed_runtime_state.metadata["skill_discovery"]["finding"]["selected_skill"] == "cve-report-writer"
 
 def test_runtime_model_client_classifies_max_output_tokens_responses():

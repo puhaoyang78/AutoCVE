@@ -25,7 +25,7 @@ def test_memory_manager_loads_instruction_and_recalled_memories(monkeypatch):
     session_factory = build_session_factory()
     with session_factory() as db:
         rule_set = AuditRuleSet(
-            name="System Baseline",
+            name="OWASP Top 10",
             description="Base security rules for finding agent.",
             language="python",
             rule_type="security",
