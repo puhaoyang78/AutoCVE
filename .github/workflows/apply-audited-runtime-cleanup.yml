@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/apply-audited-runtime-cleanup.yml
+      - .github/cleanup.parts/**
 
 permissions:
   contents: write
