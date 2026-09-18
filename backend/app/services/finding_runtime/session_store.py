@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, func, select
@@ -19,7 +19,12 @@ from app.models.audit_session import (
     AuditSkillInvocation,
     AuditToolCall,
 )
-from app.services.finding_runtime.models import RuntimeMemoryRecord, RuntimeSessionSnapshot, RuntimeSessionState, TranscriptItem
+from app.services.finding_runtime.models import (
+    RuntimeMemoryRecord,
+    RuntimeSessionSnapshot,
+    RuntimeSessionState,
+    TranscriptItem,
+)
 from app.services.finding_runtime.query_state import QueryLoopState
 from app.services.runtime_core.session_state import SessionRuntimeState as SharedSessionRuntimeState
 
@@ -226,7 +231,7 @@ class AuditSessionStore:
             attempt.status = status
             attempt.error_kind = error_kind
             attempt.error_message = error_message
-            attempt.completed_at = datetime.now(timezone.utc)
+            attempt.completed_at = datetime.now(UTC)
             db.commit()
 
     def close_turn(self, turn_id: str, *, status: str = "completed") -> None:
@@ -438,7 +443,7 @@ class AuditSessionStore:
             tool_call.output_payload = dict(output_payload or {})
             tool_call.error_message = error_message
             tool_call.duration_ms = duration_ms
-            tool_call.completed_at = datetime.now(timezone.utc)
+            tool_call.completed_at = datetime.now(UTC)
             db.commit()
 
     def list_tool_calls(self, session_id: str) -> list[AuditToolCall]:

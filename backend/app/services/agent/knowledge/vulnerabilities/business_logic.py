@@ -2,7 +2,7 @@
 业务逻辑漏洞知识模块
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 BUSINESS_LOGIC = KnowledgeDocument(
     id="vuln_business_logic",

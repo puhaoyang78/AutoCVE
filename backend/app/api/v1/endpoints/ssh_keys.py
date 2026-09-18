@@ -2,20 +2,21 @@
 SSH密钥管理API端点
 """
 
+import json
 import logging
-from typing import Any, Optional
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from pydantic import BaseModel
-import json
 
 from app.api import deps
+from app.core.encryption import decrypt_sensitive_data, encrypt_sensitive_data
 from app.db.session import get_db
 from app.models.user import User
 from app.models.user_config import UserConfig
-from app.services.git_ssh_service import SSHKeyService, GitSSHOperations, clear_known_hosts
-from app.core.encryption import encrypt_sensitive_data, decrypt_sensitive_data
+from app.services.git_ssh_service import GitSSHOperations, SSHKeyService, clear_known_hosts
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -29,8 +30,8 @@ class SSHKeyGenerateResponse(BaseModel):
 
 class SSHKeyResponse(BaseModel):
     has_key: bool
-    public_key: Optional[str] = None
-    fingerprint: Optional[str] = None
+    public_key: str | None = None
+    fingerprint: str | None = None
 
 
 class SSHKeyTestRequest(BaseModel):
@@ -40,7 +41,7 @@ class SSHKeyTestRequest(BaseModel):
 class SSHKeyTestResponse(BaseModel):
     success: bool
     message: str
-    output: Optional[str] = None
+    output: str | None = None
 
 
 @router.post("/generate", response_model=SSHKeyGenerateResponse)

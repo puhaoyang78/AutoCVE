@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,7 @@ async def _update_job(
         job.progress = max(0, min(100, int(progress)))
     if error is not None:
         job.error_message = error
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if started:
         job.started_at = now
     if completed:

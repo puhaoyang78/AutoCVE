@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -11,28 +11,28 @@ class SkillEntry:
     description: str
     skill_file: str
     folder_path: str
-    tags: List[str] = field(default_factory=list)
-    when_to_use: Optional[str] = None
-    allowed_tools: List[str] = field(default_factory=list)
-    argument_hint: Optional[str] = None
-    argument_names: List[str] = field(default_factory=list)
-    version: Optional[str] = None
-    model: Optional[str] = None
+    tags: list[str] = field(default_factory=list)
+    when_to_use: str | None = None
+    allowed_tools: list[str] = field(default_factory=list)
+    argument_hint: str | None = None
+    argument_names: list[str] = field(default_factory=list)
+    version: str | None = None
+    model: str | None = None
     disable_model_invocation: bool = False
     user_invocable: bool = True
-    execution_context: Optional[str] = None
-    agent: Optional[str] = None
-    effort: Optional[str] = None
-    shell: Optional[Dict[str, Any]] = None
-    hooks: Dict[str, Any] = field(default_factory=dict)
-    paths: List[str] = field(default_factory=list)
-    frontmatter: Dict[str, Any] = field(default_factory=dict)
-    metadata_json: Dict[str, Any] = field(default_factory=dict)
+    execution_context: str | None = None
+    agent: str | None = None
+    effort: str | None = None
+    shell: dict[str, Any] | None = None
+    hooks: dict[str, Any] = field(default_factory=dict)
+    paths: list[str] = field(default_factory=list)
+    frontmatter: dict[str, Any] = field(default_factory=dict)
+    metadata_json: dict[str, Any] = field(default_factory=dict)
     source_type: str = "manual"
-    source_url: Optional[str] = None
+    source_url: str | None = None
     content: str = ""
     skill_body: str = ""
-    extension_manifest: List[Dict[str, Any]] = field(default_factory=list)
+    extension_manifest: list[dict[str, Any]] = field(default_factory=list)
     is_system: bool = False
     is_active: bool = True
 
@@ -44,26 +44,26 @@ class SkillBinding:
     enabled: bool = True
     always_include: bool = False
     sort_order: int = 0
-    match_keywords: List[str] = field(default_factory=list)
-    match_config: Dict[str, Any] = field(default_factory=dict)
+    match_keywords: list[str] = field(default_factory=list)
+    match_config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
 class SkillRoutePlan:
-    primary_skill: Optional[str] = None
-    secondary_skills: List[str] = field(default_factory=list)
-    mandatory_reads: List[str] = field(default_factory=list)
-    recommended_reads: List[str] = field(default_factory=list)
-    selection_reason: List[str] = field(default_factory=list)
-    startup_reads: List[str] = field(default_factory=list)
-    deferred_skills: List[str] = field(default_factory=list)
-    deferred_skill_reads: List[str] = field(default_factory=list)
+    primary_skill: str | None = None
+    secondary_skills: list[str] = field(default_factory=list)
+    mandatory_reads: list[str] = field(default_factory=list)
+    recommended_reads: list[str] = field(default_factory=list)
+    selection_reason: list[str] = field(default_factory=list)
+    startup_reads: list[str] = field(default_factory=list)
+    deferred_skills: list[str] = field(default_factory=list)
+    deferred_skill_reads: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class SkillPromptState:
-    entries: List[SkillEntry] = field(default_factory=list)
-    matched: List[SkillEntry] = field(default_factory=list)
+    entries: list[SkillEntry] = field(default_factory=list)
+    matched: list[SkillEntry] = field(default_factory=list)
     prompt: str = ""
     route_plan: SkillRoutePlan = field(default_factory=SkillRoutePlan)
 
@@ -71,4 +71,4 @@ class SkillPromptState:
 @dataclass(slots=True)
 class SkillSnapshot:
     prompt: str = ""
-    skills: List[str] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)

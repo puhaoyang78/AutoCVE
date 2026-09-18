@@ -5,10 +5,10 @@ Production-grade error handling system for the Agent audit framework.
 Provides structured error types with recovery strategies and metadata.
 """
 
-from enum import Enum
-from typing import Any, Dict, Optional, Type
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 
 class ErrorSeverity(str, Enum):
@@ -32,16 +32,16 @@ class RecoveryStrategy(str, Enum):
 @dataclass
 class ErrorContext:
     """Context information for debugging errors"""
-    correlation_id: Optional[str] = None
-    agent_id: Optional[str] = None
-    agent_name: Optional[str] = None
-    task_id: Optional[str] = None
-    iteration: Optional[int] = None
-    tool_name: Optional[str] = None
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    additional_data: Dict[str, Any] = field(default_factory=dict)
+    correlation_id: str | None = None
+    agent_id: str | None = None
+    agent_name: str | None = None
+    task_id: str | None = None
+    iteration: int | None = None
+    tool_name: str | None = None
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    additional_data: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "correlation_id": self.correlation_id,
             "agent_id": self.agent_id,
@@ -70,20 +70,20 @@ class AgentError(Exception):
     error_code: str = "AGENT_ERROR"
     recoverable: bool = False
     recovery_strategy: RecoveryStrategy = RecoveryStrategy.ABORT
-    retry_after: Optional[int] = None
+    retry_after: int | None = None
     severity: ErrorSeverity = ErrorSeverity.HIGH
 
     def __init__(
         self,
         message: str,
         *,
-        error_code: Optional[str] = None,
-        recoverable: Optional[bool] = None,
-        recovery_strategy: Optional[RecoveryStrategy] = None,
-        retry_after: Optional[int] = None,
-        severity: Optional[ErrorSeverity] = None,
-        context: Optional[ErrorContext] = None,
-        cause: Optional[Exception] = None,
+        error_code: str | None = None,
+        recoverable: bool | None = None,
+        recovery_strategy: RecoveryStrategy | None = None,
+        retry_after: int | None = None,
+        severity: ErrorSeverity | None = None,
+        context: ErrorContext | None = None,
+        cause: Exception | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -112,7 +112,7 @@ class AgentError(Exception):
                 self.context.additional_data[key] = value
         return self
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert error to dictionary for serialization"""
         return {
             "error_code": self.error_code,
@@ -556,21 +556,21 @@ class ErrorRegistry:
     Registry for mapping error codes to error classes.
     Useful for deserializing errors from logs or API responses.
     """
-    _registry: Dict[str, Type[AgentError]] = {}
+    _registry: dict[str, type[AgentError]] = {}
 
     @classmethod
-    def register(cls, error_class: Type[AgentError]) -> Type[AgentError]:
+    def register(cls, error_class: type[AgentError]) -> type[AgentError]:
         """Register an error class by its error code"""
         cls._registry[error_class.error_code] = error_class
         return error_class
 
     @classmethod
-    def get(cls, error_code: str) -> Optional[Type[AgentError]]:
+    def get(cls, error_code: str) -> type[AgentError] | None:
         """Get error class by error code"""
         return cls._registry.get(error_code)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> AgentError:
+    def from_dict(cls, data: dict[str, Any]) -> AgentError:
         """Create error instance from dictionary"""
         error_code = data.get("error_code", "AGENT_ERROR")
         error_class = cls.get(error_code) or AgentError
@@ -608,7 +608,7 @@ def is_recoverable(error: Exception) -> bool:
     return False
 
 
-def get_retry_after(error: Exception) -> Optional[int]:
+def get_retry_after(error: Exception) -> int | None:
     """Get suggested retry delay for an error"""
     if isinstance(error, AgentError):
         return error.retry_after
@@ -624,8 +624,8 @@ def get_recovery_strategy(error: Exception) -> RecoveryStrategy:
 
 def wrap_exception(
     error: Exception,
-    error_class: Type[AgentError] = AgentError,
-    message: Optional[str] = None,
+    error_class: type[AgentError] = AgentError,
+    message: str | None = None,
     **context_kwargs
 ) -> AgentError:
     """Wrap a generic exception in an AgentError"""

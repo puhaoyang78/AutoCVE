@@ -7,7 +7,15 @@ import httpx
 
 from ..base_adapter import BaseLLMAdapter
 from ..protocols.transforms import openai_responses_payload
-from ..types import DEFAULT_BASE_URLS, LLMConfig, LLMError, LLMProvider, LLMRequest, LLMResponse, LLMUsage
+from ..types import (
+    DEFAULT_BASE_URLS,
+    LLMConfig,
+    LLMError,
+    LLMProvider,
+    LLMRequest,
+    LLMResponse,
+    LLMUsage,
+)
 
 
 class OpenAIResponsesAdapter(BaseLLMAdapter):

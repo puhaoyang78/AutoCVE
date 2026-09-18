@@ -1,47 +1,45 @@
-from typing import Any, List, Optional
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
-from fastapi.responses import FileResponse
+import json
+import os
+import shutil
+import tempfile
+import zipfile
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, ConfigDict
-from datetime import datetime, timezone
-from pathlib import Path
-import shutil
-import os
-import uuid
-import json
-import tempfile
 
 from app.api import deps
 from app.core.config import settings
-from app.db.session import get_db, AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, get_db
+from app.models.agent_task import AgentFinding, AgentTask, AgentTaskStatus
+from app.models.audit import AuditIssue, AuditTask
 from app.models.project import Project
 from app.models.user import User
-from app.models.audit import AuditTask, AuditIssue
-from app.models.agent_task import AgentTask, AgentTaskStatus, AgentFinding
 from app.models.user_config import UserConfig
-import zipfile
 from app.services.scanner import (
-    scan_repo_task,
-    get_github_files,
-    get_github_repository_metadata,
-    get_gitlab_files,
+    fetch_file_content,
+    get_gitea_branches,
     get_gitea_files,
     get_github_branches,
+    get_github_files,
+    get_github_repository_metadata,
     get_gitlab_branches,
-    get_gitea_branches,
-    fetch_file_content,
-    should_exclude,
+    get_gitlab_files,
     is_text_file,
+    scan_repo_task,
+    should_exclude,
 )
 from app.services.zip_storage import (
     delete_project_persistent_source,
     delete_project_zip,
     get_project_persistent_source_meta,
     get_project_zip_meta,
-    has_project_persistent_source,
     has_project_zip,
     load_project_zip,
     materialize_project_source_from_zip,
@@ -60,51 +58,51 @@ def _copy_uploaded_file_to_path(upload: UploadFile, target_path: str) -> None:
 # Schemas
 class ProjectCreate(BaseModel):
     name: str
-    source_type: Optional[str] = "repository"  # 'repository' 或 'zip'
-    repository_url: Optional[str] = None
-    repository_type: Optional[str] = "other"  # github, gitlab, other
-    local_path: Optional[str] = None
-    workspace_mode: Optional[str] = None
-    description: Optional[str] = None
-    default_branch: Optional[str] = "main"
-    programming_languages: Optional[List[str]] = None
+    source_type: str | None = "repository"  # 'repository' 或 'zip'
+    repository_url: str | None = None
+    repository_type: str | None = "other"  # github, gitlab, other
+    local_path: str | None = None
+    workspace_mode: str | None = None
+    description: str | None = None
+    default_branch: str | None = "main"
+    programming_languages: list[str] | None = None
 
 class ProjectUpdate(BaseModel):
-    name: Optional[str] = None
-    source_type: Optional[str] = None
-    repository_url: Optional[str] = None
-    repository_type: Optional[str] = None
-    local_path: Optional[str] = None
-    workspace_mode: Optional[str] = None
-    description: Optional[str] = None
-    default_branch: Optional[str] = None
-    programming_languages: Optional[List[str]] = None
+    name: str | None = None
+    source_type: str | None = None
+    repository_url: str | None = None
+    repository_type: str | None = None
+    local_path: str | None = None
+    workspace_mode: str | None = None
+    description: str | None = None
+    default_branch: str | None = None
+    programming_languages: list[str] | None = None
 
 class OwnerSchema(BaseModel):
     id: str
-    email: Optional[str] = None
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-    role: Optional[str] = None
+    email: str | None = None
+    full_name: str | None = None
+    avatar_url: str | None = None
+    role: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class ProjectResponse(BaseModel):
     id: str
     name: str
-    description: Optional[str] = None
-    source_type: Optional[str] = "repository"  # 'repository' 或 'zip'
-    repository_url: Optional[str] = None
-    repository_type: Optional[str] = None  # github, gitlab, other
-    local_path: Optional[str] = None
-    workspace_mode: Optional[str] = None
-    default_branch: Optional[str] = None
-    programming_languages: Optional[str] = None
+    description: str | None = None
+    source_type: str | None = "repository"  # 'repository' 或 'zip'
+    repository_url: str | None = None
+    repository_type: str | None = None  # github, gitlab, other
+    local_path: str | None = None
+    workspace_mode: str | None = None
+    default_branch: str | None = None
+    programming_languages: str | None = None
     owner_id: str
     is_active: bool
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    owner: Optional[OwnerSchema] = None
+    updated_at: datetime | None = None
+    owner: OwnerSchema | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -132,22 +130,22 @@ class ProjectFileContentResponse(BaseModel):
 
 class RepositoryBranchLookupRequest(BaseModel):
     repository_url: str
-    repository_type: Optional[str] = "github"
+    repository_type: str | None = "github"
 
 
 class RepositoryBranchLookupResponse(BaseModel):
-    branches: List[str]
+    branches: list[str]
     default_branch: str
-    error: Optional[str] = None
+    error: str | None = None
 
 
-async def _get_repository_tokens(db: AsyncSession, user_id: str) -> dict[str, Optional[str]]:
+async def _get_repository_tokens(db: AsyncSession, user_id: str) -> dict[str, str | None]:
     from app.core.encryption import decrypt_sensitive_data
 
     result = await db.execute(select(UserConfig).where(UserConfig.user_id == user_id))
     config = result.scalar_one_or_none()
 
-    tokens: dict[str, Optional[str]] = {
+    tokens: dict[str, str | None] = {
         "github": settings.GITHUB_TOKEN,
         "gitlab": settings.GITLAB_TOKEN,
         "gitea": settings.GITEA_TOKEN,
@@ -172,12 +170,12 @@ async def _lookup_repository_branches(
     *,
     repo_url: str,
     repo_type: str,
-    tokens: dict[str, Optional[str]],
-    stored_default_branch: Optional[str] = None,
+    tokens: dict[str, str | None],
+    stored_default_branch: str | None = None,
 ) -> dict[str, Any]:
     repo_type = repo_type or "other"
 
-    remote_default_branch: Optional[str] = None
+    remote_default_branch: str | None = None
     if repo_type == "github":
         metadata = await get_github_repository_metadata(repo_url, tokens.get("github"))
         remote_default_branch = metadata.get("default_branch")
@@ -206,7 +204,7 @@ async def _lookup_repository_branches(
     return {"branches": ordered_branches, "default_branch": default_branch}
 
 
-async def _get_repository_ssh_private_key(db: AsyncSession, user_id: str) -> Optional[str]:
+async def _get_repository_ssh_private_key(db: AsyncSession, user_id: str) -> str | None:
     from app.core.encryption import decrypt_sensitive_data
 
     result = await db.execute(select(UserConfig).where(UserConfig.user_id == user_id))
@@ -229,7 +227,7 @@ async def _prepare_project_workspace(
     db: AsyncSession,
     user_id: str,
     refresh: bool = False,
-) -> Optional[str]:
+) -> str | None:
     if project.source_type == "repository" and not project.repository_url:
         workspace_root = Path(settings.MANAGED_PROJECTS_ROOT).resolve() / ".auditai_workspaces" / "projects" / str(project.id)
         workspace_root.mkdir(parents=True, exist_ok=True)
@@ -313,7 +311,7 @@ def _build_file_content_response(*, relative_path: str, content: str) -> Project
     )
 
 
-def _normalize_zip_local_path(local_path: str | None) -> Optional[str]:
+def _normalize_zip_local_path(local_path: str | None) -> str | None:
     if not local_path:
         return None
     candidate = Path(local_path)
@@ -329,7 +327,7 @@ def _normalize_zip_local_path(local_path: str | None) -> Optional[str]:
         return str(candidate.resolve())
 
 
-def _resolve_persistent_project_root(project: Project) -> Optional[Path]:
+def _resolve_persistent_project_root(project: Project) -> Path | None:
     normalized = _normalize_zip_local_path(project.local_path)
     if not normalized:
         return None
@@ -377,7 +375,7 @@ def _should_skip_local_directory(
     return should_exclude(f"{relative_directory}/", exclude_patterns)
 
 
-def _list_local_project_files(project_root: Path, exclude_patterns: Optional[list[str]] = None) -> list[dict[str, Any]]:
+def _list_local_project_files(project_root: Path, exclude_patterns: list[str] | None = None) -> list[dict[str, Any]]:
     exclude_patterns = list(exclude_patterns or [])
     files: list[dict[str, Any]] = []
 
@@ -417,7 +415,7 @@ def _read_zip_file_bytes(zip_path: str, relative_path: str) -> bytes:
             return file_handle.read()
 
 
-@router.get("/managed-local-directories", response_model=List[ManagedLocalDirectoryResponse])
+@router.get("/managed-local-directories", response_model=list[ManagedLocalDirectoryResponse])
 async def list_managed_local_directories(
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
@@ -446,7 +444,7 @@ async def create_project(
     import json
     # 根据 source_type 设置默认值
     source_type = project_in.source_type or "repository"
-    normalized_local_path: Optional[str] = None
+    normalized_local_path: str | None = None
 
     if source_type == "local_directory":
         if not project_in.local_path:
@@ -478,7 +476,7 @@ async def create_project(
             default_branch = branch_payload["default_branch"]
         except Exception:
             default_branch = project_in.default_branch or "main"
-    
+
     project = Project(
         name=project_in.name,
         source_type=source_type,
@@ -514,7 +512,7 @@ async def create_project(
     )
     return result.scalars().first()
 
-@router.get("/", response_model=List[ProjectResponse])
+@router.get("/", response_model=list[ProjectResponse])
 async def read_projects(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
@@ -534,7 +532,7 @@ async def read_projects(
     result = await db.execute(query)
     return result.scalars().all()
 
-@router.get("/deleted", response_model=List[ProjectResponse])
+@router.get("/deleted", response_model=list[ProjectResponse])
 async def read_deleted_projects(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
@@ -661,11 +659,11 @@ async def read_project(
     project = result.scalars().first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # 检查权限：只有项目所有者可以查看
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权查看此项目")
-    
+
     return project
 
 @router.put("/{id}", response_model=ProjectResponse)
@@ -684,11 +682,11 @@ async def update_project(
     project = result.scalars().first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # 检查权限：只有项目所有者可以更新
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权更新此项目")
-    
+
     update_data = project_in.model_dump(exclude_unset=True)
     target_source_type = update_data.get("source_type", project.source_type)
 
@@ -722,11 +720,11 @@ async def update_project(
     elif "source_type" in update_data and update_data["source_type"] not in {"local_directory", "zip"}:
         update_data["local_path"] = None
         update_data["workspace_mode"] = None
-    
+
     for field, value in update_data.items():
         setattr(project, field, value)
-    
-    project.updated_at = datetime.now(timezone.utc)
+
+    project.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(project)
     return project
@@ -744,11 +742,11 @@ async def delete_project(
     project = result.scalars().first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # 检查权限：只有项目所有者可以删除
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权删除此项目")
-    
+
     _delete_project_workspace(project.id)
     await db.delete(project)
     await db.commit()
@@ -767,13 +765,13 @@ async def restore_project(
     project = result.scalars().first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # 检查权限：只有项目所有者可以恢复
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权恢复此项目")
-    
+
     project.is_active = True
-    project.updated_at = datetime.now(timezone.utc)
+    project.updated_at = datetime.now(UTC)
     await db.commit()
     return {"message": "项目已恢复"}
 
@@ -790,11 +788,11 @@ async def permanently_delete_project(
     project = result.scalars().first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # 检查权限：只有项目所有者可以永久删除
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权永久删除此项目")
-    
+
     _delete_project_workspace(project.id)
     await db.delete(project)
     await db.commit()
@@ -804,8 +802,8 @@ async def permanently_delete_project(
 @router.get("/{id}/files")
 async def get_project_files(
     id: str,
-    branch: Optional[str] = None,
-    exclude_patterns: Optional[str] = None,
+    branch: str | None = None,
+    exclude_patterns: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
@@ -818,11 +816,11 @@ async def get_project_files(
     project = await db.get(Project, id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # Check permissions
     if project.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权查看此项目")
-    
+
     # 解析排除模式
     parsed_exclude_patterns = []
     if exclude_patterns:
@@ -830,9 +828,9 @@ async def get_project_files(
             parsed_exclude_patterns = json.loads(exclude_patterns)
         except json.JSONDecodeError:
             pass
-    
+
     files = []
-    
+
     if project.source_type == "zip":
         project_root = _resolve_persistent_project_root(project)
         if project_root is not None:
@@ -852,7 +850,7 @@ async def get_project_files(
         if not zip_path or not os.path.exists(zip_path):
             print(f"⚠️ ZIP文件不存在: {zip_path}")
             return []
-            
+
         try:
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 for file_info in zip_ref.infolist():
@@ -868,7 +866,7 @@ async def get_project_files(
         except Exception as e:
             print(f"Error reading zip file: {e}")
             raise HTTPException(status_code=500, detail="无法读取项目文件")
-            
+
     elif project.source_type == "local_directory":
         if not project.local_path:
             raise HTTPException(status_code=400, detail="local directory project is missing local_path")
@@ -891,8 +889,9 @@ async def get_project_files(
 
         # Get tokens from user config
         from sqlalchemy.future import select
-        from app.core.encryption import decrypt_sensitive_data
+
         from app.core.config import settings
+        from app.core.encryption import decrypt_sensitive_data
         from app.services.git_ssh_service import GitSSHOperations
 
         SENSITIVE_OTHER_FIELDS = ['githubToken', 'gitlabToken', 'sshPrivateKey']
@@ -966,7 +965,7 @@ async def get_project_files(
 async def get_project_file_content(
     id: str,
     path: str,
-    branch: Optional[str] = None,
+    branch: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
@@ -1125,17 +1124,17 @@ async def get_project_file_content(
     raise HTTPException(status_code=400, detail="unsupported project source type")
 
 class ScanRequest(BaseModel):
-    file_paths: Optional[List[str]] = None
+    file_paths: list[str] | None = None
     full_scan: bool = True
-    exclude_patterns: Optional[List[str]] = None
-    branch_name: Optional[str] = None
+    exclude_patterns: list[str] | None = None
+    branch_name: str | None = None
 
 
 @router.post("/{id}/scan")
 async def scan_project(
     id: str,
     background_tasks: BackgroundTasks,
-    scan_request: Optional[ScanRequest] = None,
+    scan_request: ScanRequest | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
@@ -1213,16 +1212,16 @@ async def scan_project(
 
 class ZipFileMetaResponse(BaseModel):
     has_file: bool
-    original_filename: Optional[str] = None
-    file_size: Optional[int] = None
-    uploaded_at: Optional[str] = None
+    original_filename: str | None = None
+    file_size: int | None = None
+    uploaded_at: str | None = None
     has_persistent_source: bool = False
-    persistent_source_path: Optional[str] = None
-    persistent_source_updated_at: Optional[str] = None
-    import_status: Optional[str] = None
-    import_error: Optional[str] = None
-    import_started_at: Optional[str] = None
-    import_completed_at: Optional[str] = None
+    persistent_source_path: str | None = None
+    persistent_source_updated_at: str | None = None
+    import_status: str | None = None
+    import_error: str | None = None
+    import_started_at: str | None = None
+    import_completed_at: str | None = None
 
 
 class ProjectSourceArtifactDeleteRequest(BaseModel):
@@ -1249,7 +1248,7 @@ async def get_project_zip_info(
     if source_root:
         source_meta = {
             "path": str(source_root),
-            "updated_at": datetime.fromtimestamp(source_root.stat().st_mtime, tz=timezone.utc).isoformat(),
+            "updated_at": datetime.fromtimestamp(source_root.stat().st_mtime, tz=UTC).isoformat(),
         }
     else:
         source_meta = await get_project_persistent_source_meta(id)
@@ -1297,7 +1296,7 @@ async def _run_project_zip_import(project_id: str, keep_archive: bool, session_f
             project_id,
             import_status="processing",
             import_error=None,
-            import_started_at=datetime.now(timezone.utc).isoformat(),
+            import_started_at=datetime.now(UTC).isoformat(),
             keep_archive=keep_archive,
         )
         zip_path = await load_project_zip(project_id)
@@ -1310,7 +1309,7 @@ async def _run_project_zip_import(project_id: str, keep_archive: bool, session_f
             if project:
                 project.local_path = str(source_meta.get("path") or "")
                 project.workspace_mode = "persistent_source"
-                project.updated_at = datetime.now(timezone.utc)
+                project.updated_at = datetime.now(UTC)
                 await db.commit()
 
         if not keep_archive:
@@ -1320,7 +1319,7 @@ async def _run_project_zip_import(project_id: str, keep_archive: bool, session_f
             project_id,
             import_status="ready",
             import_error=None,
-            import_completed_at=datetime.now(timezone.utc).isoformat(),
+            import_completed_at=datetime.now(UTC).isoformat(),
             persistent_source_path=source_meta.get("path"),
             persistent_source_updated_at=source_meta.get("updated_at"),
             keep_archive=keep_archive,
@@ -1330,7 +1329,7 @@ async def _run_project_zip_import(project_id: str, keep_archive: bool, session_f
             project_id,
             import_status="error",
             import_error=str(exc),
-            import_completed_at=datetime.now(timezone.utc).isoformat(),
+            import_completed_at=datetime.now(UTC).isoformat(),
             keep_archive=keep_archive,
         )
         raise
@@ -1376,7 +1375,7 @@ async def upload_project_zip(
         )
         project.local_path = None
         project.workspace_mode = 'importing'
-        project.updated_at = datetime.now(timezone.utc)
+        project.updated_at = datetime.now(UTC)
         await db.commit()
         await db.refresh(project)
         background_tasks.add_task(
@@ -1447,7 +1446,7 @@ async def delete_project_source_artifacts(
         if deleted_persistent_source:
             project.local_path = None
             project.workspace_mode = None
-            project.updated_at = datetime.now(timezone.utc)
+            project.updated_at = datetime.now(UTC)
     await db.commit()
 
     return {
@@ -1468,11 +1467,11 @@ async def get_project_branches(
     project = await db.get(Project, id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    
+
     # 检查是否为仓库类型项目
     if project.source_type != "repository":
         raise HTTPException(status_code=400, detail="仅仓库类型项目支持获取分支")
-    
+
     if project.repository_url:
         repo_type = project.repository_type or "other"
         print(f"[Branch] project={project.name}, type={repo_type}, url={project.repository_url}")
@@ -1487,7 +1486,7 @@ async def get_project_branches(
             )
             if project.default_branch != branch_payload["default_branch"]:
                 project.default_branch = branch_payload["default_branch"]
-                project.updated_at = datetime.now(timezone.utc)
+                project.updated_at = datetime.now(UTC)
                 await db.commit()
             print(f"[Branch] fetched {len(branch_payload['branches'])} branches")
             return branch_payload
@@ -1501,22 +1500,22 @@ async def get_project_branches(
 
     if not project.repository_url:
         raise HTTPException(status_code=400, detail="项目未配置仓库地址")
-    
+
     # 获取用户配置的 Token
     from app.core.config import settings
     from app.core.encryption import decrypt_sensitive_data
-    
+
     config = await db.execute(
         select(UserConfig).where(UserConfig.user_id == current_user.id)
     )
     config = config.scalar_one_or_none()
-    
+
     github_token = settings.GITHUB_TOKEN
     gitea_token = settings.GITEA_TOKEN
     gitlab_token = settings.GITLAB_TOKEN
 
     SENSITIVE_OTHER_FIELDS = ['githubToken', 'gitlabToken', 'giteaToken']
-    
+
     if config and config.other_config:
         import json
         other_config = json.loads(config.other_config)
@@ -1529,12 +1528,12 @@ async def get_project_branches(
                     gitlab_token = decrypted_val
                 elif field == 'giteaToken':
                     gitea_token = decrypted_val
-    
+
     repo_type = project.repository_type or "other"
-    
+
     # 详细日志
     print(f"[Branch] 项目: {project.name}, 类型: {repo_type}, URL: {project.repository_url}")
-    
+
     try:
         if repo_type == "github":
             if not github_token:
@@ -1552,17 +1551,17 @@ async def get_project_branches(
             # 对于其他类型，返回默认分支
             print(f"[Branch] 仓库类型 '{repo_type}' 不支持获取分支，返回默认分支")
             branches = [project.default_branch or "main"]
-        
+
         print(f"[Branch] 成功获取 {len(branches)} 个分支")
-        
+
         # 将默认分支放在第一位
         default_branch = project.default_branch or "main"
         if default_branch in branches:
             branches.remove(default_branch)
             branches.insert(0, default_branch)
-        
+
         return {"branches": branches, "default_branch": default_branch}
-    
+
     except Exception as e:
         error_msg = str(e)
         print(f"[Branch] 获取分支列表失败: {error_msg}")

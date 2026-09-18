@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api import deps
@@ -14,10 +13,13 @@ from app.api.v1.endpoints import one_click_cve as one_click_cve_endpoint
 from app.api.v1.endpoints.one_click_cve import router as one_click_cve_router
 from app.db.base import Base
 from app.models.agent_task import AgentTask, AgentTaskStatus
-from app.models.one_click_cve import OneClickCveBatch, OneClickCveBatchProject, OneClickCveProjectStatus
+from app.models.one_click_cve import (
+    OneClickCveBatch,
+    OneClickCveBatchProject,
+    OneClickCveProjectStatus,
+)
 from app.models.project import Project
 from app.models.user import User
-
 
 MODEL_PREFLIGHT_STEP = "\u6b63\u5728\u6d4b\u8bd5\u6a21\u578b\u8fde\u901a\u6027"
 QUEUED_STEP = "\u7b49\u5f85\u4e00\u952e CVE worker \u6267\u884c"

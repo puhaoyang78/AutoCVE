@@ -6,10 +6,10 @@ import re
 import shutil
 import tempfile
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -35,7 +35,7 @@ class SkillFileService:
             return Path(env_root)
 
         current = Path(__file__).resolve()
-        best_candidate: Optional[Path] = None
+        best_candidate: Path | None = None
         best_score = -1
         for candidate in current.parents:
             if (candidate / "docker-compose.yml").exists():
@@ -93,7 +93,7 @@ class SkillFileService:
 
     @classmethod
     def _timestamp(cls) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()
 
     @classmethod
     def slugify(cls, value: str) -> str:
@@ -129,7 +129,7 @@ class SkillFileService:
         return cls.agent_root(agent_type) / "bindings.json"
 
     @classmethod
-    def _build_paths(cls, base_dir: Path, file_name: str = "SKILL.md") -> Dict[str, str]:
+    def _build_paths(cls, base_dir: Path, file_name: str = "SKILL.md") -> dict[str, str]:
         relative = base_dir.relative_to(cls.project_root()).as_posix()
         return {
             "storage_path": str(base_dir),
@@ -147,8 +147,8 @@ class SkillFileService:
         }
 
     @classmethod
-    def _build_extension_manifest(cls, skill_dir: Path) -> List[Dict[str, Any]]:
-        manifest: List[Dict[str, Any]] = []
+    def _build_extension_manifest(cls, skill_dir: Path) -> list[dict[str, Any]]:
+        manifest: list[dict[str, Any]] = []
         for folder in ("references", "examples", "scripts"):
             base = skill_dir / folder
             if not base.exists():
@@ -175,7 +175,7 @@ class SkillFileService:
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     @classmethod
-    def _merge_json(cls, path: Path, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def _merge_json(cls, path: Path, updates: dict[str, Any]) -> dict[str, Any]:
         payload = cls._read_json(path, {})
         if not isinstance(payload, dict):
             payload = {}
@@ -184,7 +184,7 @@ class SkillFileService:
         return payload
 
     @classmethod
-    def _frontmatter_block(cls, metadata: Dict[str, Any]) -> str:
+    def _frontmatter_block(cls, metadata: dict[str, Any]) -> str:
         lines = ["---"]
         for key in ("name", "description", "tags"):
             value = metadata.get(key)
@@ -207,9 +207,9 @@ class SkillFileService:
         enabled: bool = True,
         always_include: bool = False,
         sort_order: int = 0,
-        match_keywords: Optional[List[str]] = None,
-        match_config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        match_keywords: list[str] | None = None,
+        match_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         normalized_slug = cls.slugify(slug)
         paths = cls._build_paths(cls.skill_dir(normalized_slug))
         return {
@@ -229,9 +229,9 @@ class SkillFileService:
         }
 
     @classmethod
-    def _collect_bindings_for_slug(cls, slug: str) -> List[Dict[str, Any]]:
+    def _collect_bindings_for_slug(cls, slug: str) -> list[dict[str, Any]]:
         normalized_slug = cls.slugify(slug)
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         for agent_type in AGENT_TYPES:
             payload = cls.get_agent_bindings(agent_type)
             for binding in payload.get("skills", []):
@@ -240,7 +240,7 @@ class SkillFileService:
         return sorted(items, key=lambda item: (item["agent_type"], item["sort_order"], item["slug"]))
 
     @classmethod
-    def _read_skill_payload(cls, slug: str) -> Dict[str, Any]:
+    def _read_skill_payload(cls, slug: str) -> dict[str, Any]:
         normalized_slug = cls.slugify(slug)
         skill_dir = cls.library_root() / normalized_slug
         skill_file = skill_dir / "SKILL.md"
@@ -293,7 +293,7 @@ class SkillFileService:
         }
 
     @classmethod
-    def _build_installed_record(cls, slug: str, existing: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    def _build_installed_record(cls, slug: str, existing: dict[str, Any] | None = None) -> dict[str, Any]:
         skill = cls._read_skill_payload(slug)
         existing = existing or {}
         bindings = skill.get("bindings", []) or []
@@ -361,19 +361,19 @@ class SkillFileService:
             cls._write_json(cls.bindings_file(agent_type), {"agent_type": agent_type, "skills": []})
 
     @classmethod
-    def list_skill_slugs(cls) -> List[str]:
-        slugs: List[str] = []
+    def list_skill_slugs(cls) -> list[str]:
+        slugs: list[str] = []
         for entry in sorted(cls.library_root().iterdir(), key=lambda item: item.name.lower()):
             if entry.is_dir() and entry.name not in {"agents", ".runtime"} and not entry.name.startswith(".") and (entry / "SKILL.md").exists():
                 slugs.append(entry.name)
         return slugs
 
     @classmethod
-    def list_skills(cls) -> List[Dict[str, Any]]:
+    def list_skills(cls) -> list[dict[str, Any]]:
         return [cls._read_skill_payload(slug) for slug in cls.list_skill_slugs()]
 
     @classmethod
-    def read_skill(cls, slug: str) -> Dict[str, Any]:
+    def read_skill(cls, slug: str) -> dict[str, Any]:
         return cls._read_skill_payload(slug)
 
     @classmethod
@@ -382,16 +382,16 @@ class SkillFileService:
         *,
         slug: str,
         name: str,
-        description: Optional[str],
-        content: Optional[str],
-        tags: Optional[List[str]],
+        description: str | None,
+        content: str | None,
+        tags: list[str] | None,
         source_type: str = "manual",
-        source_url: Optional[str] = None,
-        metadata_json: Optional[Dict[str, Any]] = None,
+        source_url: str | None = None,
+        metadata_json: dict[str, Any] | None = None,
         is_system: bool = False,
         is_active: bool = True,
-        extension_payload: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        extension_payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         normalized_slug = cls.slugify(slug)
         skill_dir = cls.skill_dir(normalized_slug)
         frontmatter = {
@@ -425,7 +425,7 @@ class SkillFileService:
         return cls.read_skill(normalized_slug)
 
     @classmethod
-    def rename_skill(cls, current_slug: str, new_slug: str) -> Dict[str, Any]:
+    def rename_skill(cls, current_slug: str, new_slug: str) -> dict[str, Any]:
         current_slug = cls.slugify(current_slug)
         new_slug = cls.slugify(new_slug)
         if current_slug == new_slug:
@@ -486,10 +486,10 @@ class SkillFileService:
         cls.sync_all()
 
     @classmethod
-    def get_agent_bindings(cls, agent_type: str) -> Dict[str, Any]:
+    def get_agent_bindings(cls, agent_type: str) -> dict[str, Any]:
         cls.ensure_agent_bindings(agent_type)
         payload = cls._read_json(cls.bindings_file(agent_type), {"agent_type": agent_type, "skills": []})
-        skills: List[Dict[str, Any]] = []
+        skills: list[dict[str, Any]] = []
         for item in payload.get("skills", []) if isinstance(payload, dict) else []:
             skills.append(
                 cls._normalize_binding(
@@ -513,9 +513,9 @@ class SkillFileService:
         enabled: bool = True,
         always_include: bool = False,
         sort_order: int = 0,
-        match_keywords: Optional[List[str]] = None,
-        match_config: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        match_keywords: list[str] | None = None,
+        match_config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         normalized_slug = cls.slugify(slug)
         payload = cls.get_agent_bindings(agent_type)
         binding = cls._normalize_binding(
@@ -541,7 +541,7 @@ class SkillFileService:
         return binding
 
     @classmethod
-    def update_binding(cls, agent_type: str, slug: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+    def update_binding(cls, agent_type: str, slug: str, updates: dict[str, Any]) -> dict[str, Any]:
         current = next((item for item in cls.get_agent_bindings(agent_type)["skills"] if item["slug"] == cls.slugify(slug)), None)
         if current is None:
             raise FileNotFoundError(f"Binding '{agent_type}:{slug}' not found")
@@ -574,7 +574,7 @@ class SkillFileService:
         cls._refresh_installed_index()
 
     @classmethod
-    def _parse_github_skill_source(cls, repo_url: str) -> Dict[str, str]:
+    def _parse_github_skill_source(cls, repo_url: str) -> dict[str, str]:
         parsed = urlparse(repo_url)
         if parsed.netloc not in {"github.com", "www.github.com", "raw.githubusercontent.com"}:
             raise ValueError("Only GitHub URLs are supported")
@@ -681,7 +681,7 @@ class SkillFileService:
         owner: str,
         repo: str,
         ref: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         safe_subpath = _safe_relative_path(subpath)
         source_dir = repo_root / safe_subpath if safe_subpath else repo_root
         if not source_dir.exists() or not source_dir.is_dir():
@@ -731,7 +731,7 @@ class SkillFileService:
         return cls.read_skill(slug)
 
     @classmethod
-    async def import_github_skill(cls, repo_url: str) -> Dict[str, Any]:
+    async def import_github_skill(cls, repo_url: str) -> dict[str, Any]:
         source = cls._parse_github_skill_source(repo_url)
         if not source["ref"]:
             source["ref"] = await cls._resolve_github_default_branch(source["owner"], source["repo"])
@@ -749,7 +749,7 @@ class SkillFileService:
             )
 
     @classmethod
-    def import_skill_zip(cls, zip_path: Path, original_filename: str) -> Dict[str, Any]:
+    def import_skill_zip(cls, zip_path: Path, original_filename: str) -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="auditai-skill-upload-") as tmp_dir:
             extract_root = Path(tmp_dir) / "archive"
             with zipfile.ZipFile(zip_path, "r") as archive:

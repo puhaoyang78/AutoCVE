@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 SYSTEM_RUNTIME_TOOL_NAMES = {"Skill", "TodoWrite", "AskUser", "EnterPlanMode", "ExitPlanMode"}
 READ_ONLY_RUNTIME_TOOL_NAMES = {"Read", "Glob", "Grep", "Skill"}
 

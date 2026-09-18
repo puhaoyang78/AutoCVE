@@ -1,7 +1,14 @@
 from __future__ import annotations
 
-from app.services.finding_runtime.models import ToolCallRequest, ToolExecutionPayload, ToolExecutionRecord
-from app.services.finding_runtime.query_attachments import build_between_turn_attachments, start_pending_tool_use_summary
+from app.services.finding_runtime.models import (
+    ToolCallRequest,
+    ToolExecutionPayload,
+    ToolExecutionRecord,
+)
+from app.services.finding_runtime.query_attachments import (
+    build_between_turn_attachments,
+    start_pending_tool_use_summary,
+)
 from app.services.finding_runtime.query_state import QueryLoopState
 
 

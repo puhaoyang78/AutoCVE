@@ -1,15 +1,20 @@
 import asyncio
-
-import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from app.services.agent.agents.analysis import AnalysisAgent
 from app.services.agent.agents.analysis_workflow import AnalysisWorkflowAgent
 from app.services.agent.agents.base import AgentConfig, AgentPattern, AgentResult, AgentType
 from app.services.agent.agents.recon import RECON_OUTPUT_CONTRACT, RECON_SYSTEM_PROMPT, ReconAgent
 from app.services.agent.tools.base import AgentTool, ToolResult
-from app.services.agent.tools.interaction_agent_tools import AskUserTool, EnterPlanModeTool, ExitPlanModeTool, TodoWriteTool
+from app.services.agent.tools.interaction_agent_tools import (
+    AskUserTool,
+    EnterPlanModeTool,
+    ExitPlanModeTool,
+    TodoWriteTool,
+)
 from app.services.finding_runtime.models import RuntimeMemoryBundle, RuntimeMemoryRecord
 from app.services.runtime_core.session_registry import runtime_session_registry
 

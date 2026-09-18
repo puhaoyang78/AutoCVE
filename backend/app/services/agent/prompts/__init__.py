@@ -8,9 +8,9 @@ Agent Prompts 模块
 - 代码审计最佳实践
 """
 
-from pathlib import Path
-from typing import Dict, List, Set, Optional
 import logging
+from pathlib import Path
+from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ VULNERABILITIES_DIR = PROMPTS_DIR / "vulnerabilities"
 FRAMEWORKS_DIR = PROMPTS_DIR / "frameworks"
 
 
-def get_available_prompt_modules() -> Dict[str, List[str]]:
+def get_available_prompt_modules() -> dict[str, list[str]]:
     """
     获取所有可用的提示词模块
     
@@ -28,33 +28,33 @@ def get_available_prompt_modules() -> Dict[str, List[str]]:
         按类别组织的模块字典 {category: [module_names]}
     """
     available_modules = {}
-    
+
     # 扫描各类别目录
     for category_dir in [VULNERABILITIES_DIR, FRAMEWORKS_DIR]:
         if not category_dir.exists():
             continue
-            
+
         category_name = category_dir.name
         modules = []
-        
+
         # 扫描 .jinja 或 .py 文件
         for file_path in category_dir.glob("*.jinja"):
             module_name = file_path.stem
             if not module_name.startswith("_"):
                 modules.append(module_name)
-        
+
         for file_path in category_dir.glob("*.py"):
             module_name = file_path.stem
             if not module_name.startswith("_"):
                 modules.append(module_name)
-        
+
         if modules:
             available_modules[category_name] = sorted(set(modules))
-    
+
     return available_modules
 
 
-def get_all_module_names() -> Set[str]:
+def get_all_module_names() -> set[str]:
     """获取所有模块名称"""
     all_modules = set()
     for category_modules in get_available_prompt_modules().values():
@@ -62,7 +62,7 @@ def get_all_module_names() -> Set[str]:
     return all_modules
 
 
-def validate_module_names(module_names: List[str]) -> Dict[str, List[str]]:
+def validate_module_names(module_names: list[str]) -> dict[str, list[str]]:
     """
     验证模块名称是否有效
     
@@ -75,7 +75,7 @@ def validate_module_names(module_names: List[str]) -> Dict[str, List[str]]:
     available_modules = get_all_module_names()
     valid_modules = []
     invalid_modules = []
-    
+
     for module_name in module_names:
         if module_name in available_modules:
             valid_modules.append(module_name)
@@ -89,33 +89,33 @@ def validate_module_names(module_names: List[str]) -> Dict[str, List[str]]:
                     break
             if not matched:
                 invalid_modules.append(module_name)
-    
+
     return {"valid": valid_modules, "invalid": invalid_modules}
 
 
 def generate_modules_description() -> str:
     """生成模块描述文本（用于工具参数说明）"""
     available_modules = get_available_prompt_modules()
-    
+
     if not available_modules:
         return "No prompt modules available"
-    
+
     all_module_names = get_all_module_names()
     if not all_module_names:
         return "No prompt modules available"
-    
+
     sorted_modules = sorted(all_module_names)
     modules_str = ", ".join(sorted_modules[:15])
     if len(sorted_modules) > 15:
         modules_str += f"... (共{len(sorted_modules)}个)"
-    
+
     return (
         f"可用的知识模块 (最多5个): {modules_str}. "
         f"示例: sql_injection, xss 用于特定漏洞类型分析"
     )
 
 
-def load_prompt_module(module_name: str) -> Optional[str]:
+def load_prompt_module(module_name: str) -> str | None:
     """
     加载单个提示词模块
     
@@ -126,10 +126,10 @@ def load_prompt_module(module_name: str) -> Optional[str]:
         模块内容（如果存在）
     """
     available_modules = get_available_prompt_modules()
-    
+
     # 查找模块路径
     module_path = None
-    
+
     for category, modules in available_modules.items():
         if module_name in modules:
             # 优先查找 jinja 文件
@@ -137,17 +137,17 @@ def load_prompt_module(module_name: str) -> Optional[str]:
             if jinja_path.exists():
                 module_path = jinja_path
                 break
-            
+
             # 备选 py 文件
             py_path = PROMPTS_DIR / category / f"{module_name}.py"
             if py_path.exists():
                 module_path = py_path
                 break
-    
+
     if not module_path or not module_path.exists():
         logger.warning(f"Prompt module not found: {module_name}")
         return None
-    
+
     try:
         content = module_path.read_text(encoding="utf-8")
         logger.debug(f"Loaded prompt module: {module_name}")
@@ -157,7 +157,7 @@ def load_prompt_module(module_name: str) -> Optional[str]:
         return None
 
 
-def load_prompt_modules(module_names: List[str]) -> Dict[str, str]:
+def load_prompt_modules(module_names: list[str]) -> dict[str, str]:
     """
     批量加载提示词模块
     
@@ -177,7 +177,7 @@ def load_prompt_modules(module_names: List[str]) -> Dict[str, str]:
 
 def build_specialized_prompt(
     base_prompt: str,
-    module_names: List[str],
+    module_names: list[str],
 ) -> str:
     """
     构建包含专业知识模块的提示词
@@ -191,18 +191,18 @@ def build_specialized_prompt(
     """
     if not module_names:
         return base_prompt
-    
+
     modules = load_prompt_modules(module_names)
-    
+
     if not modules:
         return base_prompt
-    
+
     knowledge_sections = []
     for name, content in modules.items():
         knowledge_sections.append(f"<{name}_knowledge>\n{content}\n</{name}_knowledge>")
-    
+
     knowledge_text = "\n\n".join(knowledge_sections)
-    
+
     return f"""{base_prompt}
 
 <specialized_knowledge>
@@ -216,11 +216,10 @@ def build_specialized_prompt(
 # 导入系统提示词
 from .system_prompts import (
     FILE_VALIDATION_RULES,  # 🔥 v2.1
-    TOOL_USAGE_GUIDE,
     MULTI_AGENT_RULES,
+    TOOL_USAGE_GUIDE,
     build_enhanced_prompt,
 )
-
 
 __all__ = [
     # 模块管理

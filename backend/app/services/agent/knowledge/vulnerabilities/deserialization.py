@@ -2,8 +2,7 @@
 反序列化漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 INSECURE_DESERIALIZATION = KnowledgeDocument(
     id="vuln_deserialization",

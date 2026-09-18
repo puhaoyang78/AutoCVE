@@ -6,20 +6,19 @@ Production-grade retry with exponential backoff for the Agent framework.
 
 import asyncio
 import random
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
 from functools import wraps
-from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, Type, TypeVar
+from typing import Any, Generic, TypeVar
 
 from .errors import (
     AgentError,
+    LLMConnectionError,
     LLMRateLimitError,
     LLMTimeoutError,
-    LLMConnectionError,
-    ToolTimeoutError,
     ToolResourceError,
-    is_recoverable,
+    ToolTimeoutError,
     get_retry_after,
 )
 
@@ -43,7 +42,7 @@ class RetryConfig:
     jitter: bool = True
     jitter_factor: float = 0.5
     backoff_strategy: BackoffStrategy = BackoffStrategy.EXPONENTIAL
-    retryable_exceptions: Tuple[Type[Exception], ...] = (
+    retryable_exceptions: tuple[type[Exception], ...] = (
         LLMRateLimitError, LLMTimeoutError, LLMConnectionError,
         ToolTimeoutError, ToolResourceError,
         ConnectionError, TimeoutError, asyncio.TimeoutError,
@@ -56,7 +55,7 @@ class RetryConfig:
             return error.recoverable
         return False
 
-    def calculate_delay(self, attempt: int, error: Optional[Exception] = None) -> float:
+    def calculate_delay(self, attempt: int, error: Exception | None = None) -> float:
         if error:
             retry_after = get_retry_after(error)
             if retry_after:
@@ -89,8 +88,8 @@ NO_RETRY_CONFIG = RetryConfig(max_attempts=1, base_delay=0, max_delay=0)
 class RetryResult(Generic[T]):
     """Result of retry operation"""
     success: bool
-    value: Optional[T] = None
-    error: Optional[Exception] = None
+    value: T | None = None
+    error: Exception | None = None
     attempts: int = 0
     total_delay: float = 0.0
 
@@ -98,11 +97,11 @@ class RetryResult(Generic[T]):
 async def retry_with_backoff(
     func: Callable[[], Awaitable[T]],
     config: RetryConfig = RetryConfig(),
-    on_retry: Optional[Callable[[int, Exception, float], Awaitable[None]]] = None,
+    on_retry: Callable[[int, Exception, float], Awaitable[None]] | None = None,
     operation_name: str = "operation",
 ) -> T:
     """Execute async function with retry and exponential backoff."""
-    last_exception: Optional[Exception] = None
+    last_exception: Exception | None = None
     total_delay = 0.0
 
     for attempt in range(config.max_attempts):
@@ -136,7 +135,7 @@ async def retry_with_result(
 ) -> RetryResult[T]:
     """Execute with retry, return result instead of raising."""
     total_delay = 0.0
-    last_exception: Optional[Exception] = None
+    last_exception: Exception | None = None
 
     for attempt in range(config.max_attempts):
         try:
@@ -153,7 +152,7 @@ async def retry_with_result(
     return RetryResult(success=False, error=last_exception, attempts=config.max_attempts, total_delay=total_delay)
 
 
-def with_retry(config: Optional[RetryConfig] = None, operation_name: Optional[str] = None):
+def with_retry(config: RetryConfig | None = None, operation_name: str | None = None):
     """Decorator to add retry behavior."""
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         @wraps(func)
@@ -175,8 +174,8 @@ class RetryContext:
         self.operation_name = operation_name
         self.attempt = 0
         self.total_delay = 0.0
-        self.last_error: Optional[Exception] = None
-        self.result: Optional[Any] = None
+        self.last_error: Exception | None = None
+        self.result: Any | None = None
         self.success = False
         self._should_continue = True
 

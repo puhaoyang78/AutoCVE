@@ -8,19 +8,19 @@
 - 支持索引版本控制和状态查询
 """
 
-import os
 import asyncio
-import logging
 import hashlib
-import time
-from typing import List, Dict, Any, Optional, AsyncGenerator, Callable, Set, Tuple
-from pathlib import Path
-from dataclasses import dataclass, field
-from enum import Enum
 import json
+import logging
+import os
+import time
+from collections.abc import AsyncGenerator, Callable
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
 
-from .splitter import CodeSplitter, CodeChunk
 from .embeddings import EmbeddingService
+from .splitter import CodeChunk, CodeSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class IndexStatus:
     embedding_dimension: int = 0
     project_hash: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "collection_name": self.collection_name,
             "exists": self.exists,
@@ -97,7 +97,7 @@ class IndexingProgress:
     total_chunks: int = 0
     indexed_chunks: int = 0
     current_file: str = ""
-    errors: List[str] = None
+    errors: list[str] = None
     # 🔥 新增：增量更新统计
     added_files: int = 0
     updated_files: int = 0
@@ -125,7 +125,7 @@ class IndexingResult:
     total_files: int
     indexed_files: int
     total_chunks: int
-    errors: List[str]
+    errors: list[str]
     collection_name: str
 
 
@@ -138,20 +138,20 @@ class VectorStore:
 
     async def add_documents(
         self,
-        ids: List[str],
-        embeddings: List[List[float]],
-        documents: List[str],
-        metadatas: List[Dict[str, Any]],
+        ids: list[str],
+        embeddings: list[list[float]],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
     ):
         """添加文档"""
         raise NotImplementedError
 
     async def upsert_documents(
         self,
-        ids: List[str],
-        embeddings: List[List[float]],
-        documents: List[str],
-        metadatas: List[Dict[str, Any]],
+        ids: list[str],
+        embeddings: list[list[float]],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
     ):
         """更新或插入文档"""
         raise NotImplementedError
@@ -160,16 +160,16 @@ class VectorStore:
         """删除指定文件的所有文档，返回删除数量"""
         raise NotImplementedError
 
-    async def delete_by_ids(self, ids: List[str]) -> int:
+    async def delete_by_ids(self, ids: list[str]) -> int:
         """删除指定 ID 的文档"""
         raise NotImplementedError
 
     async def query(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         n_results: int = 10,
-        where: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        where: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """查询"""
         raise NotImplementedError
 
@@ -181,15 +181,15 @@ class VectorStore:
         """获取文档数量"""
         raise NotImplementedError
 
-    async def get_all_file_paths(self) -> Set[str]:
+    async def get_all_file_paths(self) -> set[str]:
         """获取所有已索引的文件路径"""
         raise NotImplementedError
 
-    async def get_file_hashes(self) -> Dict[str, str]:
+    async def get_file_hashes(self) -> dict[str, str]:
         """获取所有文件的 hash 映射 {file_path: hash}"""
         raise NotImplementedError
 
-    def get_collection_metadata(self) -> Dict[str, Any]:
+    def get_collection_metadata(self) -> dict[str, Any]:
         """获取 collection 元数据"""
         raise NotImplementedError
 
@@ -207,8 +207,8 @@ class ChromaVectorStore(VectorStore):
     def __init__(
         self,
         collection_name: str,
-        persist_directory: Optional[str] = None,
-        embedding_config: Optional[Dict[str, Any]] = None,
+        persist_directory: str | None = None,
+        embedding_config: dict[str, Any] | None = None,
     ):
         self.collection_name = collection_name
         self.persist_directory = persist_directory
@@ -286,7 +286,7 @@ class ChromaVectorStore(VectorStore):
         """是否是新创建的 collection"""
         return self._is_new_collection
 
-    def get_embedding_config(self) -> Dict[str, Any]:
+    def get_embedding_config(self) -> dict[str, Any]:
         """获取 collection 的 embedding 配置"""
         if not self._collection:
             return {}
@@ -299,13 +299,13 @@ class ChromaVectorStore(VectorStore):
             "base_url": metadata.get("embedding_base_url"),
         }
 
-    def get_collection_metadata(self) -> Dict[str, Any]:
+    def get_collection_metadata(self) -> dict[str, Any]:
         """获取 collection 完整元数据"""
         if not self._collection:
             return {}
         return dict(self._collection.metadata or {})
 
-    def _clean_metadatas(self, metadatas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _clean_metadatas(self, metadatas: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """清理元数据，确保符合 Chroma 要求"""
         cleaned_metadatas = []
         for meta in metadatas:
@@ -322,10 +322,10 @@ class ChromaVectorStore(VectorStore):
 
     async def add_documents(
         self,
-        ids: List[str],
-        embeddings: List[List[float]],
-        documents: List[str],
-        metadatas: List[Dict[str, Any]],
+        ids: list[str],
+        embeddings: list[list[float]],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
     ):
         """添加文档到 Chroma"""
         if not ids:
@@ -351,10 +351,10 @@ class ChromaVectorStore(VectorStore):
 
     async def upsert_documents(
         self,
-        ids: List[str],
-        embeddings: List[List[float]],
-        documents: List[str],
-        metadatas: List[Dict[str, Any]],
+        ids: list[str],
+        embeddings: list[list[float]],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
     ):
         """更新或插入文档（用于增量更新）"""
         if not ids:
@@ -403,7 +403,7 @@ class ChromaVectorStore(VectorStore):
             logger.warning(f"删除文件文档失败: {e}")
             return 0
 
-    async def delete_by_ids(self, ids: List[str]) -> int:
+    async def delete_by_ids(self, ids: list[str]) -> int:
         """删除指定 ID 的文档"""
         if not self._collection or not ids:
             return 0
@@ -420,10 +420,10 @@ class ChromaVectorStore(VectorStore):
 
     async def query(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         n_results: int = 10,
-        where: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        where: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """查询 Chroma"""
         result = await asyncio.to_thread(
             self._collection.query,
@@ -455,7 +455,7 @@ class ChromaVectorStore(VectorStore):
             return await asyncio.to_thread(self._collection.count)
         return 0
 
-    async def get_all_file_paths(self) -> Set[str]:
+    async def get_all_file_paths(self) -> set[str]:
         """获取所有已索引的文件路径"""
         if not self._collection:
             return set()
@@ -477,7 +477,7 @@ class ChromaVectorStore(VectorStore):
             logger.warning(f"获取文件路径失败: {e}")
             return set()
 
-    async def get_file_hashes(self) -> Dict[str, str]:
+    async def get_file_hashes(self) -> dict[str, str]:
         """获取所有文件的 hash 映射 {file_path: file_hash}"""
         if not self._collection:
             return {}
@@ -502,7 +502,7 @@ class ChromaVectorStore(VectorStore):
             logger.warning(f"获取文件 hash 失败: {e}")
             return {}
 
-    async def update_collection_metadata(self, updates: Dict[str, Any]):
+    async def update_collection_metadata(self, updates: dict[str, Any]):
         """更新 collection 元数据"""
         if not self._collection:
             return
@@ -525,11 +525,11 @@ class ChromaVectorStore(VectorStore):
 class InMemoryVectorStore(VectorStore):
     """内存向量存储（用于测试或小项目）"""
 
-    def __init__(self, collection_name: str, embedding_config: Optional[Dict[str, Any]] = None):
+    def __init__(self, collection_name: str, embedding_config: dict[str, Any] | None = None):
         self.collection_name = collection_name
         self.embedding_config = embedding_config or {}
-        self._documents: Dict[str, Dict[str, Any]] = {}
-        self._metadata: Dict[str, Any] = {
+        self._documents: dict[str, dict[str, Any]] = {}
+        self._metadata: dict[str, Any] = {
             "created_at": time.time(),
             "index_version": INDEX_VERSION,
         }
@@ -546,18 +546,18 @@ class InMemoryVectorStore(VectorStore):
     def is_new_collection(self) -> bool:
         return self._is_new_collection
 
-    def get_embedding_config(self) -> Dict[str, Any]:
+    def get_embedding_config(self) -> dict[str, Any]:
         return self.embedding_config
 
-    def get_collection_metadata(self) -> Dict[str, Any]:
+    def get_collection_metadata(self) -> dict[str, Any]:
         return self._metadata
 
     async def add_documents(
         self,
-        ids: List[str],
-        embeddings: List[List[float]],
-        documents: List[str],
-        metadatas: List[Dict[str, Any]],
+        ids: list[str],
+        embeddings: list[list[float]],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
     ):
         """添加文档"""
         for id_, emb, doc, meta in zip(ids, embeddings, documents, metadatas):
@@ -570,10 +570,10 @@ class InMemoryVectorStore(VectorStore):
 
     async def upsert_documents(
         self,
-        ids: List[str],
-        embeddings: List[List[float]],
-        documents: List[str],
-        metadatas: List[Dict[str, Any]],
+        ids: list[str],
+        embeddings: list[list[float]],
+        documents: list[str],
+        metadatas: list[dict[str, Any]],
     ):
         """更新或插入文档"""
         await self.add_documents(ids, embeddings, documents, metadatas)
@@ -588,7 +588,7 @@ class InMemoryVectorStore(VectorStore):
             del self._documents[id_]
         return len(ids_to_delete)
 
-    async def delete_by_ids(self, ids: List[str]) -> int:
+    async def delete_by_ids(self, ids: list[str]) -> int:
         """删除指定 ID 的文档"""
         count = 0
         for id_ in ids:
@@ -599,14 +599,14 @@ class InMemoryVectorStore(VectorStore):
 
     async def query(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         n_results: int = 10,
-        where: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        where: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """查询（使用余弦相似度）"""
         import math
 
-        def cosine_similarity(a: List[float], b: List[float]) -> float:
+        def cosine_similarity(a: list[float], b: list[float]) -> float:
             dot = sum(x * y for x, y in zip(a, b))
             norm_a = math.sqrt(sum(x * x for x in a))
             norm_b = math.sqrt(sum(x * x for x in b))
@@ -652,7 +652,7 @@ class InMemoryVectorStore(VectorStore):
         """获取文档数量"""
         return len(self._documents)
 
-    async def get_all_file_paths(self) -> Set[str]:
+    async def get_all_file_paths(self) -> set[str]:
         """获取所有已索引的文件路径"""
         return {
             data["metadata"].get("file_path")
@@ -660,7 +660,7 @@ class InMemoryVectorStore(VectorStore):
             if data["metadata"].get("file_path")
         }
 
-    async def get_file_hashes(self) -> Dict[str, str]:
+    async def get_file_hashes(self) -> dict[str, str]:
         """获取所有文件的 hash 映射"""
         file_hashes = {}
         for data in self._documents.values():
@@ -670,7 +670,7 @@ class InMemoryVectorStore(VectorStore):
                 file_hashes[file_path] = file_hash
         return file_hashes
 
-    async def update_collection_metadata(self, updates: Dict[str, Any]):
+    async def update_collection_metadata(self, updates: dict[str, Any]):
         """更新 collection 元数据"""
         self._metadata.update(updates)
         self._metadata["updated_at"] = time.time()
@@ -690,10 +690,10 @@ class CodeIndexer:
     def __init__(
         self,
         collection_name: str,
-        embedding_service: Optional[EmbeddingService] = None,
-        vector_store: Optional[VectorStore] = None,
-        splitter: Optional[CodeSplitter] = None,
-        persist_directory: Optional[str] = None,
+        embedding_service: EmbeddingService | None = None,
+        vector_store: VectorStore | None = None,
+        splitter: CodeSplitter | None = None,
+        persist_directory: str | None = None,
     ):
         """
         初始化索引器
@@ -750,10 +750,10 @@ class CodeIndexer:
         Returns:
             文件内容
         """
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(file_path, encoding='utf-8', errors='ignore') as f:
             return f.read()
 
-    async def initialize(self, force_rebuild: bool = False) -> Tuple[bool, str]:
+    async def initialize(self, force_rebuild: bool = False) -> tuple[bool, str]:
         """
         初始化索引器，检测是否需要重建索引
 
@@ -784,7 +784,7 @@ class CodeIndexer:
         self._initialized = True
         return self._needs_rebuild, self._rebuild_reason
 
-    async def _check_rebuild_needed(self) -> Tuple[bool, str]:
+    async def _check_rebuild_needed(self) -> tuple[bool, str]:
         """
         检查是否需要重建索引
 
@@ -850,12 +850,12 @@ class CodeIndexer:
     async def smart_index_directory(
         self,
         directory: str,
-        exclude_patterns: Optional[List[str]] = None,
-        include_patterns: Optional[List[str]] = None,
+        exclude_patterns: list[str] | None = None,
+        include_patterns: list[str] | None = None,
         update_mode: IndexUpdateMode = IndexUpdateMode.SMART,
-        progress_callback: Optional[Callable[[IndexingProgress], None]] = None,
-        embedding_progress_callback: Optional[Callable[[int, int], None]] = None,
-        cancel_check: Optional[Callable[[], bool]] = None,
+        progress_callback: Callable[[IndexingProgress], None] | None = None,
+        embedding_progress_callback: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> AsyncGenerator[IndexingProgress, None]:
         """
         智能索引目录
@@ -903,12 +903,12 @@ class CodeIndexer:
     async def _full_index(
         self,
         directory: str,
-        exclude_patterns: List[str],
-        include_patterns: Optional[List[str]],
+        exclude_patterns: list[str],
+        include_patterns: list[str] | None,
         progress: IndexingProgress,
-        progress_callback: Optional[Callable[[IndexingProgress], None]],
-        embedding_progress_callback: Optional[Callable[[int, int], None]] = None,
-        cancel_check: Optional[Callable[[], bool]] = None,
+        progress_callback: Callable[[IndexingProgress], None] | None,
+        embedding_progress_callback: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> AsyncGenerator[IndexingProgress, None]:
         """全量索引"""
         logger.info("🔄 开始全量索引...")
@@ -920,8 +920,8 @@ class CodeIndexer:
         logger.info(f"📁 发现 {len(files)} 个文件待索引")
         yield progress
 
-        all_chunks: List[CodeChunk] = []
-        file_hashes: Dict[str, str] = {}
+        all_chunks: list[CodeChunk] = []
+        file_hashes: dict[str, str] = {}
 
         # 分块处理文件
         for file_path in files:
@@ -994,12 +994,12 @@ class CodeIndexer:
     async def _incremental_index(
         self,
         directory: str,
-        exclude_patterns: List[str],
-        include_patterns: Optional[List[str]],
+        exclude_patterns: list[str],
+        include_patterns: list[str] | None,
         progress: IndexingProgress,
-        progress_callback: Optional[Callable[[IndexingProgress], None]],
-        embedding_progress_callback: Optional[Callable[[int, int], None]] = None,
-        cancel_check: Optional[Callable[[], bool]] = None,
+        progress_callback: Callable[[IndexingProgress], None] | None,
+        embedding_progress_callback: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> AsyncGenerator[IndexingProgress, None]:
         """增量索引"""
         logger.info("📝 开始增量索引...")
@@ -1012,7 +1012,7 @@ class CodeIndexer:
 
         # 收集当前文件
         current_files = self._collect_files(directory, exclude_patterns, include_patterns)
-        current_file_map: Dict[str, str] = {}  # relative_path -> absolute_path
+        current_file_map: dict[str, str] = {}  # relative_path -> absolute_path
 
         for file_path in current_files:
             relative_path = os.path.relpath(file_path, directory)
@@ -1030,7 +1030,7 @@ class CodeIndexer:
         logger.debug(f"📊 差异分析: 交集={len(files_to_check)}, 新增候选={len(files_to_add)}, 删除候选={len(files_to_delete)}")
 
         # 检查需要更新的文件（hash 变化）
-        files_to_update: Set[str] = set()
+        files_to_update: set[str] = set()
         for relative_path in files_to_check:
             file_path = current_file_map[relative_path]
             try:
@@ -1064,8 +1064,8 @@ class CodeIndexer:
 
         # 处理新增和更新的文件
         files_to_process = files_to_add | files_to_update
-        all_chunks: List[CodeChunk] = []
-        file_hashes: Dict[str, str] = dict(indexed_file_hashes)
+        all_chunks: list[CodeChunk] = []
+        file_hashes: dict[str, str] = dict(indexed_file_hashes)
 
         for relative_path in files_to_process:
             file_path = current_file_map[relative_path]
@@ -1150,9 +1150,9 @@ class CodeIndexer:
     async def index_directory(
         self,
         directory: str,
-        exclude_patterns: Optional[List[str]] = None,
-        include_patterns: Optional[List[str]] = None,
-        progress_callback: Optional[Callable[[IndexingProgress], None]] = None,
+        exclude_patterns: list[str] | None = None,
+        include_patterns: list[str] | None = None,
+        progress_callback: Callable[[IndexingProgress], None] | None = None,
     ) -> AsyncGenerator[IndexingProgress, None]:
         """
         索引目录（使用智能模式）
@@ -1177,9 +1177,9 @@ class CodeIndexer:
 
     async def index_files(
         self,
-        files: List[Dict[str, str]],
+        files: list[dict[str, str]],
         base_path: str = "",
-        progress_callback: Optional[Callable[[IndexingProgress], None]] = None,
+        progress_callback: Callable[[IndexingProgress], None] | None = None,
     ) -> AsyncGenerator[IndexingProgress, None]:
         """
         索引文件列表
@@ -1197,7 +1197,7 @@ class CodeIndexer:
         progress = IndexingProgress()
         progress.total_files = len(files)
 
-        all_chunks: List[CodeChunk] = []
+        all_chunks: list[CodeChunk] = []
 
         for file_info in files:
             file_path = file_info.get("path", "")
@@ -1249,11 +1249,11 @@ class CodeIndexer:
 
     async def _index_chunks(
         self,
-        chunks: List[CodeChunk],
+        chunks: list[CodeChunk],
         progress: IndexingProgress,
         use_upsert: bool = False,
-        embedding_progress_callback: Optional[Callable[[int, int], None]] = None,
-        cancel_check: Optional[Callable[[], bool]] = None,
+        embedding_progress_callback: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ):
         """索引代码块
 
@@ -1268,8 +1268,8 @@ class CodeIndexer:
             return
 
         # 去重：确保没有重复的 ID
-        seen_ids: Set[str] = set()
-        unique_chunks: List[CodeChunk] = []
+        seen_ids: set[str] = set()
+        unique_chunks: list[CodeChunk] = []
         for chunk in chunks:
             if chunk.id not in seen_ids:
                 seen_ids.add(chunk.id)
@@ -1323,9 +1323,9 @@ class CodeIndexer:
     def _collect_files(
         self,
         directory: str,
-        exclude_patterns: List[str],
-        include_patterns: Optional[List[str]],
-    ) -> List[str]:
+        exclude_patterns: list[str],
+        include_patterns: list[str] | None,
+    ) -> list[str]:
         """收集需要索引的文件"""
         import fnmatch
 

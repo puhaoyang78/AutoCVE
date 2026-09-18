@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -15,18 +15,18 @@ DEFAULT_READ_EXAMPLES = [
 
 
 class SkillBodyInput(BaseModel):
-    skill_ref: Optional[str] = Field(
+    skill_ref: str | None = Field(
         default=DEFAULT_SKILL_REF,
         description="Skill id, slug, or display name. Defaults to the bundled code-audit-finding skill.",
     )
 
 
 class SkillResourceInput(BaseModel):
-    skill_ref: Optional[str] = Field(
+    skill_ref: str | None = Field(
         default=DEFAULT_SKILL_REF,
         description="Skill id, slug, or display name. Defaults to the bundled code-audit-finding skill.",
     )
-    resource_name: Optional[str | List[str]] = Field(
+    resource_name: str | list[str] | None = Field(
         default=None,
         description="Relative path under references/examples/scripts. May be a single path or a small list of concrete file paths.",
     )
@@ -61,7 +61,7 @@ class SkillBodyTool(AgentTool):
         del kwargs
         return True
 
-    async def _execute(self, skill_ref: Optional[str] = None, **kwargs) -> ToolResult:
+    async def _execute(self, skill_ref: str | None = None, **kwargs) -> ToolResult:
         try:
             resolved_skill_ref = skill_ref or DEFAULT_SKILL_REF
             if self.agent_type is None:
@@ -104,8 +104,8 @@ class SkillResourceTool(AgentTool):
 
     async def _execute(
         self,
-        skill_ref: Optional[str] = None,
-        resource_name: Optional[str | List[str]] = None,
+        skill_ref: str | None = None,
+        resource_name: str | list[str] | None = None,
         mode: str = "read",
         **kwargs,
     ) -> ToolResult:
@@ -185,7 +185,7 @@ class SkillResourceTool(AgentTool):
             return ToolResult(success=False, error=str(exc))
 
     @staticmethod
-    def _normalize_resource_names(resource_name: Optional[str | List[str]]) -> List[str]:
+    def _normalize_resource_names(resource_name: str | list[str] | None) -> list[str]:
         if resource_name is None:
             return []
         if isinstance(resource_name, list):

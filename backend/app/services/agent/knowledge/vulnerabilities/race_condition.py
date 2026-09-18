@@ -2,8 +2,7 @@
 竞态条件漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 RACE_CONDITION = KnowledgeDocument(
     id="vuln_race_condition",

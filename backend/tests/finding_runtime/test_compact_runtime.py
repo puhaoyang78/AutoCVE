@@ -2,10 +2,21 @@ from __future__ import annotations
 
 import asyncio
 
-from app.services.finding_runtime.compaction.compact import PTL_RETRY_MARKER, compact_conversation, truncate_head_for_ptl_retry
-from app.services.finding_runtime.compaction.models import AutoCompactTrackingState, CompactionResult
+from app.services.finding_runtime.compaction.compact import (
+    PTL_RETRY_MARKER,
+    compact_conversation,
+    truncate_head_for_ptl_retry,
+)
+from app.services.finding_runtime.compaction.models import (
+    AutoCompactTrackingState,
+    CompactionResult,
+)
 from app.services.finding_runtime.compaction.post_compact import build_post_compact_messages
-from app.services.finding_runtime.models import RuntimeMessageRole, RuntimeModelResponse, TranscriptItem
+from app.services.finding_runtime.models import (
+    RuntimeMessageRole,
+    RuntimeModelResponse,
+    TranscriptItem,
+)
 from app.services.finding_runtime.query_state import QueryLoopState
 
 

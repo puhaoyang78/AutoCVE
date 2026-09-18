@@ -2,8 +2,7 @@
 注入类漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 SQL_INJECTION = KnowledgeDocument(
     id="vuln_sql_injection",

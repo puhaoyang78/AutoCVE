@@ -9,7 +9,7 @@ Think 工具 - 深度推理工具
 """
 
 import logging
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from .base import AgentTool, ToolResult
@@ -23,7 +23,7 @@ class ThinkInput(BaseModel):
         ...,
         description="思考内容，可以是分析、规划、评估等"
     )
-    category: Optional[str] = Field(
+    category: str | None = Field(
         default="general",
         description="思考类别: analysis(分析), planning(规划), evaluation(评估), decision(决策)"
     )
@@ -41,11 +41,11 @@ class ThinkTool(AgentTool):
     
     Think工具的输出会被记录到Agent的对话历史中，帮助LLM保持思路的连贯性。
     """
-    
+
     @property
     def name(self) -> str:
         return "think"
-    
+
     @property
     def description(self) -> str:
         return """深度思考工具。用于：
@@ -59,7 +59,7 @@ class ThinkTool(AgentTool):
 参数:
 - thought: 你的思考内容
 - category: 思考类别 (analysis/planning/evaluation/decision)"""
-    
+
     @property
     def args_schema(self):
         return ThinkInput
@@ -67,7 +67,7 @@ class ThinkTool(AgentTool):
     def is_read_only(self, **kwargs) -> bool:
         del kwargs
         return True
-    
+
     async def _execute(
         self,
         thought: str,
@@ -85,9 +85,9 @@ class ThinkTool(AgentTool):
                 success=False,
                 error="思考内容不能为空",
             )
-        
+
         thought = thought.strip()
-        
+
         # 根据类别添加标记
         category_labels = {
             "analysis": "🔍 分析",
@@ -96,11 +96,11 @@ class ThinkTool(AgentTool):
             "decision": "🎯 决策",
             "general": "💭 思考",
         }
-        
+
         label = category_labels.get(category, "💭 思考")
-        
+
         logger.debug(f"Think tool called: [{label}] {thought[:100]}...")
-        
+
         return ToolResult(
             success=True,
             data={
@@ -122,11 +122,11 @@ class ReflectTool(AgentTool):
     
     让Agent回顾和总结当前的分析进展
     """
-    
+
     @property
     def name(self) -> str:
         return "reflect"
-    
+
     @property
     def description(self) -> str:
         return """反思工具。用于回顾当前的分析进展：
@@ -140,7 +140,7 @@ class ReflectTool(AgentTool):
 - findings_so_far: 目前发现的问题数量
 - coverage: 分析覆盖度评估 (low/medium/high)
 - next_steps: 建议的下一步行动"""
-    
+
     @property
     def args_schema(self):
         return None
@@ -148,7 +148,7 @@ class ReflectTool(AgentTool):
     def is_read_only(self, **kwargs) -> bool:
         del kwargs
         return True
-    
+
     async def _execute(
         self,
         summary: str = "",
@@ -164,7 +164,7 @@ class ReflectTool(AgentTool):
             "coverage": coverage,
             "next_steps": next_steps,
         }
-        
+
         return ToolResult(
             success=True,
             data={

@@ -6,7 +6,6 @@ from typing import Any
 
 import httpx
 
-
 PROMPT_TYPE = "sast-result-extra"
 MARK_REAL_VULN = "**真实漏洞**"
 MARK_EXPLAIN = "**解释**"

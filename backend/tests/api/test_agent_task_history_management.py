@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -35,7 +35,7 @@ async def _seed(session_factory, *, task_status: str = AgentTaskStatus.COMPLETED
             AgentTask(
                 id="task-1", project_id="project-1", created_by="user-1",
                 name="Audit", version_label="test", status=task_status,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             ),
             AuditSession(
                 id="session-1", project_id="project-1", task_id="task-1",

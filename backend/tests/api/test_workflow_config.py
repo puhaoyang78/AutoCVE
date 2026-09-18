@@ -2,7 +2,7 @@ import json
 from types import SimpleNamespace
 
 from app.api.v1.endpoints.agent_tasks import _merge_task_workflow_config
-from app.api.v1.endpoints.config import get_default_config, _merge_user_config
+from app.api.v1.endpoints.config import _merge_user_config, get_default_config
 
 
 def test_default_config_exposes_workflow_management_defaults():

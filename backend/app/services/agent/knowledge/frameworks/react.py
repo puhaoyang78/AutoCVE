@@ -2,8 +2,7 @@
 React 框架安全知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 REACT_SECURITY = KnowledgeDocument(
     id="framework_react",

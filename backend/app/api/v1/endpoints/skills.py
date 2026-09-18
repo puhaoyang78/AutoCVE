@@ -3,7 +3,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
@@ -81,7 +81,7 @@ def _binding_from_id(skill_slug: str, binding_id: str) -> dict[str, Any]:
 async def list_skills(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    agent_type: Optional[str] = None,
+    agent_type: str | None = None,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     del current_user

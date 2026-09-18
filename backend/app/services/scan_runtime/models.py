@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-
 DEFAULT_SEMGREP_CONFIGS = [
     "p/default",
     "p/security-audit",

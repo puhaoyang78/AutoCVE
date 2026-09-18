@@ -2,8 +2,7 @@
 XXE (XML外部实体注入) 漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 XXE = KnowledgeDocument(
     id="vuln_xxe",

@@ -3,16 +3,12 @@
 支持各类经典漏洞的沙箱验证测试
 """
 
-import asyncio
-import json
 import logging
 import os
 import re
-import tempfile
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, Field
-from dataclasses import dataclass
 from enum import Enum
+
+from pydantic import BaseModel, Field
 
 from .base import AgentTool, ToolResult
 from .sandbox_tool import SandboxManager
@@ -44,7 +40,7 @@ class CommandInjectionTestInput(BaseModel):
     param_name: str = Field(default="cmd", description="注入参数名")
     test_command: str = Field(default="id", description="测试命令: id, whoami, echo test, cat /etc/passwd")
     language: str = Field(default="auto", description="语言: auto, php, python, javascript, java, go, ruby, shell")
-    injection_point: Optional[str] = Field(default=None, description="注入点描述，如 'shell_exec($_GET[cmd])'")
+    injection_point: str | None = Field(default=None, description="注入点描述，如 'shell_exec($_GET[cmd])'")
 
 
 class CommandInjectionTestTool(AgentTool):
@@ -54,7 +50,7 @@ class CommandInjectionTestTool(AgentTool):
     支持多种语言和框架，自动构建测试环境
     """
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -131,7 +127,7 @@ class CommandInjectionTestTool(AgentTool):
         param_name: str = "cmd",
         test_command: str = "id",
         language: str = "auto",
-        injection_point: Optional[str] = None,
+        injection_point: str | None = None,
         **kwargs
     ) -> ToolResult:
         """执行命令注入测试"""
@@ -148,7 +144,7 @@ class CommandInjectionTestTool(AgentTool):
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {target_file}")
 
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # 检测语言
@@ -214,12 +210,12 @@ class CommandInjectionTestTool(AgentTool):
             output_parts.append(f"\n错误输出:\n```\n{result['stderr'][:500]}\n```")
 
         if is_vulnerable:
-            output_parts.append(f"\n\n🔴 **漏洞已确认!**")
+            output_parts.append("\n\n🔴 **漏洞已确认!**")
             output_parts.append(f"证据: {evidence}")
             if poc:
                 output_parts.append(f"\nPoC: `{poc}`")
         else:
-            output_parts.append(f"\n\n🟡 未能确认漏洞")
+            output_parts.append("\n\n🟡 未能确认漏洞")
 
         return ToolResult(
             success=True,
@@ -233,7 +229,7 @@ class CommandInjectionTestTool(AgentTool):
             }
         )
 
-    async def _test_by_language(self, language: str, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_by_language(self, language: str, code: str, param_name: str, test_command: str) -> dict:
         """根据语言执行测试"""
         if language == "php":
             return await self._test_php(code, param_name, test_command)
@@ -250,7 +246,7 @@ class CommandInjectionTestTool(AgentTool):
         else:
             return await self._test_shell(code, param_name, test_command)
 
-    async def _test_php(self, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_php(self, code: str, param_name: str, test_command: str) -> dict:
         """测试 PHP 命令注入
 
         注意: php -r 不需要 <?php 标签，直接执行纯 PHP 代码
@@ -273,7 +269,7 @@ $_REQUEST['{param_name}'] = '{test_command}';
         escaped = full_code.replace("'", "'\"'\"'")
         return await self.sandbox_manager.execute_command(f"php -r '{escaped}'", timeout=30)
 
-    async def _test_python(self, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_python(self, code: str, param_name: str, test_command: str) -> dict:
         """测试 Python 命令注入"""
         wrapper = f"""
 import sys, os
@@ -298,7 +294,7 @@ os.environ['{param_name.upper()}'] = '{test_command}'
         escaped = full_code.replace("'", "'\"'\"'")
         return await self.sandbox_manager.execute_command(f"python3 -c '{escaped}'", timeout=30)
 
-    async def _test_javascript(self, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_javascript(self, code: str, param_name: str, test_command: str) -> dict:
         """测试 JavaScript 命令注入"""
         wrapper = f"""
 const req = {{
@@ -314,7 +310,7 @@ process.env['{param_name.upper()}'] = '{test_command}';
         escaped = full_code.replace("'", "'\"'\"'")
         return await self.sandbox_manager.execute_command(f"node -e '{escaped}'", timeout=30)
 
-    async def _test_java(self, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_java(self, code: str, param_name: str, test_command: str) -> dict:
         """测试 Java 命令注入"""
         # 简化处理 - Java 需要完整类结构
         wrapper = f"""
@@ -337,7 +333,7 @@ public class Test {{
             timeout=60
         )
 
-    async def _test_go(self, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_go(self, code: str, param_name: str, test_command: str) -> dict:
         """测试 Go 命令注入"""
         if "package main" not in code:
             code = f"""package main
@@ -363,7 +359,7 @@ func main() {{
             timeout=60
         )
 
-    async def _test_ruby(self, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_ruby(self, code: str, param_name: str, test_command: str) -> dict:
         """测试 Ruby 命令注入"""
         wrapper = f"""
 ARGV[0] = "{test_command}"
@@ -378,7 +374,7 @@ end
         escaped = full_code.replace("'", "'\"'\"'")
         return await self.sandbox_manager.execute_command(f"ruby -e '{escaped}'", timeout=30)
 
-    async def _test_shell(self, code: str, param_name: str, test_command: str) -> Dict:
+    async def _test_shell(self, code: str, param_name: str, test_command: str) -> dict:
         """测试 Shell 命令注入"""
         wrapper = f"""#!/bin/bash
 export {param_name.upper()}="{test_command}"
@@ -450,7 +446,7 @@ class SqlInjectionTestTool(AgentTool):
         ],
     }
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -485,7 +481,7 @@ class SqlInjectionTestTool(AgentTool):
     def args_schema(self):
         return SqlInjectionTestInput
 
-    def _detect_sql_error(self, output: str, db_type: str = "mysql") -> Optional[str]:
+    def _detect_sql_error(self, output: str, db_type: str = "mysql") -> str | None:
         """检测 SQL 错误特征"""
         output_lower = output.lower()
 
@@ -525,7 +521,7 @@ class SqlInjectionTestTool(AgentTool):
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {target_file}")
 
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # 检测语言
@@ -581,12 +577,12 @@ class SqlInjectionTestTool(AgentTool):
             output_parts.append(f"\n错误:\n```\n{result['stderr'][:1000]}\n```")
 
         if is_vulnerable:
-            output_parts.append(f"\n\n🔴 **SQL 注入漏洞确认!**")
+            output_parts.append("\n\n🔴 **SQL 注入漏洞确认!**")
             output_parts.append(f"证据: {evidence}")
             if poc:
                 output_parts.append(f"\nPoC: `{poc}`")
         else:
-            output_parts.append(f"\n\n🟡 未能确认 SQL 注入漏洞")
+            output_parts.append("\n\n🟡 未能确认 SQL 注入漏洞")
 
         return ToolResult(
             success=True,
@@ -600,7 +596,7 @@ class SqlInjectionTestTool(AgentTool):
             }
         )
 
-    async def _test_sql_injection(self, language: str, code: str, param_name: str, payload: str) -> Dict:
+    async def _test_sql_injection(self, language: str, code: str, param_name: str, payload: str) -> dict:
         """根据语言测试 SQL 注入"""
         # 使用安全的 payload 转义
         safe_payload = payload.replace("'", "\\'")
@@ -672,7 +668,7 @@ class XssTestTool(AgentTool):
         "<body onload=alert('XSS')>",
     ]
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -728,7 +724,7 @@ class XssTestTool(AgentTool):
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {target_file}")
 
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # 检测语言
@@ -783,12 +779,12 @@ class XssTestTool(AgentTool):
             output_parts.append(f"\n输出:\n```html\n{result['stdout'][:2000]}\n```")
 
         if is_vulnerable:
-            output_parts.append(f"\n\n🔴 **XSS 漏洞确认!**")
+            output_parts.append("\n\n🔴 **XSS 漏洞确认!**")
             output_parts.append(f"证据: {evidence}")
             if poc:
                 output_parts.append(f"\nPoC: `{poc}`")
         else:
-            output_parts.append(f"\n\n🟡 未能确认 XSS 漏洞")
+            output_parts.append("\n\n🟡 未能确认 XSS 漏洞")
             if evidence:
                 output_parts.append(f"备注: {evidence}")
 
@@ -804,7 +800,7 @@ class XssTestTool(AgentTool):
             }
         )
 
-    async def _test_xss(self, language: str, code: str, param_name: str, payload: str) -> Dict:
+    async def _test_xss(self, language: str, code: str, param_name: str, payload: str) -> dict:
         """测试 XSS"""
         # 转义 payload 中的特殊字符
         safe_payload = payload.replace("'", "\\'").replace('"', '\\"')
@@ -887,7 +883,7 @@ class PathTraversalTestTool(AgentTool):
         ]
     }
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -940,7 +936,7 @@ class PathTraversalTestTool(AgentTool):
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {target_file}")
 
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # 检测语言
@@ -1003,12 +999,12 @@ class PathTraversalTestTool(AgentTool):
             output_parts.append(f"\n输出:\n```\n{result['stdout'][:2000]}\n```")
 
         if is_vulnerable:
-            output_parts.append(f"\n\n🔴 **路径遍历漏洞确认!**")
+            output_parts.append("\n\n🔴 **路径遍历漏洞确认!**")
             output_parts.append(f"证据: {evidence}")
             if poc:
                 output_parts.append(f"\nPoC: `{poc}`")
         else:
-            output_parts.append(f"\n\n🟡 未能确认路径遍历漏洞")
+            output_parts.append("\n\n🟡 未能确认路径遍历漏洞")
 
         return ToolResult(
             success=True,
@@ -1021,7 +1017,7 @@ class PathTraversalTestTool(AgentTool):
             }
         )
 
-    async def _test_traversal(self, language: str, code: str, param_name: str, payload: str) -> Dict:
+    async def _test_traversal(self, language: str, code: str, param_name: str, payload: str) -> dict:
         """测试路径遍历"""
         if language == "php":
             # php -r 不需要 <?php 标签
@@ -1099,7 +1095,7 @@ class SstiTestTool(AgentTool):
         ],
     }
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -1155,7 +1151,7 @@ class SstiTestTool(AgentTool):
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {target_file}")
 
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # 检测语言和模板引擎
@@ -1219,12 +1215,12 @@ class SstiTestTool(AgentTool):
             output_parts.append(f"\n输出:\n```\n{result['stdout'][:2000]}\n```")
 
         if is_vulnerable:
-            output_parts.append(f"\n\n🔴 **SSTI 漏洞确认!**")
+            output_parts.append("\n\n🔴 **SSTI 漏洞确认!**")
             output_parts.append(f"证据: {evidence}")
             if poc:
                 output_parts.append(f"\nPoC: `{poc}`")
         else:
-            output_parts.append(f"\n\n🟡 未能确认 SSTI 漏洞")
+            output_parts.append("\n\n🟡 未能确认 SSTI 漏洞")
 
         return ToolResult(
             success=True,
@@ -1238,7 +1234,7 @@ class SstiTestTool(AgentTool):
             }
         )
 
-    async def _test_ssti(self, language: str, code: str, param_name: str, payload: str) -> Dict:
+    async def _test_ssti(self, language: str, code: str, param_name: str, payload: str) -> dict:
         """测试 SSTI"""
         safe_payload = payload.replace("'", "\\'")
 
@@ -1293,7 +1289,7 @@ class DeserializationTestInput(BaseModel):
 class DeserializationTestTool(AgentTool):
     """反序列化漏洞测试工具"""
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -1343,7 +1339,7 @@ class DeserializationTestTool(AgentTool):
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {target_file}")
 
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # 检测语言
@@ -1418,19 +1414,19 @@ class DeserializationTestTool(AgentTool):
         output_parts.append(f"语言: {language}")
 
         if dangerous_calls:
-            output_parts.append(f"\n发现的危险调用:")
+            output_parts.append("\n发现的危险调用:")
             for call in dangerous_calls:
                 output_parts.append(f"  - {call}")
 
         if is_vulnerable:
-            output_parts.append(f"\n\n🔴 **存在反序列化漏洞风险!**")
+            output_parts.append("\n\n🔴 **存在反序列化漏洞风险!**")
             output_parts.append(f"证据: {evidence}")
-            output_parts.append(f"\n建议: 避免反序列化不可信数据，使用 JSON 等安全格式")
+            output_parts.append("\n建议: 避免反序列化不可信数据，使用 JSON 等安全格式")
         elif dangerous_calls:
-            output_parts.append(f"\n\n🟡 存在潜在风险")
-            output_parts.append(f"建议: 检查反序列化数据来源是否可信")
+            output_parts.append("\n\n🟡 存在潜在风险")
+            output_parts.append("建议: 检查反序列化数据来源是否可信")
         else:
-            output_parts.append(f"\n\n🟢 未发现明显的反序列化漏洞")
+            output_parts.append("\n\n🟢 未发现明显的反序列化漏洞")
 
         return ToolResult(
             success=True,
@@ -1452,14 +1448,14 @@ class UniversalVulnTestInput(BaseModel):
     target_file: str = Field(..., description="目标文件路径")
     vuln_type: str = Field(..., description="漏洞类型: command_injection, sql_injection, xss, path_traversal, ssti, deserialization")
     param_name: str = Field(default="input", description="参数名")
-    payload: Optional[str] = Field(default=None, description="自定义 payload")
+    payload: str | None = Field(default=None, description="自定义 payload")
     language: str = Field(default="auto", description="语言")
 
 
 class UniversalVulnTestTool(AgentTool):
     """通用漏洞测试工具 - 自动选择合适的测试器"""
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         self.sandbox_manager = sandbox_manager or SandboxManager()
         self.project_root = project_root
@@ -1525,7 +1521,7 @@ class UniversalVulnTestTool(AgentTool):
         target_file: str,
         vuln_type: str,
         param_name: str = "input",
-        payload: Optional[str] = None,
+        payload: str | None = None,
         language: str = "auto",
         **kwargs
     ) -> ToolResult:

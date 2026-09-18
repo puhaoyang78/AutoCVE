@@ -5,7 +5,6 @@ from typing import Any
 
 from app.services.llm.types import LLMProvider
 
-
 PROTOCOL_ALIASES = {
     "openai": "openai_chat",
     "openai_chat": "openai_chat",

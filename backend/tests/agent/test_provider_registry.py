@@ -1,14 +1,13 @@
-from app.services.llm.factory import LLMFactory
 from app.services.llm.adapters.gemini_native_adapter import GeminiNativeAdapter
 from app.services.llm.adapters.openai_responses_adapter import OpenAIResponsesAdapter
+from app.services.llm.factory import LLMFactory
 from app.services.llm.protocols.registry import (
     canonical_endpoint_protocol,
     get_model_capabilities,
     resolve_tool_message_format,
 )
 from app.services.llm.service import LLMService
-from app.services.llm.types import DEFAULT_BASE_URLS, DEFAULT_MODELS, LLMProvider
-from app.services.llm.types import LLMConfig
+from app.services.llm.types import DEFAULT_BASE_URLS, DEFAULT_MODELS, LLMConfig, LLMProvider
 
 
 def test_provider_registry_exposes_current_models_and_mimo() -> None:

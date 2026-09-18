@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +12,15 @@ from app.api import deps
 from app.api.v1.endpoints import audit_sessions as audit_sessions_endpoint
 from app.api.v1.endpoints.audit_sessions import router as audit_sessions_router
 from app.db.base import Base
-from app.models.audit_session import AuditHandoff, AuditMemory, AuditSession, AuditSessionMessage, AuditSkill, AuditSkillInvocation, AuditToolCall
+from app.models.audit_session import (
+    AuditHandoff,
+    AuditMemory,
+    AuditSession,
+    AuditSessionMessage,
+    AuditSkill,
+    AuditSkillInvocation,
+    AuditToolCall,
+)
 
 
 def build_test_app() -> FastAPI:
@@ -62,8 +70,8 @@ async def test_get_audit_session_detail_messages_tool_calls_skills_and_memories(
                 input_payload={"text": "demo"},
                 output_payload={"echo": "demo"},
                 duration_ms=7,
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
             )
         )
         db.add(
@@ -415,7 +423,7 @@ async def test_post_follow_up_message_can_generate_report_and_sync(monkeypatch):
             "source_finding_fingerprint": None,
             "source_metadata": {},
             "reports": [],
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "updated_at": None,
         }
 
@@ -488,7 +496,7 @@ async def test_stream_follow_up_message_for_runtime_session_uses_audit_chat_runt
                 "content": "",
                 "metadata": {"kind": "runtime_follow_up_response", "streaming": True},
                 "payload": {},
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }})
             await event_sink({"type": "token", "content": "Runtime", "accumulated": "Runtime"})
         db.add(
@@ -594,7 +602,7 @@ async def test_stream_follow_up_message_can_generate_report_and_sync(monkeypatch
             "source_finding_fingerprint": None,
             "source_metadata": {},
             "reports": [],
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "updated_at": None,
         }
 

@@ -7,21 +7,24 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from ..core.message import AgentMessage, MessageType, message_bus
-from ..core.registry import agent_registry
-from ..core.state import AgentState
 from app.models.audit_session import AuditCheckpointType
-from app.services.runtime_core.permission_runtime import ToolPermissionDecision, resolve_permission_rule_decision
+from app.services.runtime_core.permission_runtime import (
+    ToolPermissionDecision,
+    resolve_permission_rule_decision,
+)
 from app.services.runtime_core.session_registry import runtime_session_registry
 from app.services.runtime_core.session_state import (
-    SessionRuntimeState,
     build_agent_runtime_state,
 )
 from app.services.runtime_core.tool_runtime import match_runtime_event_hooks
+
+from ..core.message import AgentMessage, message_bus
+from ..core.registry import agent_registry
+from ..core.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +49,14 @@ class AgentConfig:
     name: str
     agent_type: AgentType
     pattern: AgentPattern = AgentPattern.REACT
-    model: Optional[str] = None
+    model: str | None = None
     temperature: float = 0.1
     max_tokens: int = 8192
     max_iterations: int = 20
     timeout_seconds: int = 600
-    tools: List[str] = field(default_factory=list)
-    system_prompt: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    tools: list[str] = field(default_factory=list)
+    system_prompt: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -61,17 +64,17 @@ class TaskHandoff:
     from_agent: str
     to_agent: str
     summary: str
-    work_completed: List[str] = field(default_factory=list)
-    key_findings: List[Dict[str, Any]] = field(default_factory=list)
-    insights: List[str] = field(default_factory=list)
-    suggested_actions: List[Dict[str, Any]] = field(default_factory=list)
-    attention_points: List[str] = field(default_factory=list)
-    priority_areas: List[str] = field(default_factory=list)
-    context_data: Dict[str, Any] = field(default_factory=dict)
+    work_completed: list[str] = field(default_factory=list)
+    key_findings: list[dict[str, Any]] = field(default_factory=list)
+    insights: list[str] = field(default_factory=list)
+    suggested_actions: list[dict[str, Any]] = field(default_factory=list)
+    attention_points: list[str] = field(default_factory=list)
+    priority_areas: list[str] = field(default_factory=list)
+    context_data: dict[str, Any] = field(default_factory=dict)
     confidence: float = 0.8
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "from_agent": self.from_agent,
             "to_agent": self.to_agent,
@@ -88,7 +91,7 @@ class TaskHandoff:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TaskHandoff":
+    def from_dict(cls, data: dict[str, Any]) -> TaskHandoff:
         return cls(
             from_agent=data.get("from_agent", ""),
             to_agent=data.get("to_agent", ""),
@@ -153,16 +156,16 @@ class TaskHandoff:
 class AgentResult:
     success: bool
     data: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     iterations: int = 0
     tool_calls: int = 0
     tokens_used: int = 0
     duration_ms: int = 0
-    intermediate_steps: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    handoff: Optional[TaskHandoff] = None
+    intermediate_steps: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    handoff: TaskHandoff | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "data": self.data,
@@ -181,10 +184,10 @@ class BaseAgent(ABC):
         self,
         config: AgentConfig,
         llm_service,
-        tools: Dict[str, Any],
+        tools: dict[str, Any],
         event_emitter=None,
-        parent_id: Optional[str] = None,
-        knowledge_modules: Optional[List[str]] = None,
+        parent_id: str | None = None,
+        knowledge_modules: list[str] | None = None,
     ):
         self.config = config
         self.llm_service = llm_service
@@ -208,9 +211,9 @@ class BaseAgent(ABC):
         self._cancel_callback = None
         self._registered = False
         self._runtime_session_checkpoint_store = None
-        self._incoming_handoff: Optional[TaskHandoff] = None
-        self._insights: List[str] = []
-        self._work_completed: List[str] = []
+        self._incoming_handoff: TaskHandoff | None = None
+        self._insights: list[str] = []
+        self._work_completed: list[str] = []
         self._timeout_config = self._get_timeout_config()
 
     @property
@@ -229,7 +232,7 @@ class BaseAgent(ABC):
     def agent_type(self) -> AgentType:
         return self.config.agent_type
 
-    def _get_timeout_config(self) -> Dict[str, int]:
+    def _get_timeout_config(self) -> dict[str, int]:
         from app.core.config import settings
         timeout_getter = getattr(self.llm_service, "get_agent_timeout_config", None)
         if callable(timeout_getter):
@@ -244,7 +247,7 @@ class BaseAgent(ABC):
             "tool_timeout": getattr(settings, "TOOL_TIMEOUT_SECONDS", 60),
         }
 
-    def _register_to_registry(self, task: Optional[str] = None) -> None:
+    def _register_to_registry(self, task: str | None = None) -> None:
         if self._registered:
             return
         agent_registry.register_agent(
@@ -299,7 +302,7 @@ class BaseAgent(ABC):
         self.parent_id = parent_id
         self._state.parent_id = parent_id
 
-    def check_messages(self) -> List[AgentMessage]:
+    def check_messages(self) -> list[AgentMessage]:
         try:
             return message_bus.get_messages(self._agent_id, unread_only=True, mark_as_read=True)
         except Exception:
@@ -325,7 +328,7 @@ class BaseAgent(ABC):
     def total_tokens_used(self) -> int:
         return int(self._total_tokens or 0)
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         return {
             "iterations": int(self._iteration or 0),
             "tool_calls": int(self._tool_calls or 0),
@@ -343,13 +346,13 @@ class BaseAgent(ABC):
         *,
         to_agent: str,
         summary: str,
-        work_completed: Optional[List[str]] = None,
-        key_findings: Optional[List[Dict[str, Any]]] = None,
-        insights: Optional[List[str]] = None,
-        suggested_actions: Optional[List[Dict[str, Any]]] = None,
-        attention_points: Optional[List[str]] = None,
-        priority_areas: Optional[List[str]] = None,
-        context_data: Optional[Dict[str, Any]] = None,
+        work_completed: list[str] | None = None,
+        key_findings: list[dict[str, Any]] | None = None,
+        insights: list[str] | None = None,
+        suggested_actions: list[dict[str, Any]] | None = None,
+        attention_points: list[str] | None = None,
+        priority_areas: list[str] | None = None,
+        context_data: dict[str, Any] | None = None,
         confidence: float = 0.8,
     ) -> TaskHandoff:
         return TaskHandoff(
@@ -382,7 +385,7 @@ class BaseAgent(ABC):
             return clean
         return f"{prefix} {clean}" if clean else prefix
 
-    def _decorate_metadata(self, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _decorate_metadata(self, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         merged = dict(metadata or {})
         merged.setdefault("agent_name", self.config.name)
         merged.setdefault("agent_type", self.config.agent_type.value)
@@ -392,11 +395,11 @@ class BaseAgent(ABC):
     async def emit_debug_payload(
         self,
         event_type: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         *,
-        message: Optional[str] = None,
-        phase: Optional[str] = None,
-        tool_name: Optional[str] = None,
+        message: str | None = None,
+        phase: str | None = None,
+        tool_name: str | None = None,
     ) -> None:
         if not self.event_emitter:
             return
@@ -416,7 +419,7 @@ class BaseAgent(ABC):
         except Exception:
             logger.debug("Debug payload emission failed for %s", event_type, exc_info=True)
 
-    async def emit_agent_start_debug(self, input_data: Dict[str, Any]) -> None:
+    async def emit_agent_start_debug(self, input_data: dict[str, Any]) -> None:
         await self.emit_debug_payload(
             "agent_start",
             {
@@ -453,11 +456,11 @@ class BaseAgent(ABC):
         event_type: str,
         message: str,
         *,
-        metadata: Optional[Dict[str, Any]] = None,
-        tool_name: Optional[str] = None,
-        tool_input: Optional[Dict[str, Any]] = None,
-        tool_output: Optional[Dict[str, Any]] = None,
-        tool_duration_ms: Optional[int] = None,
+        metadata: dict[str, Any] | None = None,
+        tool_name: str | None = None,
+        tool_input: dict[str, Any] | None = None,
+        tool_output: dict[str, Any] | None = None,
+        tool_duration_ms: int | None = None,
     ) -> None:
         if not self.event_emitter:
             return
@@ -503,7 +506,7 @@ class BaseAgent(ABC):
     async def emit_llm_complete(self, result_summary: str, tokens_used: int) -> None:
         await self.emit_event("llm_complete", result_summary, metadata={"tokens_used": tokens_used})
 
-    async def emit_llm_action(self, action: str, action_input: Dict[str, Any]) -> None:
+    async def emit_llm_action(self, action: str, action_input: dict[str, Any]) -> None:
         await self.emit_event("llm_action", action, metadata={"action_input": action_input})
         await self.emit_debug_payload(
             "react_action",
@@ -519,7 +522,7 @@ class BaseAgent(ABC):
             message="react observation captured",
         )
 
-    async def emit_tool_call(self, tool_name: str, tool_input: Dict[str, Any]) -> None:
+    async def emit_tool_call(self, tool_name: str, tool_input: dict[str, Any]) -> None:
         await self.emit_event("tool_call", f"Calling tool: {tool_name}", tool_name=tool_name, tool_input=tool_input)
 
     async def emit_tool_result(self, tool_name: str, result: str, duration_ms: int) -> None:
@@ -539,7 +542,7 @@ class BaseAgent(ABC):
             metadata={"vulnerability_type": vuln_type, "file_path": file_path, "is_verified": is_verified},
         )
 
-    def compress_messages_if_needed(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def compress_messages_if_needed(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
         max_messages = 40
         if len(messages) <= max_messages:
             return messages
@@ -547,11 +550,11 @@ class BaseAgent(ABC):
 
     async def stream_llm_call(
         self,
-        messages: List[Dict[str, str]],
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        messages: list[dict[str, str]],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         auto_compress: bool = True,
-    ) -> Tuple[str, int]:
+    ) -> tuple[str, int]:
         if auto_compress:
             messages = self.compress_messages_if_needed(messages)
         if self.is_cancelled:
@@ -559,7 +562,7 @@ class BaseAgent(ABC):
 
         accumulated = ""
         total_tokens = 0
-        token_buffer: List[str] = []
+        token_buffer: list[str] = []
         token_buffer_count = 0
         from app.core.config import settings
         token_chunk_size = max(1, int(getattr(settings, "AGENT_TOKEN_EVENT_CHUNK_SIZE", 20)))
@@ -601,7 +604,7 @@ class BaseAgent(ABC):
                     chunk = await asyncio.wait_for(iterator.__anext__(), timeout=timeout)
                 except StopAsyncIteration:
                     break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     accumulated = accumulated or "[LLM timeout]"
                     break
 
@@ -649,7 +652,7 @@ class BaseAgent(ABC):
             await self.emit_thinking_end(accumulated)
         return accumulated, total_tokens
 
-    def _memory_runtime_metadata(self) -> Dict[str, Any]:
+    def _memory_runtime_metadata(self) -> dict[str, Any]:
         metadata = self._state.metadata.setdefault("memory_runtime", {})
         metadata.setdefault("instructions", [])
         metadata.setdefault("recalls", [])
@@ -662,7 +665,7 @@ class BaseAgent(ABC):
 
         memory_runtime = self._memory_runtime_metadata()
         base_prompt = str(memory_runtime.get("base_system_prompt") or self.config.system_prompt or "").strip()
-        rendered: List[str] = []
+        rendered: list[str] = []
         for bucket in ("instructions", "recalls"):
             for item in memory_runtime.get(bucket) or []:
                 if not isinstance(item, dict):
@@ -714,11 +717,11 @@ class BaseAgent(ABC):
             for item in getattr(bundle, "recalls", []) or []
         ]
         memory_runtime["source"] = str(source or "preload")
-        memory_runtime["loaded_at"] = datetime.now(timezone.utc).isoformat()
+        memory_runtime["loaded_at"] = datetime.now(UTC).isoformat()
         self._apply_runtime_memory_prompt_overlay()
         self._sync_runtime_session_state_view()
 
-    def _tool_runtime_metadata(self) -> Dict[str, Any]:
+    def _tool_runtime_metadata(self) -> dict[str, Any]:
         metadata = self._state.metadata.setdefault("tool_runtime", {})
         metadata.setdefault("records", [])
         metadata.setdefault("events", [])
@@ -768,7 +771,7 @@ class BaseAgent(ABC):
         event = {
             "event": event_name,
             "tool_name": tool_name,
-            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "recorded_at": datetime.now(UTC).isoformat(),
             "permission_source": permission.source if permission else None,
             "permission_mode": permission.mode if permission else None,
             "error_message": error_message,
@@ -798,7 +801,7 @@ class BaseAgent(ABC):
         runtime_metadata = self._tool_runtime_metadata()
         checkpoint = {
             "checkpoint_type": AuditCheckpointType.AUTO.value,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "state_payload": {
                 "kind": "runtime_hook",
                 "event": event_name,
@@ -838,7 +841,7 @@ class BaseAgent(ABC):
                 "tool_name": tool_name,
                 "skill_ref": skill_ref,
                 "matched_hooks": matched_hooks,
-                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "recorded_at": datetime.now(UTC).isoformat(),
                 "permission_source": permission.source if permission else None,
                 "permission_mode": permission.mode if permission else None,
                 "error_message": error_message,
@@ -886,7 +889,7 @@ class BaseAgent(ABC):
             "tool_name": tool_name,
             "status": status,
             "duration_ms": max(0, int(duration_ms)),
-            "recorded_at": datetime.now(timezone.utc).isoformat(),
+            "recorded_at": datetime.now(UTC).isoformat(),
             "permission_source": permission.source if permission else None,
             "permission_mode": permission.mode if permission else None,
             "error_message": error_message,
@@ -897,7 +900,7 @@ class BaseAgent(ABC):
             del records[:-100]
         runtime_metadata["last_record"] = dict(record)
 
-    def _evaluate_tool_permission(self, tool_name: str, tool: Any, tool_input: Dict[str, Any]) -> ToolPermissionDecision:
+    def _evaluate_tool_permission(self, tool_name: str, tool: Any, tool_input: dict[str, Any]) -> ToolPermissionDecision:
         interaction_state = self._state.metadata.get("interaction_runtime") or {}
         explicit = resolve_permission_rule_decision(
             interaction_state.get("permission_rules"),
@@ -925,7 +928,7 @@ class BaseAgent(ABC):
             mode="deny",
         )
 
-    async def execute_tool(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
+    async def execute_tool(self, tool_name: str, tool_input: dict[str, Any]) -> str:
         if self.is_cancelled:
             return "Task cancelled."
         tool = self.tools.get(tool_name)
@@ -1013,7 +1016,7 @@ class BaseAgent(ABC):
             await self._persist_runtime_session_checkpoint_if_needed()
             await self.emit_tool_result(tool_name, error, duration_ms)
             return f"Tool execution failed: {error}"
-        except asyncio.TimeoutError:
+        except TimeoutError:
             duration_ms = int((time.time() - start) * 1000)
             self._record_tool_runtime_lifecycle(
                 event_name="PostToolUseFailure",
@@ -1083,5 +1086,5 @@ class BaseAgent(ABC):
         return "\n".join(tools_info)
 
     @abstractmethod
-    async def run(self, input_data: Dict[str, Any]) -> AgentResult:
+    async def run(self, input_data: dict[str, Any]) -> AgentResult:
         raise NotImplementedError

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from app.services.report_template_file_service import ReportTemplateFileService
 from app.services.skill_file_service import AGENT_TYPES, SkillFileService
@@ -7,7 +7,7 @@ from app.services.task_report_service import DEFAULT_REPORT_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_AGENT_SKILLS: Dict[str, List[Dict[str, Any]]] = {
+DEFAULT_AGENT_SKILLS: dict[str, list[dict[str, Any]]] = {
     "finding": [
         {
             "slug": "code-audit-finding",
@@ -54,8 +54,8 @@ def _binding_exists(agent_type: str, slug: str) -> bool:
     )
 
 
-async def init_skill_bindings() -> List[str]:
-    created: List[str] = []
+async def init_skill_bindings() -> list[str]:
+    created: list[str] = []
     for agent_type in AGENT_TYPES:
         SkillFileService.ensure_agent_bindings(agent_type)
 

@@ -2,8 +2,7 @@
 Supabase 安全知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 SUPABASE_SECURITY = KnowledgeDocument(
     id="framework_supabase",

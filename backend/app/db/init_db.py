@@ -4,15 +4,16 @@
 """
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.core.security import get_password_hash
-from app.models.user import User
-from app.models.project import Project, ProjectMember
-from app.models.audit import AuditTask, AuditIssue
 from app.models.analysis import InstantAnalysis
+from app.models.audit import AuditIssue, AuditTask
+from app.models.project import Project
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ async def create_demo_user(db: AsyncSession) -> User | None:
     """
     result = await db.execute(select(User).where(User.email == DEFAULT_DEMO_EMAIL))
     demo_user = result.scalars().first()
-    
+
     if not demo_user:
         demo_user = User(
             email=DEFAULT_DEMO_EMAIL,
@@ -58,10 +59,10 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
     if existing_projects:
         logger.info("演示数据已存在，跳过创建")
         return
-    
+
     logger.info("开始创建演示数据...")
-    now = datetime.now(timezone.utc)
-    
+    now = datetime.now(UTC)
+
     # ==================== 创建演示项目 ====================
     projects_data = [
         {
@@ -119,7 +120,7 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
             "programming_languages": json.dumps(["Rust", "TypeScript"]),
         },
     ]
-    
+
     projects = []
     for i, pdata in enumerate(projects_data):
         project = Project(
@@ -130,10 +131,10 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
         )
         db.add(project)
         projects.append(project)
-    
+
     await db.flush()
     logger.info(f"✓ 创建了 {len(projects)} 个演示项目")
-    
+
     # ==================== 创建审计任务和问题 ====================
     tasks_data = [
         # 项目1: 电商平台后端
@@ -158,7 +159,7 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
         {"project_idx": 5, "status": "completed", "days_ago": 16, "files": 67, "lines": 8400, "issues": 16, "score": 65.3},
         {"project_idx": 5, "status": "completed", "days_ago": 6, "files": 72, "lines": 9100, "issues": 9, "score": 77.5},
     ]
-    
+
     tasks = []
     for tdata in tasks_data:
         task_time = now - timedelta(days=tdata["days_ago"])
@@ -179,10 +180,10 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
         )
         db.add(task)
         tasks.append(task)
-    
+
     await db.flush()
     logger.info(f"✓ 创建了 {len(tasks)} 个审计任务")
-    
+
     # ==================== 创建审计问题 ====================
     issue_templates = [
         {"type": "security", "severity": "critical", "title": "SQL 注入漏洞", "file": "UserService.java", "line": 45},
@@ -198,12 +199,12 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
         {"type": "maintainability", "severity": "medium", "title": "重复代码块", "file": "handlers/auth.go", "line": 78},
         {"type": "maintainability", "severity": "low", "title": "缺少错误处理", "file": "utils/http.py", "line": 56},
     ]
-    
+
     issue_count = 0
     for task in tasks:
         if task.status != "completed" or task.issues_count == 0:
             continue
-        
+
         # 为每个完成的任务创建问题
         num_issues = min(task.issues_count, len(issue_templates))
         for i in range(num_issues):
@@ -225,10 +226,10 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
             )
             db.add(issue)
             issue_count += 1
-    
+
     await db.flush()
     logger.info(f"✓ 创建了 {issue_count} 个审计问题")
-    
+
     # ==================== 创建即时分析记录 ====================
     analyses_data = [
         {"lang": "Python", "issues": 3, "score": 75.5, "days_ago": 10},
@@ -238,7 +239,7 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
         {"lang": "TypeScript", "issues": 4, "score": 72.8, "days_ago": 2},
         {"lang": "Python", "issues": 0, "score": 95.0, "days_ago": 1},
     ]
-    
+
     for adata in analyses_data:
         analysis = InstantAnalysis(
             user_id=user.id,
@@ -251,10 +252,10 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
             created_at=now - timedelta(days=adata["days_ago"]),
         )
         db.add(analysis)
-    
+
     await db.flush()
     logger.info(f"✓ 创建了 {len(analyses_data)} 条即时分析记录")
-    
+
     await db.commit()
     logger.info("✓ 演示数据创建完成")
 
@@ -264,16 +265,16 @@ async def init_db(db: AsyncSession) -> None:
     初始化数据库
     """
     logger.info("开始初始化数据库...")
-    
+
     # 创建演示用户
     demo_user = await create_demo_user(db)
-    
+
     # 创建演示数据
     if demo_user:
         await create_demo_data(db, demo_user)
-    
+
     await db.commit()
-    
+
     # 初始化系统模板和规则
     try:
         from app.services.init_templates import init_templates_and_rules
@@ -287,5 +288,5 @@ async def init_db(db: AsyncSession) -> None:
         await init_agent_assets(db)
     except Exception as e:
         logger.warning(f"初始化模板和规则跳过: {e}")
-    
+
     logger.info("数据库初始化完成")

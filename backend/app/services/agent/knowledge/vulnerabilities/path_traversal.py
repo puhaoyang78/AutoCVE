@@ -2,8 +2,7 @@
 路径遍历漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 PATH_TRAVERSAL = KnowledgeDocument(
     id="vuln_path_traversal",

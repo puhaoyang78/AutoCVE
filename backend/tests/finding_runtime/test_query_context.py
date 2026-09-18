@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptItem
 import app.services.finding_runtime.query_context as query_context
+from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptItem
 from app.services.finding_runtime.query_context import (
     apply_context_collapse_if_needed,
     apply_history_snip,

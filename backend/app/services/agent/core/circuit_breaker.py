@@ -6,11 +6,11 @@ Prevents cascading failures by stopping calls to failing services.
 
 import asyncio
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime
 from enum import Enum
 from functools import wraps
-from typing import Any, Awaitable, Callable, Dict, Optional, TypeVar
+from typing import Any, TypeVar
 
 from .errors import CircuitOpenError
 
@@ -43,7 +43,7 @@ class CircuitStats:
     rejected_calls: int = 0
     consecutive_failures: int = 0
     consecutive_successes: int = 0
-    last_failure_time: Optional[float] = None
+    last_failure_time: float | None = None
 
     @property
     def failure_rate(self) -> float:
@@ -82,7 +82,7 @@ class CircuitBreaker:
         result = await circuit.call(lambda: make_llm_call())
     """
 
-    def __init__(self, name: str, config: Optional[CircuitBreakerConfig] = None):
+    def __init__(self, name: str, config: CircuitBreakerConfig | None = None):
         self.name = name
         self.config = config or CircuitBreakerConfig()
         self._state = CircuitState.CLOSED
@@ -187,7 +187,7 @@ class CircuitBreaker:
             await self._transition_to(CircuitState.CLOSED)
             self._stats = CircuitStats()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "state": self._state.value,
@@ -205,28 +205,28 @@ class CircuitBreaker:
 class CircuitBreakerRegistry:
     """Registry for managing circuit breakers"""
 
-    def __init__(self, default_config: Optional[CircuitBreakerConfig] = None):
-        self._circuits: Dict[str, CircuitBreaker] = {}
+    def __init__(self, default_config: CircuitBreakerConfig | None = None):
+        self._circuits: dict[str, CircuitBreaker] = {}
         self._default_config = default_config or CircuitBreakerConfig()
 
-    def get_or_create(self, name: str, config: Optional[CircuitBreakerConfig] = None) -> CircuitBreaker:
+    def get_or_create(self, name: str, config: CircuitBreakerConfig | None = None) -> CircuitBreaker:
         if name not in self._circuits:
             self._circuits[name] = CircuitBreaker(name, config or self._default_config)
         return self._circuits[name]
 
-    def get(self, name: str) -> Optional[CircuitBreaker]:
+    def get(self, name: str) -> CircuitBreaker | None:
         return self._circuits.get(name)
 
     async def reset_all(self) -> None:
         for circuit in self._circuits.values():
             await circuit.reset()
 
-    def get_all_status(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_status(self) -> dict[str, dict[str, Any]]:
         return {name: circuit.get_status() for name, circuit in self._circuits.items()}
 
 
 # Global registry
-_global_registry: Optional[CircuitBreakerRegistry] = None
+_global_registry: CircuitBreakerRegistry | None = None
 
 
 def get_circuit_registry() -> CircuitBreakerRegistry:
@@ -236,7 +236,7 @@ def get_circuit_registry() -> CircuitBreakerRegistry:
     return _global_registry
 
 
-def get_circuit(name: str, config: Optional[CircuitBreakerConfig] = None) -> CircuitBreaker:
+def get_circuit(name: str, config: CircuitBreakerConfig | None = None) -> CircuitBreaker:
     return get_circuit_registry().get_or_create(name, config)
 
 
@@ -248,7 +248,7 @@ def get_tool_circuit(tool_name: str) -> CircuitBreaker:
     return get_circuit(f"tool_{tool_name}", CircuitBreakerConfig(failure_threshold=3, recovery_timeout=60.0))
 
 
-def with_circuit_breaker(name: str, config: Optional[CircuitBreakerConfig] = None):
+def with_circuit_breaker(name: str, config: CircuitBreakerConfig | None = None):
     """Decorator to protect function with circuit breaker"""
     def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         circuit = get_circuit(name, config)

@@ -12,16 +12,14 @@
 - LLM 编写 mock 代码隔离测试函数
 """
 
-import asyncio
 import base64
 import logging
 import os
-import tempfile
-from typing import Optional, Dict, Any
+
 from pydantic import BaseModel, Field
 
 from .base import AgentTool, ToolResult
-from .sandbox_tool import SandboxManager, SandboxConfig
+from .sandbox_tool import SandboxConfig, SandboxManager
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +47,7 @@ class RunCodeTool(AgentTool):
     工具不做任何假设，完全由 LLM 控制测试逻辑。
     """
 
-    def __init__(self, sandbox_manager: Optional[SandboxManager] = None, project_root: str = "."):
+    def __init__(self, sandbox_manager: SandboxManager | None = None, project_root: str = "."):
         super().__init__()
         # 使用更宽松的沙箱配置
         config = SandboxConfig(
@@ -162,7 +160,7 @@ for payload in payloads:
             return ToolResult(
                 success=False,
                 error=f"不支持的语言: {language}",
-                data=f"支持的语言: python, php, javascript, ruby, go, java, c, cpp, c++, bash"
+                data="支持的语言: python, php, javascript, ruby, go, java, c, cpp, c++, bash"
             )
 
         # 在沙箱中执行
@@ -172,7 +170,7 @@ for payload in payloads:
         )
 
         # 格式化输出
-        output_parts = [f"🔬 代码执行结果"]
+        output_parts = ["🔬 代码执行结果"]
         if description:
             output_parts.append(f"目的: {description}")
         output_parts.append(f"语言: {language}")
@@ -212,7 +210,7 @@ for payload in payloads:
             }
         )
 
-    def _build_command(self, code: str, language: str) -> Optional[str]:
+    def _build_command(self, code: str, language: str) -> str | None:
         """根据语言构建执行命令"""
 
         # 转义单引号的通用方法
@@ -329,14 +327,12 @@ class ExtractFunctionTool(AgentTool):
         **kwargs
     ) -> ToolResult:
         """提取函数代码"""
-        import ast
-        import re
 
         full_path = os.path.join(self.project_root, file_path)
         if not os.path.exists(full_path):
             return ToolResult(success=False, error=f"文件不存在: {file_path}")
 
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(full_path, encoding='utf-8', errors='ignore') as f:
             code = f.read()
 
         # 检测语言
@@ -352,7 +348,7 @@ class ExtractFunctionTool(AgentTool):
             result = self._extract_generic(code, function_name)
 
         if result["success"]:
-            output_parts = [f"📦 函数提取结果\n"]
+            output_parts = ["📦 函数提取结果\n"]
             output_parts.append(f"文件: {file_path}")
             output_parts.append(f"函数: {function_name}")
 
@@ -379,7 +375,7 @@ class ExtractFunctionTool(AgentTool):
                 data=f"无法提取函数 '{function_name}'。你可以使用 read_file 工具直接读取文件，手动定位函数代码。"
             )
 
-    def _extract_python(self, code: str, function_name: str, include_imports: bool) -> Dict:
+    def _extract_python(self, code: str, function_name: str, include_imports: bool) -> dict:
         """提取 Python 函数"""
         import ast
 
@@ -417,7 +413,7 @@ class ExtractFunctionTool(AgentTool):
 
         return {"success": False, "error": f"未找到函数 '{function_name}'"}
 
-    def _extract_php(self, code: str, function_name: str) -> Dict:
+    def _extract_php(self, code: str, function_name: str) -> dict:
         """提取 PHP 函数"""
         import re
 
@@ -456,7 +452,7 @@ class ExtractFunctionTool(AgentTool):
             "parameters": params,
         }
 
-    def _extract_javascript(self, code: str, function_name: str) -> Dict:
+    def _extract_javascript(self, code: str, function_name: str) -> dict:
         """提取 JavaScript 函数"""
         import re
 
@@ -492,7 +488,7 @@ class ExtractFunctionTool(AgentTool):
 
         return {"success": False, "error": f"未找到函数 '{function_name}'"}
 
-    def _extract_generic(self, code: str, function_name: str) -> Dict:
+    def _extract_generic(self, code: str, function_name: str) -> dict:
         """通用函数提取（正则）"""
         import re
 

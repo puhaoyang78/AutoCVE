@@ -2,29 +2,29 @@
 PDF 报告生成服务 - 专业审计版 (WeasyPrint)
 """
 
-import io
+import base64
 import html
-from datetime import datetime
-from typing import List, Dict, Any
-import math
+import io
 import os
 import sys
-import base64
+from datetime import datetime
+from typing import Any
 
 # macOS Homebrew compatibility fix
 if sys.platform == 'darwin':
     os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = '/opt/homebrew/lib:' + os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
 
-from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
 from jinja2 import Template
+from weasyprint import HTML
+from weasyprint.text.fonts import FontConfiguration
+
 
 class ReportGenerator:
     """
     基于 HTML/CSS 的专业 PDF 报告生成器
     风格：严谨、高密度、企业级审计报告风格
     """
-    
+
     # --- HTML 模板 ---
     _TEMPLATE = """
     <!DOCTYPE html>
@@ -375,7 +375,7 @@ class ReportGenerator:
     </body>
     </html>
     """
-    
+
     @classmethod
     def _get_logo_base64(cls) -> str:
         """读取并编码 Logo 图片"""
@@ -388,7 +388,7 @@ class ReportGenerator:
                 # 本地开发路径
                 os.path.abspath(os.path.join(current_dir, '../../../frontend/public/images/logo_nobg.png')),
             ]
-            
+
             for logo_path in possible_paths:
                 if os.path.exists(logo_path):
                     with open(logo_path, "rb") as image_file:
@@ -406,7 +406,7 @@ class ReportGenerator:
         return html.escape(str(text))
 
     @classmethod
-    def _process_issues(cls, issues: List[Dict]) -> List[Dict]:
+    def _process_issues(cls, issues: list[dict]) -> list[dict]:
         processed = []
         order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
         sorted_issues = sorted(issues, key=lambda x: order.get(x.get('severity', 'low'), 4))
@@ -451,10 +451,10 @@ class ReportGenerator:
         return processed
 
     @classmethod
-    def _render_pdf(cls, context: Dict[str, Any]) -> bytes:
+    def _render_pdf(cls, context: dict[str, Any]) -> bytes:
         # 注入 Logo
         context['logo_b64'] = cls._get_logo_base64()
-        
+
         template = Template(cls._TEMPLATE)
         html_content = template.render(**context)
         font_config = FontConfiguration()
@@ -468,10 +468,10 @@ class ReportGenerator:
         return pdf_file.getvalue()
 
     @classmethod
-    def generate_instant_report(cls, result: Dict[str, Any], language: str, time: float) -> bytes:
+    def generate_instant_report(cls, result: dict[str, Any], language: str, time: float) -> bytes:
         score = result.get('quality_score', 0)
         issues = result.get('issues', [])
-        
+
         context = {
             'title': '代码审计报告',
             'subtitle': f'即时分析 | 语言: {language.capitalize()}',
@@ -487,9 +487,9 @@ class ReportGenerator:
         return cls._render_pdf(context)
 
     @classmethod
-    def generate_task_report(cls, task: Dict[str, Any], issues: List[Dict[str, Any]], project: str = "项目") -> bytes:
+    def generate_task_report(cls, task: dict[str, Any], issues: list[dict[str, Any]], project: str = "项目") -> bytes:
         score = task.get('quality_score', 0)
-        
+
         context = {
             'title': '项目代码审计报告',
             'subtitle': f"项目: {project} | 分支: {task.get('branch_name', 'default')}",

@@ -11,9 +11,10 @@
 
 import os
 import re
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
 from dataclasses import dataclass
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 from .base import AgentTool, ToolResult
 
@@ -35,21 +36,21 @@ class PatternMatch:
 class PatternMatchInput(BaseModel):
     """模式匹配输入 - 支持两种模式"""
     # 🔥 模式1: 传入代码内容
-    code: Optional[str] = Field(
-        default=None, 
+    code: str | None = Field(
+        default=None,
         description="要扫描的代码内容（与 scan_file 二选一）"
     )
     # 🔥 模式2: 直接扫描文件
-    scan_file: Optional[str] = Field(
+    scan_file: str | None = Field(
         default=None,
         description="要扫描的文件路径（相对于项目根目录，与 code 二选一）"
     )
     file_path: str = Field(default="unknown", description="文件路径（用于上下文）")
-    pattern_types: Optional[List[str]] = Field(
+    pattern_types: list[str] | None = Field(
         default=None,
         description="要检测的漏洞类型列表，如 ['sql_injection', 'xss']。为空则检测所有类型"
     )
-    language: Optional[str] = Field(default=None, description="编程语言，用于选择特定模式")
+    language: str | None = Field(default=None, description="编程语言，用于选择特定模式")
 
 
 class PatternMatchTool(AgentTool):
@@ -57,7 +58,7 @@ class PatternMatchTool(AgentTool):
     模式匹配工具
     使用正则表达式快速扫描代码中的危险模式
     """
-    
+
     def __init__(self, project_root: str = None):
         """
         初始化模式匹配工具
@@ -67,9 +68,9 @@ class PatternMatchTool(AgentTool):
         """
         super().__init__()
         self.project_root = project_root
-    
+
     # 危险模式定义
-    PATTERNS: Dict[str, Dict[str, Any]] = {
+    PATTERNS: dict[str, dict[str, Any]] = {
         # SQL 注入模式
         "sql_injection": {
             "patterns": {
@@ -104,7 +105,7 @@ class PatternMatchTool(AgentTool):
             "severity": "high",
             "description": "SQL注入漏洞：用户输入直接拼接到SQL语句中",
         },
-        
+
         # XSS 模式
         "xss": {
             "patterns": {
@@ -131,7 +132,7 @@ class PatternMatchTool(AgentTool):
             "severity": "high",
             "description": "XSS跨站脚本漏洞：未转义的用户输入被渲染到页面",
         },
-        
+
         # 命令注入模式
         "command_injection": {
             "patterns": {
@@ -168,7 +169,7 @@ class PatternMatchTool(AgentTool):
             "severity": "critical",
             "description": "命令注入漏洞：用户输入被用于执行系统命令",
         },
-        
+
         # 路径遍历模式
         "path_traversal": {
             "patterns": {
@@ -197,7 +198,7 @@ class PatternMatchTool(AgentTool):
             "severity": "high",
             "description": "路径遍历漏洞：用户可以访问任意文件",
         },
-        
+
         # SSRF 模式
         "ssrf": {
             "patterns": {
@@ -223,7 +224,7 @@ class PatternMatchTool(AgentTool):
             "severity": "high",
             "description": "SSRF漏洞：服务端请求用户控制的URL",
         },
-        
+
         # 不安全的反序列化
         "deserialization": {
             "patterns": {
@@ -249,7 +250,7 @@ class PatternMatchTool(AgentTool):
             "severity": "critical",
             "description": "不安全的反序列化：可能导致远程代码执行",
         },
-        
+
         # 硬编码密钥
         "hardcoded_secret": {
             "patterns": {
@@ -267,7 +268,7 @@ class PatternMatchTool(AgentTool):
             "severity": "medium",
             "description": "硬编码密钥：敏感信息不应该硬编码在代码中",
         },
-        
+
         # 弱加密
         "weak_crypto": {
             "patterns": {
@@ -298,11 +299,11 @@ class PatternMatchTool(AgentTool):
             "cwe_id": "CWE-327",
         },
     }
-    
+
     @property
     def name(self) -> str:
         return "pattern_match"
-    
+
     @property
     def description(self) -> str:
         vuln_types = ", ".join(self.PATTERNS.keys())
@@ -326,7 +327,7 @@ class PatternMatchTool(AgentTool):
 - language: 指定编程语言（通常自动检测）
 
 这是一个快速扫描工具，发现的问题需要进一步分析确认。"""
-    
+
     @property
     def args_schema(self):
         return PatternMatchInput
@@ -338,18 +339,18 @@ class PatternMatchTool(AgentTool):
     def is_read_only(self, **kwargs) -> bool:
         del kwargs
         return True
-    
+
     async def _execute(
         self,
-        code: Optional[str] = None,
-        scan_file: Optional[str] = None,
+        code: str | None = None,
+        scan_file: str | None = None,
         file_path: str = "unknown",
-        pattern_types: Optional[List[str]] = None,
-        language: Optional[str] = None,
+        pattern_types: list[str] | None = None,
+        language: str | None = None,
         **kwargs
     ) -> ToolResult:
         """执行模式匹配 - 支持直接文件扫描或代码内容扫描"""
-        
+
         # 🔥 模式1: 直接扫描文件
         if scan_file:
             if not self.project_root:
@@ -357,24 +358,24 @@ class PatternMatchTool(AgentTool):
                     success=False,
                     error="无法扫描文件：未配置项目根目录"
                 )
-            
+
             full_path = os.path.normpath(os.path.join(self.project_root, scan_file))
-            
+
             # 安全检查：防止路径遍历
             if not full_path.startswith(os.path.normpath(self.project_root)):
                 return ToolResult(
                     success=False,
                     error="安全错误：不允许访问项目目录外的文件"
                 )
-            
+
             if not os.path.exists(full_path):
                 return ToolResult(
                     success=False,
                     error=f"文件不存在: {scan_file}"
                 )
-            
+
             try:
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(full_path, encoding='utf-8', errors='ignore') as f:
                     code = f.read()
                 file_path = scan_file
             except Exception as e:
@@ -382,44 +383,44 @@ class PatternMatchTool(AgentTool):
                     success=False,
                     error=f"读取文件失败: {str(e)}"
                 )
-        
+
         # 🔥 检查是否有代码可以扫描
         if not code:
             return ToolResult(
                 success=False,
                 error="必须提供 scan_file（文件路径）或 code（代码内容）其中之一"
             )
-        
-        matches: List[PatternMatch] = []
+
+        matches: list[PatternMatch] = []
         lines = code.split('\n')
-        
+
         # 确定要检查的漏洞类型
         types_to_check = pattern_types or list(self.PATTERNS.keys())
-        
+
         # 自动检测语言
         if not language:
             language = self._detect_language(file_path)
-        
+
         for vuln_type in types_to_check:
             if vuln_type not in self.PATTERNS:
                 continue
-            
+
             pattern_config = self.PATTERNS[vuln_type]
             patterns_dict = pattern_config["patterns"]
-            
+
             # 获取语言特定模式和通用模式
             patterns_to_use = []
             if language and language in patterns_dict:
                 patterns_to_use.extend(patterns_dict[language])
             if "_common" in patterns_dict:
                 patterns_to_use.extend(patterns_dict["_common"])
-            
+
             # 如果没有特定语言模式，尝试使用所有模式
             if not patterns_to_use:
                 for lang, pats in patterns_dict.items():
                     if lang != "_common":
                         patterns_to_use.extend(pats)
-            
+
             # 执行匹配
             for pattern, pattern_name in patterns_to_use:
                 try:
@@ -429,7 +430,7 @@ class PatternMatchTool(AgentTool):
                             start = max(0, i - 2)
                             end = min(len(lines), i + 3)
                             context = '\n'.join(f"{j+1}: {lines[j]}" for j in range(start, end))
-                            
+
                             matches.append(PatternMatch(
                                 pattern_name=pattern_name,
                                 pattern_type=vuln_type,
@@ -442,21 +443,21 @@ class PatternMatchTool(AgentTool):
                             ))
                 except re.error:
                     continue
-        
+
         if not matches:
             return ToolResult(
                 success=True,
                 data="没有检测到已知的危险模式",
                 metadata={"patterns_checked": len(types_to_check), "matches": 0}
             )
-        
+
         # 格式化输出
         output_parts = [f"⚠️ 检测到 {len(matches)} 个潜在问题:\n"]
-        
+
         # 按严重程度排序
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         matches.sort(key=lambda x: severity_order.get(x.severity, 4))
-        
+
         for match in matches:
             severity_icon = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢"}.get(match.severity, "⚪")
             output_parts.append(f"\n{severity_icon} [{match.severity.upper()}] {match.pattern_type}")
@@ -465,7 +466,7 @@ class PatternMatchTool(AgentTool):
             output_parts.append(f"   描述: {match.description}")
             output_parts.append(f"   匹配: {match.matched_text}")
             output_parts.append(f"   上下文:\n{match.context}")
-        
+
         return ToolResult(
             success=True,
             data="\n".join(output_parts),
@@ -486,8 +487,8 @@ class PatternMatchTool(AgentTool):
                 ]
             }
         )
-    
-    def _detect_language(self, file_path: str) -> Optional[str]:
+
+    def _detect_language(self, file_path: str) -> str | None:
         """根据文件扩展名检测语言"""
         ext_map = {
             ".py": "python",
@@ -500,10 +501,10 @@ class PatternMatchTool(AgentTool):
             ".go": "go",
             ".rb": "ruby",
         }
-        
+
         for ext, lang in ext_map.items():
             if file_path.lower().endswith(ext):
                 return lang
-        
+
         return None
 

@@ -6,7 +6,6 @@ from typing import Any
 
 from app.services.llm.types import LLMRequest
 
-
 UNSUPPORTED_SCHEMA_FIELDS = {"cache_control"}
 UNSUPPORTED_SCHEMA_FORMATS = {"uri"}
 

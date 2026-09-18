@@ -10,6 +10,7 @@ from app.services.finding_runtime.compaction.auto_compact import (
 )
 from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptItem
 from app.services.finding_runtime.query_state import QueryLoopState
+
 DEFAULT_COMPACT_BOUNDARY_NAMES = {
     "auto_compact_boundary",
     "microcompact_boundary",

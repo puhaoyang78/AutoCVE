@@ -4,11 +4,12 @@
 
 import json
 import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.models.audit_rule import AuditRule, AuditRuleSet
 from app.models.prompt_template import PromptTemplate
-from app.models.audit_rule import AuditRuleSet, AuditRule
 
 logger = logging.getLogger(__name__)
 
@@ -534,7 +535,7 @@ async def init_system_templates(db: AsyncSession) -> None:
             )
         )
         existing = result.scalar_one_or_none()
-        
+
         if not existing:
             template = PromptTemplate(
                 name=template_data["name"],
@@ -550,7 +551,7 @@ async def init_system_templates(db: AsyncSession) -> None:
             )
             db.add(template)
             logger.info(f"✓ 创建系统提示词模板: {template_data['name']}")
-    
+
     await db.flush()
 
 
@@ -565,7 +566,7 @@ async def init_system_rule_sets(db: AsyncSession) -> None:
             )
         )
         existing = result.scalar_one_or_none()
-        
+
         if not existing:
             rule_set = AuditRuleSet(
                 name=rule_set_data["name"],
@@ -580,7 +581,7 @@ async def init_system_rule_sets(db: AsyncSession) -> None:
             )
             db.add(rule_set)
             await db.flush()
-            
+
             # 创建规则
             for rule_data in rule_set_data.get("rules", []):
                 rule = AuditRule(
@@ -597,16 +598,16 @@ async def init_system_rule_sets(db: AsyncSession) -> None:
                     sort_order=rule_data.get("sort_order", 0),
                 )
                 db.add(rule)
-            
+
             logger.info(f"✓ 创建系统规则集: {rule_set_data['name']} ({len(rule_set_data.get('rules', []))} 条规则)")
-    
+
     await db.flush()
 
 
 async def init_templates_and_rules(db: AsyncSession) -> None:
     """初始化所有系统模板和规则"""
     logger.info("开始初始化系统模板和规则...")
-    
+
     try:
         await init_system_templates(db)
         await init_system_rule_sets(db)

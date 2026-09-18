@@ -14,13 +14,13 @@ import asyncio
 import json
 import logging
 import re
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
-from .base import BaseAgent, AgentConfig, AgentResult, AgentType, AgentPattern, TaskHandoff
 from ..json_parser import AgentJsonParser
 from ..skill_service import SkillService
+from .base import AgentConfig, AgentPattern, AgentResult, AgentType, BaseAgent, TaskHandoff
 
 logger = logging.getLogger(__name__)
 
@@ -328,11 +328,11 @@ read_file 返回: "文件不存在"
 class VerificationStep:
     """验证步骤"""
     thought: str
-    action: Optional[str] = None
-    action_input: Optional[Dict] = None
-    observation: Optional[str] = None
+    action: str | None = None
+    action_input: dict | None = None
+    observation: str | None = None
     is_final: bool = False
-    final_answer: Optional[Dict] = None
+    final_answer: dict | None = None
 
 
 class VerificationAgent(BaseAgent):
@@ -344,16 +344,16 @@ class VerificationAgent(BaseAgent):
     2. 使用什么工具
     3. 判断真假
     """
-    
+
     def __init__(
         self,
         llm_service,
-        tools: Dict[str, Any],
+        tools: dict[str, Any],
         event_emitter=None,
     ):
         # 组合增强的系统提示词
         full_system_prompt = VERIFICATION_SYSTEM_PROMPT
-        
+
         config = AgentConfig(
             name="Verification",
             agent_type=AgentType.VERIFICATION,
@@ -362,13 +362,13 @@ class VerificationAgent(BaseAgent):
             system_prompt=full_system_prompt,
         )
         super().__init__(config, llm_service, tools, event_emitter)
-        
-        self._conversation_history: List[Dict[str, str]] = []
-        self._steps: List[VerificationStep] = []
+
+        self._conversation_history: list[dict[str, str]] = []
+        self._steps: list[VerificationStep] = []
 
 
 
-    
+
     def _parse_llm_response(self, response: str) -> VerificationStep:
         """解析 LLM 响应 - 增强版，更健壮地提取思考内容"""
         step = VerificationStep(thought="")
@@ -456,20 +456,20 @@ class VerificationAgent(BaseAgent):
                 step.thought = response.strip()[:500]
 
         return step
-    
-    async def run(self, input_data: Dict[str, Any]) -> AgentResult:
+
+    async def run(self, input_data: dict[str, Any]) -> AgentResult:
         """
         执行漏洞验证 - LLM 全程参与！
         """
         import time
         start_time = time.time()
-        
+
         previous_results = input_data.get("previous_results", {})
         config = input_data.get("config", {})
         skill_context = await SkillService.resolve_agent_skills(config.get("user_id"), self.agent_type.value, {"project_info": input_data.get("project_info", {}), "config": config, "task": input_data.get("task", ""), "task_context": input_data.get("task_context", ""), "recon_data": previous_results.get("recon", {})})
         task = input_data.get("task", "")
         task_context = input_data.get("task_context", "")
-        
+
         # 🔥 处理交接信息
         handoff = input_data.get("handoff")
         if handoff:
@@ -477,17 +477,17 @@ class VerificationAgent(BaseAgent):
             if isinstance(handoff, dict):
                 handoff = TaskHandoff.from_dict(handoff)
             self.receive_handoff(handoff)
-        
+
         # 收集所有待验证的发现
         findings_to_verify = []
-        
+
         # 🔥 优先从交接信息获取发现
         if self._incoming_handoff and self._incoming_handoff.key_findings:
             findings_to_verify = self._incoming_handoff.key_findings.copy()
             logger.info(f"[Verification] 从交接信息获取 {len(findings_to_verify)} 个发现")
         else:
             # 🔥 修复：处理 Orchestrator 传递的多种数据格式
-            
+
             # 格式1: Orchestrator 直接传递 {"findings": [...]}
             if isinstance(previous_results, dict) and "findings" in previous_results:
                 direct_findings = previous_results.get("findings", [])
@@ -497,49 +497,49 @@ class VerificationAgent(BaseAgent):
                             # 🔥 Always verify Critical/High findings to generate PoC, even if Analysis sets needs_verification=False
                             severity = str(f.get("severity", "")).lower()
                             needs_verify = f.get("needs_verification", True)
-                            
+
                             if needs_verify or severity in ["critical", "high"]:
                                 findings_to_verify.append(f)
                     logger.info(f"[Verification] 从 previous_results.findings 获取 {len(findings_to_verify)} 个发现")
-            
+
             # 格式2: 传统格式 {"phase_name": {"data": {"findings": [...]}}}
             if not findings_to_verify:
                 for phase_name, result in previous_results.items():
                     if phase_name == "findings":
                         continue  # 已处理
-                    
+
                     if isinstance(result, dict):
                         data = result.get("data", {})
                     else:
                         data = result.data if hasattr(result, 'data') else {}
-                    
+
                     if isinstance(data, dict):
                         phase_findings = data.get("findings", [])
                         for f in phase_findings:
                             if isinstance(f, dict):
                                 severity = str(f.get("severity", "")).lower()
                                 needs_verify = f.get("needs_verification", True)
-                                
+
                                 if needs_verify or severity in ["critical", "high"]:
                                     findings_to_verify.append(f)
-                
+
                 if findings_to_verify:
                     logger.info(f"[Verification] 从传统格式获取 {len(findings_to_verify)} 个发现")
-        
+
         # 🔥 如果仍然没有发现，尝试从 input_data 的其他字段提取
         if not findings_to_verify:
             # 尝试从 task 或 task_context 中提取描述的漏洞
             if task and ("发现" in task or "漏洞" in task or "findings" in task.lower()):
                 logger.warning(f"[Verification] 无法从结构化数据获取发现，任务描述: {task[:200]}")
                 # 创建一个提示 LLM 从任务描述中理解漏洞的特殊处理
-                await self.emit_event("warning", f"无法从结构化数据获取发现列表，将基于任务描述进行验证")
-        
+                await self.emit_event("warning", "无法从结构化数据获取发现列表，将基于任务描述进行验证")
+
         # 去重
         findings_to_verify = self._deduplicate(findings_to_verify)
 
         # 🔥 FIX: 优先处理有明确文件路径的发现，将没有文件路径的发现放到后面
         # 这确保 Analysis 的具体发现优先于 Recon 的泛化描述
-        def has_valid_file_path(finding: Dict) -> bool:
+        def has_valid_file_path(finding: dict) -> bool:
             file_path = finding.get("file_path", "")
             return bool(file_path and file_path.strip() and file_path.lower() not in ["unknown", "n/a", ""])
 
@@ -561,21 +561,21 @@ class VerificationAgent(BaseAgent):
                 success=True,
                 data={"findings": [], "verified_count": 0, "note": "未收到待验证的发现"},
             )
-        
+
         # 限制数量
         findings_to_verify = findings_to_verify[:20]
-        
+
         await self.emit_event(
             "info",
             f"开始验证 {len(findings_to_verify)} 个发现"
         )
-        
+
         # 🔥 记录工作开始
         self.record_work(f"开始验证 {len(findings_to_verify)} 个漏洞发现")
-        
+
         # 🔥 构建包含交接上下文的初始消息
         handoff_context = self.get_handoff_context()
-        
+
         findings_summary = []
         for i, f in enumerate(findings_to_verify):
             # 🔥 FIX: 正确处理 file_path 格式，可能包含行号 (如 "app.py:36")
@@ -603,7 +603,7 @@ class VerificationAgent(BaseAgent):
 ```
 - 描述: {f.get('description', 'N/A')[:300]}
 """)
-        
+
         initial_message = f"""请验证以下 {len(findings_to_verify)} 个安全发现。
 
 {handoff_context if handoff_context else ''}
@@ -632,7 +632,7 @@ class VerificationAgent(BaseAgent):
 1. 首先使用 read_file 读取发现中指定的文件（使用精确路径）
 2. 分析代码上下文
 3. 判断是否为真实漏洞
-{f"特别注意 Analysis Agent 提到的关注点。" if handoff_context else ""}"""
+{"特别注意 Analysis Agent 提到的关注点。" if handoff_context else ""}"""
 
         # 初始化对话历史
         self._conversation_history = [
@@ -654,21 +654,21 @@ class VerificationAgent(BaseAgent):
             await self.emit_handoff_debug("in", self._incoming_handoff)
         self._steps = []
         final_result = None
-        
+
         await self.emit_thinking("🔐 Verification Agent 启动，LLM 开始自主验证漏洞...")
-        
+
         try:
             for iteration in range(self.config.max_iterations):
                 if self.is_cancelled:
                     break
-                
+
                 self._iteration = iteration + 1
-                
+
                 # 🔥 再次检查取消标志（在LLM调用之前）
                 if self.is_cancelled:
                     await self.emit_thinking("🛑 任务已取消，停止执行")
                     break
-                
+
                 # 调用 LLM 进行思考和决策（流式输出）
                 try:
                     llm_output, tokens_this_round = await self.stream_llm_call(
@@ -678,7 +678,7 @@ class VerificationAgent(BaseAgent):
                 except asyncio.CancelledError:
                     logger.info(f"[{self.name}] LLM call cancelled")
                     break
-                
+
                 self._total_tokens += tokens_this_round
 
                 # 🔥 Handle empty LLM response to prevent loops
@@ -694,18 +694,18 @@ class VerificationAgent(BaseAgent):
                 # 解析 LLM 响应
                 step = self._parse_llm_response(llm_output)
                 self._steps.append(step)
-                
+
                 # 🔥 发射 LLM 思考内容事件 - 展示验证的思考过程
                 if step.thought:
                     await self.emit_llm_thought(step.thought, iteration + 1)
-                
+
                 # 添加 LLM 响应到历史
                 self._conversation_history.append({
                     "role": "assistant",
                     "content": llm_output,
                 })
                 await self.emit_model_response_debug(llm_output, iteration=self._iteration)
-                
+
                 # 检查是否完成
                 if step.is_final:
                     # 🔥 强制检查：必须至少调用过一次工具才能完成
@@ -728,35 +728,35 @@ class VerificationAgent(BaseAgent):
 
                     await self.emit_llm_decision("完成漏洞验证", "LLM 判断验证已充分")
                     final_result = step.final_answer
-                    
+
                     # 🔥 记录洞察和工作
                     if final_result and "findings" in final_result:
                         verified_count = len([f for f in final_result["findings"] if f.get("is_verified")])
                         fp_count = len([f for f in final_result["findings"] if f.get("verdict") == "false_positive"])
                         self.add_insight(f"验证了 {len(final_result['findings'])} 个发现，{verified_count} 个确认，{fp_count} 个误报")
                         self.record_work(f"完成漏洞验证: {verified_count} 个确认, {fp_count} 个误报")
-                    
+
                     await self.emit_llm_complete(
-                        f"验证完成",
+                        "验证完成",
                         self._total_tokens
                     )
                     break
-                
+
                 # 执行工具
                 if step.action:
                     # 🔥 发射 LLM 动作决策事件
                     await self.emit_llm_action(step.action, step.action_input or {})
-                    
+
                     start_tool_time = time.time()
-                    
+
                     # 🔥 智能循环检测: 追踪重复调用 (无论成功与否)
                     tool_call_key = f"{step.action}:{json.dumps(step.action_input or {}, sort_keys=True)}"
-                    
+
                     if not hasattr(self, '_tool_call_counts'):
                         self._tool_call_counts = {}
-                    
+
                     self._tool_call_counts[tool_call_key] = self._tool_call_counts.get(tool_call_key, 0) + 1
-                    
+
                     # 如果同一操作重复尝试超过3次，强制干预
                     if self._tool_call_counts[tool_call_key] > 3:
                         logger.warning(f"[{self.name}] Detected repetitive tool call loop: {tool_call_key}")
@@ -769,7 +769,7 @@ class VerificationAgent(BaseAgent):
                             "3. 如果之前的尝试都失败了，请尝试 analyze_file 重新分析代码\n"
                             "4. 如果无法验证，请输出 Final Answer 并标记为 uncertain"
                         )
-                        
+
                         # 模拟观察结果，跳过实际执行
                         step.observation = observation
                         await self.emit_llm_observation(observation)
@@ -782,25 +782,25 @@ class VerificationAgent(BaseAgent):
                     # 🔥 循环检测：追踪工具调用失败历史 (保留原有逻辑用于错误追踪)
                     if not hasattr(self, '_failed_tool_calls'):
                         self._failed_tool_calls = {}
-                    
+
                     observation = await self.execute_tool(
                         step.action,
                         step.action_input or {}
                     )
-                    
+
                     # 🔥 检测工具调用失败并追踪
                     is_tool_error = (
-                        "失败" in observation or 
-                        "错误" in observation or 
+                        "失败" in observation or
+                        "错误" in observation or
                         "不存在" in observation or
                         "文件过大" in observation or
                         "Error" in observation
                     )
-                    
+
                     if is_tool_error:
                         self._failed_tool_calls[tool_call_key] = self._failed_tool_calls.get(tool_call_key, 0) + 1
                         fail_count = self._failed_tool_calls[tool_call_key]
-                        
+
                         # 🔥 如果同一调用连续失败3次，添加强制跳过提示
                         if fail_count >= 3:
                             logger.warning(f"[{self.name}] Tool call failed {fail_count} times: {tool_call_key}")
@@ -809,7 +809,7 @@ class VerificationAgent(BaseAgent):
                             observation += "2. 使用 search_code 工具定位关键代码片段\n"
                             observation += "3. 跳过此发现的验证，继续验证其他发现\n"
                             observation += "4. 如果已有足够验证结果，直接输出 Final Answer"
-                            
+
                             # 重置计数器
                             self._failed_tool_calls[tool_call_key] = 0
                     else:
@@ -823,10 +823,10 @@ class VerificationAgent(BaseAgent):
                         break
 
                     step.observation = observation
-                    
+
                     # 🔥 发射 LLM 观察事件
                     await self.emit_llm_observation(observation)
-                    
+
                     # 添加观察结果到历史
                     self._conversation_history.append({
                         "role": "user",
@@ -839,10 +839,10 @@ class VerificationAgent(BaseAgent):
                         "role": "user",
                         "content": "请继续验证。你输出了 Thought 但没有输出 Action。请**立即**选择一个工具执行，或者如果验证完成，输出 Final Answer 汇总所有验证结果。",
                     })
-            
+
             # 处理结果
             duration_ms = int((time.time() - start_time) * 1000)
-            
+
             # 🔥 如果被取消，返回取消结果
             if self.is_cancelled:
                 await self.emit_event(
@@ -858,7 +858,7 @@ class VerificationAgent(BaseAgent):
                     tokens_used=self._total_tokens,
                     duration_ms=duration_ms,
                 )
-            
+
             # 处理最终结果
             verified_findings = []
 
@@ -898,7 +898,7 @@ class VerificationAgent(BaseAgent):
                         "is_verified": verdict == "confirmed" or (
                             verdict == "likely" and f.get("confidence", 0) >= 0.8
                         ),
-                        "verified_at": datetime.now(timezone.utc).isoformat() if verdict in ["confirmed", "likely"] else None,
+                        "verified_at": datetime.now(UTC).isoformat() if verdict in ["confirmed", "likely"] else None,
                     }
 
                     # 添加修复建议
@@ -915,7 +915,7 @@ class VerificationAgent(BaseAgent):
                         "confidence": 0.5,
                         "is_verified": False,
                     })
-            
+
             # 统计
             confirmed_count = len([f for f in verified_findings if f.get("verdict") == "confirmed"])
             likely_count = len([f for f in verified_findings if f.get("verdict") == "likely"])
@@ -949,11 +949,11 @@ class VerificationAgent(BaseAgent):
                 duration_ms=duration_ms,
                 handoff=handoff,  # 🔥 添加 handoff
             )
-            
+
         except Exception as e:
             logger.error(f"Verification Agent failed: {e}", exc_info=True)
             return AgentResult(success=False, error=str(e))
-    
+
     def _get_recommendation(self, vuln_type: str) -> str:
         """获取修复建议"""
         recommendations = {
@@ -967,36 +967,36 @@ class VerificationAgent(BaseAgent):
             "weak_crypto": "使用强加密算法（AES-256, SHA-256+），避免 MD5/SHA1",
         }
         return recommendations.get(vuln_type, "请根据具体情况修复此安全问题")
-    
-    def _deduplicate(self, findings: List[Dict]) -> List[Dict]:
+
+    def _deduplicate(self, findings: list[dict]) -> list[dict]:
         """去重"""
         seen = set()
         unique = []
-        
+
         for f in findings:
             key = (
                 f.get("file_path", ""),
                 f.get("line_start", 0),
                 f.get("vulnerability_type", ""),
             )
-            
+
             if key not in seen:
                 seen.add(key)
                 unique.append(f)
-        
+
         return unique
-    
-    def get_conversation_history(self) -> List[Dict[str, str]]:
+
+    def get_conversation_history(self) -> list[dict[str, str]]:
         """获取对话历史"""
         return self._conversation_history
 
-    def get_steps(self) -> List[VerificationStep]:
+    def get_steps(self) -> list[VerificationStep]:
         """获取执行步骤"""
         return self._steps
 
     def _create_verification_handoff(
         self,
-        verified_findings: List[Dict[str, Any]],
+        verified_findings: list[dict[str, Any]],
         confirmed_count: int,
         likely_count: int,
         false_positive_count: int,

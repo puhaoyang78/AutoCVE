@@ -8,7 +8,8 @@ import asyncio
 import json
 import time
 import uuid
-from typing import Any, Optional, List
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -16,9 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.api import deps
+from app.core.config import settings
 from app.models.user import User
 from app.models.user_config import UserConfig
-from app.core.config import settings
 
 router = APIRouter()
 
@@ -30,7 +31,7 @@ class EmbeddingProvider(BaseModel):
     id: str
     name: str
     description: str
-    models: List[str]
+    models: list[str]
     requires_api_key: bool
     default_model: str
 
@@ -39,9 +40,9 @@ class EmbeddingConfig(BaseModel):
     """嵌入模型配置"""
     provider: str = Field(description="提供商: openai, ollama, azure, cohere, huggingface, jina, qwen")
     model: str = Field(description="模型名称")
-    api_key: Optional[str] = Field(default=None, description="API Key (如需要)")
-    base_url: Optional[str] = Field(default=None, description="自定义 API 端点")
-    dimensions: Optional[int] = Field(default=None, description="向量维度 (某些模型支持)")
+    api_key: str | None = Field(default=None, description="API Key (如需要)")
+    base_url: str | None = Field(default=None, description="自定义 API 端点")
+    dimensions: int | None = Field(default=None, description="向量维度 (某些模型支持)")
     batch_size: int = Field(default=100, description="批处理大小")
 
 
@@ -49,8 +50,8 @@ class EmbeddingConfigResponse(BaseModel):
     """配置响应"""
     provider: str
     model: str
-    api_key: Optional[str] = None  # 返回 API Key
-    base_url: Optional[str]
+    api_key: str | None = None  # 返回 API Key
+    base_url: str | None
     dimensions: int
     batch_size: int
 
@@ -59,9 +60,9 @@ class TestEmbeddingRequest(BaseModel):
     """测试嵌入请求"""
     provider: str
     model: str
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
-    dimension: Optional[int] = None  # 自定义维度（Ollama等场景）
+    api_key: str | None = None
+    base_url: str | None = None
+    dimension: int | None = None  # 自定义维度（Ollama等场景）
     test_text: str = "这是一段测试文本，用于验证嵌入模型是否正常工作。"
 
 
@@ -69,14 +70,14 @@ class TestEmbeddingResponse(BaseModel):
     """测试嵌入响应"""
     success: bool
     message: str
-    dimensions: Optional[int] = None
-    sample_embedding: Optional[List[float]] = None  # 前 5 个维度
-    latency_ms: Optional[int] = None
+    dimensions: int | None = None
+    sample_embedding: list[float] | None = None  # 前 5 个维度
+    latency_ms: int | None = None
 
 
 # ============ 提供商配置 ============
 
-EMBEDDING_PROVIDERS: List[EmbeddingProvider] = [
+EMBEDDING_PROVIDERS: list[EmbeddingProvider] = [
     EmbeddingProvider(
         id="openai",
         name="OpenAI (兼容 DeepSeek/Moonshot/智谱 等)",
@@ -256,7 +257,7 @@ async def save_embedding_config_to_db(db: AsyncSession, user_id: str, config: Em
 
 # ============ API Endpoints ============
 
-@router.get("/providers", response_model=List[EmbeddingProvider])
+@router.get("/providers", response_model=list[EmbeddingProvider])
 async def list_embedding_providers(
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
@@ -346,7 +347,7 @@ async def test_embedding(
         latency_ms = int(elapsed * 1000)  # 在sleep前计算实际延迟
         if elapsed < FIXED_DURATION:
             await asyncio.sleep(FIXED_DURATION - elapsed)
-        
+
         return TestEmbeddingResponse(
             success=True,
             message=f"嵌入成功! 维度: {len(embedding)}",
@@ -354,7 +355,7 @@ async def test_embedding(
             sample_embedding=embedding[:5],  # 返回前 5 维
             latency_ms=latency_ms,
         )
-        
+
     except Exception as e:
         # 发生异常时也同样等待，确保时间特征一致
         elapsed = time.time() - start_time
@@ -376,10 +377,10 @@ async def get_provider_models(
     获取指定提供商的模型列表
     """
     provider_info = next((p for p in EMBEDDING_PROVIDERS if p.id == provider), None)
-    
+
     if not provider_info:
         raise HTTPException(status_code=404, detail=f"提供商不存在: {provider}")
-    
+
     return {
         "provider": provider,
         "models": provider_info.models,

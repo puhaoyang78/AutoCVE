@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -18,7 +18,6 @@ from app.models.one_click_cve import (
     OneClickCveProjectStatus,
 )
 from app.services.finding_runtime.session_store import AuditSessionPersistenceError
-
 
 RESUME_CANCEL_POLL_INTERVAL_SECONDS = 0.5
 
@@ -60,7 +59,11 @@ async def _refresh_task_and_batch(db, *, session: AuditSession, final_payload: d
         return
 
     if session.state == "completed":
-        from app.api.v1.endpoints.agent_tasks import _apply_task_finding_metrics, _load_task_findings, _save_findings
+        from app.api.v1.endpoints.agent_tasks import (
+            _apply_task_finding_metrics,
+            _load_task_findings,
+            _save_findings,
+        )
 
         if isinstance(final_payload, dict):
             await _save_findings(db, task.id, list(final_payload.get("findings") or []), project_root=None)
@@ -69,7 +72,7 @@ async def _refresh_task_and_batch(db, *, session: AuditSession, final_payload: d
         task.status = AgentTaskStatus.COMPLETED
         task.current_step = "审计续跑已完成"
         task.error_message = None
-        task.completed_at = datetime.now(timezone.utc)
+        task.completed_at = datetime.now(UTC)
     elif session.state != "completed":
         task.status = AgentTaskStatus.FAILED
         latest_checkpoint = await db.scalar(
@@ -85,7 +88,7 @@ async def _refresh_task_and_batch(db, *, session: AuditSession, final_payload: d
                 or checkpoint_payload.get("message")
                 or "审计续跑未完成，可稍后继续"
             )
-        task.completed_at = datetime.now(timezone.utc)
+        task.completed_at = datetime.now(UTC)
 
     batch_project = await db.scalar(
         select(OneClickCveBatchProject)
@@ -107,10 +110,13 @@ async def _refresh_task_and_batch(db, *, session: AuditSession, final_payload: d
         OneClickCveProjectStatus.COMPLETED if session.state == "completed" else OneClickCveProjectStatus.FAILED
     )
     batch_project.error_message = None if session.state == "completed" else task.error_message
-    batch_project.updated_at_local = datetime.now(timezone.utc)
+    batch_project.updated_at_local = datetime.now(UTC)
     batch = await db.get(OneClickCveBatch, batch_project.batch_id)
     if batch is not None:
-        from app.services.one_click_cve.runner import _refresh_batch_summary, is_fatal_one_click_cve_error
+        from app.services.one_click_cve.runner import (
+            _refresh_batch_summary,
+            is_fatal_one_click_cve_error,
+        )
 
         await _refresh_batch_summary(db, batch)
         if session.state != "completed":
@@ -127,7 +133,7 @@ async def _refresh_task_and_batch(db, *, session: AuditSession, final_payload: d
                 batch.status = OneClickCveBatchStatus.FAILED
                 batch.error_message = error_message or "共享模型或基础设施故障"
                 batch.current_step = "检测到共享模型或基础设施故障，已停止整个一键 CVE"
-                batch.completed_at = datetime.now(timezone.utc)
+                batch.completed_at = datetime.now(UTC)
 
 
 async def _generate_reports_for_resumed_findings(
@@ -168,7 +174,7 @@ async def _generate_reports_for_resumed_findings(
     if batch_project is not None:
         batch_project.status = OneClickCveProjectStatus.AUDITING
         batch_project.error_message = None
-        batch_project.updated_at_local = datetime.now(timezone.utc)
+        batch_project.updated_at_local = datetime.now(UTC)
     _set_resume_metadata(session, status="generating_reports", can_resume=False)
     await db.commit()
 
@@ -218,7 +224,7 @@ async def _mark_resume_failed(session_id: str, resume_token: str, *, error_kind:
             status="resumable_failed",
             error_kind=error_kind,
             error=message,
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=datetime.now(UTC).isoformat(),
             can_resume=True,
         )
         turn_id = await db.scalar(
@@ -245,7 +251,7 @@ async def _mark_resume_failed(session_id: str, resume_token: str, *, error_kind:
         if task is not None:
             task.status = AgentTaskStatus.FAILED
             task.error_message = message
-            task.completed_at = datetime.now(timezone.utc)
+            task.completed_at = datetime.now(UTC)
         await _refresh_task_and_batch(db, session=session, final_payload=None)
         await db.commit()
 
@@ -265,7 +271,7 @@ async def _mark_resume_manual_cancelled(session_id: str, resume_token: str) -> N
         metadata["manual_cancel"] = {
             "status": "stopped",
             "can_resume": True,
-            "stopped_at": datetime.now(timezone.utc).isoformat(),
+            "stopped_at": datetime.now(UTC).isoformat(),
         }
         runtime_state["metadata"] = metadata
         session.runtime_state_json = runtime_state
@@ -274,7 +280,7 @@ async def _mark_resume_manual_cancelled(session_id: str, resume_token: str) -> N
             status="manual_cancelled",
             error_kind="manual_cancelled",
             error="Audit manually cancelled by user",
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=datetime.now(UTC).isoformat(),
             can_resume=True,
         )
 
@@ -311,7 +317,7 @@ async def _mark_resume_manual_cancelled(session_id: str, resume_token: str) -> N
         if task is not None:
             task.status = AgentTaskStatus.CANCELLED
             task.error_message = "Audit manually cancelled by user"
-            task.completed_at = datetime.now(timezone.utc)
+            task.completed_at = datetime.now(UTC)
         batch_project = await db.scalar(
             select(OneClickCveBatchProject)
             .where(OneClickCveBatchProject.agent_task_id == session.task_id)
@@ -321,7 +327,7 @@ async def _mark_resume_manual_cancelled(session_id: str, resume_token: str) -> N
         if batch_project is not None:
             batch_project.status = OneClickCveProjectStatus.CANCELLED
             batch_project.error_message = "Audit manually cancelled by user"
-            batch_project.updated_at_local = datetime.now(timezone.utc)
+            batch_project.updated_at_local = datetime.now(UTC)
         await db.commit()
 
 
@@ -364,7 +370,7 @@ async def run_audit_session_resume_job(session_id: str, resume_token: str) -> No
         _set_resume_metadata(
             session,
             status="running",
-            started_at=datetime.now(timezone.utc).isoformat(),
+            started_at=datetime.now(UTC).isoformat(),
             can_resume=False,
         )
         await db.commit()
@@ -453,7 +459,7 @@ async def run_audit_session_resume_job(session_id: str, resume_token: str) -> No
         _set_resume_metadata(
             session,
             status="completed" if session.state == "completed" else "resumable_failed",
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=datetime.now(UTC).isoformat(),
             can_resume=session.state != "completed",
             report_generation=report_stats,
         )

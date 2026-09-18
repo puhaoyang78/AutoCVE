@@ -3,7 +3,6 @@ from __future__ import annotations
 from app.services.runtime_core.session_state import SessionRuntimeState
 from app.services.runtime_core.skill_discovery import SkillDiscoveryScheduler
 
-
 CODE_AUDIT_SKILL = {
     "id": "code-audit",
     "slug": "code-audit",

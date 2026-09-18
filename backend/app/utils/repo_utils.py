@@ -1,7 +1,7 @@
-from urllib.parse import urlparse, urlunparse
-from typing import Dict, Optional
+from urllib.parse import urlparse
 
-def parse_repository_url(repo_url: str, repo_type: str) -> Dict[str, str]:
+
+def parse_repository_url(repo_url: str, repo_type: str) -> dict[str, str]:
     """
     Parses a repository URL and returns its components.
 

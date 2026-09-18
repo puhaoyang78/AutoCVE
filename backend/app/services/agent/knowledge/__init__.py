@@ -14,14 +14,14 @@
 """
 
 # 基础定义
-from .base import KnowledgeDocument, KnowledgeCategory
+from .base import KnowledgeCategory, KnowledgeDocument
 
 # 知识加载器
 from .loader import (
     KnowledgeLoader,
-    knowledge_loader,
     get_available_modules,
     get_module_content,
+    knowledge_loader,
 )
 
 # RAG知识检索
@@ -32,26 +32,26 @@ from .rag_knowledge import (
 
 # 知识查询工具
 from .tools import (
-    SecurityKnowledgeQueryTool,
     GetVulnerabilityKnowledgeTool,
     ListKnowledgeModulesTool,
+    SecurityKnowledgeQueryTool,
 )
 
 __all__ = [
     # 基础定义
     "KnowledgeDocument",
     "KnowledgeCategory",
-    
+
     # 知识加载器
     "KnowledgeLoader",
     "knowledge_loader",
     "get_available_modules",
     "get_module_content",
-    
+
     # RAG知识检索
     "SecurityKnowledgeRAG",
     "security_knowledge_rag",
-    
+
     # 知识查询工具
     "SecurityKnowledgeQueryTool",
     "GetVulnerabilityKnowledgeTool",

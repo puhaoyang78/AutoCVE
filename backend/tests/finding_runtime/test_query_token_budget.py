@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from app.services.finding_runtime.models import RuntimeMessageRole, RuntimeModelResponse, TranscriptItem
+from app.services.finding_runtime.models import (
+    RuntimeMessageRole,
+    RuntimeModelResponse,
+    TranscriptItem,
+)
 from app.services.finding_runtime.query_state import QueryLoopState
 from app.services.finding_runtime.query_token_budget import evaluate_token_budget_continuation
 

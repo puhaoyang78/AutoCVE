@@ -2,8 +2,7 @@
 SSRF (服务端请求伪造) 漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 SSRF = KnowledgeDocument(
     id="vuln_ssrf",

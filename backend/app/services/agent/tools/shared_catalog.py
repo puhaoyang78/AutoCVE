@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from app.services.skill_file_service import SkillFileService
 
-from .file_tool import FileReadTool, ReadManyFilesTool, FileSearchTool, ListFilesTool
+from .file_tool import FileReadTool, FileSearchTool, ListFilesTool, ReadManyFilesTool
 from .interaction_agent_tools import AskUserTool, EnterPlanModeTool, ExitPlanModeTool, TodoWriteTool
 from .skill_tool import SkillBodyTool, SkillResourceTool
 from .thinking_tool import ReflectTool, ThinkTool
@@ -17,8 +15,8 @@ def shared_skill_library_roots() -> list[str]:
 def build_shared_agent_tool_catalog(
     *,
     project_root: str | None,
-    exclude_patterns: Optional[list[str]] = None,
-    target_files: Optional[list[str]] = None,
+    exclude_patterns: list[str] | None = None,
+    target_files: list[str] | None = None,
 ) -> dict[str, object]:
     tools: dict[str, object] = {
         "think": ThinkTool(),
@@ -55,8 +53,8 @@ def build_agent_tool_catalog(
     project_root: str | None,
     user_id: str | None,
     agent_type: str,
-    exclude_patterns: Optional[list[str]] = None,
-    target_files: Optional[list[str]] = None,
+    exclude_patterns: list[str] | None = None,
+    target_files: list[str] | None = None,
 ) -> dict[str, object]:
     return {
         **build_shared_agent_tool_catalog(

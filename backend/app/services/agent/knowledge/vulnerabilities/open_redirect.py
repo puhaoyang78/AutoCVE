@@ -2,7 +2,7 @@
 开放重定向漏洞知识模块
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 OPEN_REDIRECT = KnowledgeDocument(
     id="vuln_open_redirect",

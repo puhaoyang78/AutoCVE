@@ -3,15 +3,12 @@
 集成 Semgrep、Bandit、Gitleaks、TruffleHog、npm audit 等专业安全工具
 """
 
-import asyncio
 import json
 import logging
 import os
-import tempfile
-import shutil
-from typing import Optional, List, Dict, Any
+from typing import Optional
+
 from pydantic import BaseModel, Field
-from dataclasses import dataclass
 
 from .base import AgentTool, ToolResult
 from .sandbox_tool import SandboxManager
@@ -22,10 +19,10 @@ logger = logging.getLogger(__name__)
 # ============ 公共辅助函数 ============
 
 def _smart_resolve_target_path(
-    target_path: str, 
-    project_root: str, 
+    target_path: str,
+    project_root: str,
     tool_name: str = "Tool"
-) -> tuple[str, str, Optional[str]]:
+) -> tuple[str, str, str | None]:
     """
     智能解析目标路径
     
@@ -42,7 +39,7 @@ def _smart_resolve_target_path(
     """
     # 获取项目根目录名
     project_dir_name = os.path.basename(project_root.rstrip('/'))
-    
+
     if target_path in (".", "", "./"):
         # 扫描整个项目根目录，在容器内对应 /workspace
         safe_target_path = "."
@@ -56,7 +53,7 @@ def _smart_resolve_target_path(
         # 相对路径，需要验证是否存在
         safe_target_path = target_path.lstrip("/") if target_path.startswith("/") else target_path
         host_check_path = os.path.join(project_root, safe_target_path)
-        
+
         # 🔥 智能回退：如果路径不存在，尝试扫描整个项目
         if not os.path.exists(host_check_path):
             logger.warning(
@@ -66,13 +63,13 @@ def _smart_resolve_target_path(
             # 回退到扫描整个项目
             safe_target_path = "."
             host_check_path = project_root
-    
+
     # 最终检查
     if not os.path.exists(host_check_path):
         error_msg = f"目标路径不存在: {target_path} (完整路径: {host_check_path})"
         logger.error(f"[{tool_name}] {error_msg}")
         return safe_target_path, host_check_path, error_msg
-    
+
     return safe_target_path, host_check_path, None
 
 
@@ -84,11 +81,11 @@ class SemgrepInput(BaseModel):
         default=".",
         description="要扫描的路径。⚠️ 重要：使用 '.' 扫描整个项目（推荐），或使用 'src/' 等子目录。不要使用项目目录名如 'PHP-Project'！"
     )
-    rules: Optional[str] = Field(
+    rules: str | None = Field(
         default="p/security-audit",
         description="规则集: p/security-audit, p/owasp-top-ten, p/r2c-security-audit"
     )
-    severity: Optional[str] = Field(
+    severity: str | None = Field(
         default=None,
         description="过滤严重程度: ERROR, WARNING, INFO"
     )
@@ -109,7 +106,7 @@ class SemgrepTool(AgentTool):
     - p/python: Python 特定规则
     - p/javascript: JavaScript 特定规则
     """
-    
+
     AVAILABLE_RULESETS = [
         "p/security-audit",
         "p/owasp-top-ten",
@@ -126,7 +123,7 @@ class SemgrepTool(AgentTool):
         "p/xss",
         "p/command-injection",
     ]
-    
+
     def __init__(self, project_root: str, sandbox_manager: Optional["SandboxManager"] = None):
         super().__init__()
         # 🔥 将相对路径转换为绝对路径，Docker 需要绝对路径
@@ -137,7 +134,7 @@ class SemgrepTool(AgentTool):
     @property
     def name(self) -> str:
         return "semgrep_scan"
-    
+
     @property
     def description(self) -> str:
         return """使用 Semgrep 进行静态安全分析。
@@ -157,16 +154,16 @@ Semgrep 是业界领先的静态分析工具，支持 30+ 种编程语言。
 使用场景:
 - 快速全面的代码安全扫描
 - 检测常见安全漏洞模式"""
-    
+
     @property
     def args_schema(self):
         return SemgrepInput
-    
+
     async def _execute(
         self,
         target_path: str = ".",
         rules: str = "p/security-audit",
-        severity: Optional[str] = None,
+        severity: str | None = None,
         max_results: int = 50,
         **kwargs
     ) -> ToolResult:
@@ -187,9 +184,9 @@ Semgrep 是业界领先的静态分析工具，支持 30+ 种编程语言。
         )
         if error_msg:
             return ToolResult(success=False, data=error_msg, error=error_msg)
-        
+
         cmd = ["semgrep", "--json", "--quiet"]
-        
+
         if rules == "auto":
             # 🔥 Fallback if user explicitly requests 'auto', but prefer security-audit
             cmd.extend(["--config", "p/security-audit"])
@@ -197,15 +194,15 @@ Semgrep 是业界领先的静态分析工具，支持 30+ 种编程语言。
             cmd.extend(["--config", rules])
         else:
             cmd.extend(["--config", rules])
-        
+
         if severity:
             cmd.extend(["--severity", severity])
-        
+
         # 在容器内，路径相对于 /workspace
         cmd.append(safe_target_path)
-        
+
         cmd_str = " ".join(cmd)
-        
+
         try:
             result = await self.sandbox_manager.execute_tool_command(
                 command=cmd_str,
@@ -259,35 +256,35 @@ Semgrep 是业界领先的静态分析工具，支持 30+ 种编程语言。
                     data=error_msg,  # 🔥 修复：设置 data 字段避免 None
                     error=error_msg,
                 )
-            
+
             findings = results.get("results", [])[:max_results]
-            
+
             if not findings:
                 return ToolResult(
                     success=True,
                     data=f"Semgrep 扫描完成，未发现安全问题 (规则集: {rules})",
                     metadata={"findings_count": 0, "rules": rules}
                 )
-            
+
             # 格式化输出
             output_parts = [f"🔍 Semgrep 扫描结果 (规则集: {rules})\n"]
             output_parts.append(f"发现 {len(findings)} 个问题:\n")
-            
+
             severity_icons = {"ERROR": "🔴", "WARNING": "🟠", "INFO": "🟡"}
-            
+
             for i, finding in enumerate(findings[:max_results]):
                 sev = finding.get("extra", {}).get("severity", "INFO")
                 icon = severity_icons.get(sev, "⚪")
-                
+
                 output_parts.append(f"\n{icon} [{sev}] {finding.get('check_id', 'unknown')}")
                 output_parts.append(f"   文件: {finding.get('path', '')}:{finding.get('start', {}).get('line', 0)}")
                 output_parts.append(f"   消息: {finding.get('extra', {}).get('message', '')[:200]}")
-                
+
                 # 代码片段
                 lines = finding.get("extra", {}).get("lines", "")
                 if lines:
                     output_parts.append(f"   代码: {lines[:150]}")
-            
+
             return ToolResult(
                 success=True,
                 data="\n".join(output_parts),
@@ -297,7 +294,7 @@ Semgrep 是业界领先的静态分析工具，支持 30+ 种编程语言。
                     "findings": findings[:10],
                 }
             )
-            
+
         except Exception as e:
             error_msg = f"Semgrep 执行错误: {str(e)}"
             return ToolResult(
@@ -332,7 +329,7 @@ class BanditTool(AgentTool):
     - 不安全的随机数生成
     - 不安全的反序列化
     """
-    
+
     def __init__(self, project_root: str, sandbox_manager: Optional["SandboxManager"] = None):
         super().__init__()
         # 🔥 将相对路径转换为绝对路径，Docker 需要绝对路径
@@ -343,7 +340,7 @@ class BanditTool(AgentTool):
     @property
     def name(self) -> str:
         return "bandit_scan"
-    
+
     @property
     def description(self) -> str:
         return """使用 Bandit 扫描 Python 代码的安全问题。
@@ -358,11 +355,11 @@ Bandit 是 Python 专用的安全分析工具。
 - SSL/TLS 问题
 
 仅适用于 Python 项目。"""
-    
+
     @property
     def args_schema(self):
         return BanditInput
-    
+
     async def _execute(
         self,
         target_path: str = ".",
@@ -388,23 +385,23 @@ Bandit 是 Python 专用的安全分析工具。
         # 构建命令
         severity_map = {"low": "l", "medium": "m", "high": "h"}
         confidence_map = {"low": "l", "medium": "m", "high": "h"}
-        
+
         cmd = [
             "bandit", "-r", "-f", "json",
             "-ll" if severity == "low" else f"-l{severity_map.get(severity, 'm')}",
             f"-i{confidence_map.get(confidence, 'm')}",
             safe_target_path
         ]
-        
+
         cmd_str = " ".join(cmd)
-        
+
         try:
             result = await self.sandbox_manager.execute_tool_command(
                 command=cmd_str,
                 host_workdir=self.project_root,
                 timeout=120
             )
-            
+
             try:
                 # find json in output
                 json_start = result['stdout'].find('{')
@@ -415,36 +412,36 @@ Bandit 是 Python 专用的安全分析工具。
             except json.JSONDecodeError:
                 error_msg = f"无法解析 Bandit 输出: {result['stdout'][:200]}"
                 return ToolResult(success=False, data=error_msg, error=error_msg)
-            
+
             findings = results.get("results", [])[:max_results]
-            
+
             if not findings:
                 return ToolResult(
                     success=True,
                     data="Bandit 扫描完成，未发现 Python 安全问题",
                     metadata={"findings_count": 0}
                 )
-            
+
             output_parts = ["🐍 Bandit Python 安全扫描结果\n"]
             output_parts.append(f"发现 {len(findings)} 个问题:\n")
-            
+
             severity_icons = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡"}
-            
+
             for finding in findings:
                 sev = finding.get("issue_severity", "LOW")
                 icon = severity_icons.get(sev, "⚪")
-                
+
                 output_parts.append(f"\n{icon} [{sev}] {finding.get('test_id', '')}: {finding.get('test_name', '')}")
                 output_parts.append(f"   文件: {finding.get('filename', '')}:{finding.get('line_number', 0)}")
                 output_parts.append(f"   消息: {finding.get('issue_text', '')[:200]}")
                 output_parts.append(f"   代码: {finding.get('code', '')[:100]}")
-            
+
             return ToolResult(
                 success=True,
                 data="\n".join(output_parts),
                 metadata={"findings_count": len(findings), "findings": findings[:10]}
             )
-            
+
         except Exception as e:
             error_msg = f"Bandit 执行错误: {str(e)}"
             return ToolResult(success=False, data=error_msg, error=error_msg)
@@ -474,7 +471,7 @@ class GitleaksTool(AgentTool):
     - OAuth tokens
     - JWT secrets
     """
-    
+
     def __init__(self, project_root: str, sandbox_manager: Optional["SandboxManager"] = None):
         super().__init__()
         # 🔥 将相对路径转换为绝对路径，Docker 需要绝对路径
@@ -485,7 +482,7 @@ class GitleaksTool(AgentTool):
     @property
     def name(self) -> str:
         return "gitleaks_scan"
-    
+
     @property
     def description(self) -> str:
         return """使用 Gitleaks 检测代码中的密钥泄露。
@@ -501,11 +498,11 @@ Gitleaks 是专业的密钥检测工具，支持 150+ 种密钥类型。
 - JWT Secrets
 
 建议在代码审计早期使用此工具。"""
-    
+
     @property
     def args_schema(self):
         return GitleaksInput
-    
+
     async def _execute(
         self,
         target_path: str = ".",
@@ -555,14 +552,14 @@ Gitleaks 是专业的密钥检测工具，支持 150+ 种密钥类型。
                 return ToolResult(success=False, data=f"Gitleaks 执行失败: {error_msg}", error=f"Gitleaks 执行失败: {error_msg}")
 
             stdout = result['stdout']
-            
+
             if not stdout.strip():
                 return ToolResult(
                     success=True,
                     data="🔐 Gitleaks 扫描完成，未发现密钥泄露",
                     metadata={"findings_count": 0}
                 )
-            
+
             try:
                 # Find JSON start
                 json_start = stdout.find('[')
@@ -572,24 +569,24 @@ Gitleaks 是专业的密钥检测工具，支持 150+ 种密钥类型。
                      findings = []
             except json.JSONDecodeError:
                 findings = []
-            
+
             if not findings:
                  return ToolResult(
                     success=True,
                     data="🔐 Gitleaks 扫描完成，未发现密钥泄露",
                     metadata={"findings_count": 0}
                 )
-            
+
             findings = findings[:max_results]
-            
+
             output_parts = ["🔐 Gitleaks 密钥泄露检测结果\n"]
             output_parts.append(f"⚠️ 发现 {len(findings)} 处密钥泄露!\n")
-            
+
             for i, finding in enumerate(findings):
                 output_parts.append(f"\n🔴 [{i+1}] {finding.get('RuleID', 'unknown')}")
                 output_parts.append(f"   描述: {finding.get('Description', '')}")
                 output_parts.append(f"   文件: {finding.get('File', '')}:{finding.get('StartLine', 0)}")
-                
+
                 # 部分遮盖密钥
                 secret = finding.get('Secret', '')
                 if len(secret) > 8:
@@ -597,7 +594,7 @@ Gitleaks 是专业的密钥检测工具，支持 150+ 种密钥类型。
                 else:
                     masked = '*' * len(secret)
                 output_parts.append(f"   密钥: {masked}")
-            
+
             return ToolResult(
                 success=True,
                 data="\n".join(output_parts),
@@ -609,7 +606,7 @@ Gitleaks 是专业的密钥检测工具，支持 150+ 种密钥类型。
                     ]
                 }
             )
-            
+
         except Exception as e:
             error_msg = f"Gitleaks 执行错误: {str(e)}"
             return ToolResult(success=False, data=error_msg, error=error_msg)
@@ -629,7 +626,7 @@ class NpmAuditTool(AgentTool):
     
     扫描 Node.js 项目的依赖漏洞，基于 npm 官方漏洞数据库。
     """
-    
+
     def __init__(self, project_root: str, sandbox_manager: Optional["SandboxManager"] = None):
         super().__init__()
         # 🔥 将相对路径转换为绝对路径，Docker 需要绝对路径
@@ -640,7 +637,7 @@ class NpmAuditTool(AgentTool):
     @property
     def name(self) -> str:
         return "npm_audit"
-    
+
     @property
     def description(self) -> str:
         return """使用 npm audit 扫描 Node.js 项目的依赖漏洞。
@@ -651,11 +648,11 @@ class NpmAuditTool(AgentTool):
 - 前端项目 (React, Vue, Angular 等)
 
 需要先运行 npm install 安装依赖。"""
-    
+
     @property
     def args_schema(self):
         return NpmAuditInput
-    
+
     async def _execute(
         self,
         target_path: str = ".",
@@ -674,9 +671,9 @@ class NpmAuditTool(AgentTool):
         safe_target_path = target_path if not target_path.startswith("/") else target_path.lstrip("/")
         if not safe_target_path:
             safe_target_path = "."
-            
+
         full_path = os.path.normpath(os.path.join(self.project_root, target_path))
-        
+
         # 宿主机预检查
         package_json = os.path.join(full_path, "package.json")
         if not os.path.exists(package_json):
@@ -686,14 +683,14 @@ class NpmAuditTool(AgentTool):
                 data=error_msg,
                 error=error_msg,
             )
-        
+
         cmd = ["npm", "audit", "--json"]
         if production_only:
             cmd.append("--production")
-        
+
         # 组合命令: cd 到目标目录然后执行
         cmd_str = f"cd {safe_target_path} && {' '.join(cmd)}"
-        
+
         try:
             # 清除代理设置，避免容器内网络问题
             proxy_env = {
@@ -702,7 +699,7 @@ class NpmAuditTool(AgentTool):
                 "https_proxy": "",
                 "http_proxy": ""
             }
-            
+
             result = await self.sandbox_manager.execute_tool_command(
                 command=cmd_str,
                 host_workdir=self.project_root,
@@ -710,7 +707,7 @@ class NpmAuditTool(AgentTool):
                 network_mode="bridge",
                 env=proxy_env
             )
-            
+
             try:
                 # npm audit json starts with {
                 json_start = result['stdout'].find('{')
@@ -719,38 +716,38 @@ class NpmAuditTool(AgentTool):
                 else:
                     return ToolResult(success=True, data=f"npm audit 输出为空或格式错误: {result['stdout'][:100]}")
             except json.JSONDecodeError:
-                return ToolResult(success=True, data=f"npm audit 输出格式错误")
-            
+                return ToolResult(success=True, data="npm audit 输出格式错误")
+
             vulnerabilities = results.get("vulnerabilities", {})
-            
+
             if not vulnerabilities:
                 return ToolResult(
                     success=True,
                     data="📦 npm audit 完成，未发现依赖漏洞",
                     metadata={"findings_count": 0}
                 )
-            
+
             output_parts = ["📦 npm audit 依赖漏洞扫描结果\n"]
-            
+
             severity_counts = {"critical": 0, "high": 0, "moderate": 0, "low": 0}
             for name, vuln in vulnerabilities.items():
                 severity = vuln.get("severity", "low")
                 severity_counts[severity] = severity_counts.get(severity, 0) + 1
-            
+
             output_parts.append(f"漏洞统计: 🔴 Critical: {severity_counts['critical']}, 🟠 High: {severity_counts['high']}, 🟡 Moderate: {severity_counts['moderate']}, 🟢 Low: {severity_counts['low']}\n")
-            
+
             severity_icons = {"critical": "🔴", "high": "🟠", "moderate": "🟡", "low": "🟢"}
-            
+
             for name, vuln in list(vulnerabilities.items())[:20]:
                 sev = vuln.get("severity", "low")
                 icon = severity_icons.get(sev, "⚪")
                 output_parts.append(f"\n{icon} [{sev.upper()}] {name}")
                 output_parts.append(f"   版本范围: {vuln.get('range', 'unknown')}")
-                
+
                 via = vuln.get("via", [])
                 if via and isinstance(via[0], dict):
                     output_parts.append(f"   来源: {via[0].get('title', '')[:100]}")
-            
+
             return ToolResult(
                 success=True,
                 data="\n".join(output_parts),
@@ -759,7 +756,7 @@ class NpmAuditTool(AgentTool):
                     "severity_counts": severity_counts,
                 }
             )
-            
+
         except Exception as e:
             error_msg = f"npm audit 错误: {str(e)}"
             return ToolResult(success=False, data=error_msg, error=error_msg)
@@ -778,7 +775,7 @@ class SafetyTool(AgentTool):
     
     检查 Python 依赖中的已知安全漏洞。
     """
-    
+
     def __init__(self, project_root: str, sandbox_manager: Optional["SandboxManager"] = None):
         super().__init__()
         # 🔥 将相对路径转换为绝对路径，Docker 需要绝对路径
@@ -789,7 +786,7 @@ class SafetyTool(AgentTool):
     @property
     def name(self) -> str:
         return "safety_scan"
-    
+
     @property
     def description(self) -> str:
         return """使用 Safety 扫描 Python 依赖的安全漏洞。
@@ -799,11 +796,11 @@ class SafetyTool(AgentTool):
 - 包含 requirements.txt 的 Python 项目
 - Pipenv 项目 (Pipfile.lock)
 - Poetry 项目 (poetry.lock)"""
-    
+
     @property
     def args_schema(self):
         return SafetyInput
-    
+
     async def _execute(
         self,
         requirements_file: str = "requirements.txt",
@@ -820,7 +817,7 @@ class SafetyTool(AgentTool):
         if not os.path.exists(full_path):
             error_msg = f"未找到依赖文件: {requirements_file}"
             return ToolResult(success=False, data=error_msg, error=error_msg)
-            
+
         # commands
         # requirements_file relative path inside container is just requirements_file (assuming it's relative to root)
         # If requirements_file is absolute, we need to make it relative.
@@ -829,14 +826,14 @@ class SafetyTool(AgentTool):
 
         cmd = ["safety", "check", "-r", safe_req_file, "--json"]
         cmd_str = " ".join(cmd)
-        
+
         try:
             result = await self.sandbox_manager.execute_tool_command(
                 command=cmd_str,
                 host_workdir=self.project_root,
                 timeout=120
             )
-            
+
             stdout = result['stdout']
             try:
                 # Safety 输出的 JSON 格式可能不同版本有差异
@@ -846,7 +843,7 @@ class SafetyTool(AgentTool):
                     if char in ['{', '[']:
                         start_idx = i
                         break
-                
+
                 if start_idx >= 0:
                      output_json = stdout[start_idx:]
                      if "No known security" in output_json:
@@ -861,31 +858,31 @@ class SafetyTool(AgentTool):
 
             except:
                 return ToolResult(success=True, data=f"Safety 输出解析失败:\n{stdout[:1000]}")
-            
+
             vulnerabilities = results if isinstance(results, list) else results.get("vulnerabilities", [])
-            
+
             if not vulnerabilities:
                 return ToolResult(
                     success=True,
                     data="🐍 Safety 扫描完成，未发现 Python 依赖漏洞",
                     metadata={"findings_count": 0}
                 )
-            
+
             output_parts = ["🐍 Safety Python 依赖漏洞扫描结果\n"]
             output_parts.append(f"发现 {len(vulnerabilities)} 个漏洞:\n")
-            
+
             for vuln in vulnerabilities[:20]:
                 if isinstance(vuln, list) and len(vuln) >= 4:
                     output_parts.append(f"\n🔴 {vuln[0]} ({vuln[1]})")
                     output_parts.append(f"   漏洞 ID: {vuln[4] if len(vuln) > 4 else 'N/A'}")
                     output_parts.append(f"   描述: {vuln[3][:200] if len(vuln) > 3 else ''}")
-            
+
             return ToolResult(
                 success=True,
                 data="\n".join(output_parts),
                 metadata={"findings_count": len(vulnerabilities)}
             )
-            
+
         except Exception as e:
             error_msg = f"Safety 执行错误: {str(e)}"
             return ToolResult(success=False, data=error_msg, error=error_msg)
@@ -909,7 +906,7 @@ class TruffleHogTool(AgentTool):
     TruffleHog 可以检测代码和 Git 历史中的密钥泄露，
     并可以验证密钥是否仍然有效。
     """
-    
+
     def __init__(self, project_root: str, sandbox_manager: Optional["SandboxManager"] = None):
         super().__init__()
         # 🔥 将相对路径转换为绝对路径，Docker 需要绝对路径
@@ -920,7 +917,7 @@ class TruffleHogTool(AgentTool):
     @property
     def name(self) -> str:
         return "trufflehog_scan"
-    
+
     @property
     def description(self) -> str:
         return """使用 TruffleHog 进行深度密钥扫描。
@@ -933,11 +930,11 @@ class TruffleHogTool(AgentTool):
 - 高精度，低误报
 
 建议与 Gitleaks 配合使用。"""
-    
+
     @property
     def args_schema(self):
         return TruffleHogInput
-    
+
     async def _execute(
         self,
         target_path: str = ".",
@@ -961,25 +958,25 @@ class TruffleHogTool(AgentTool):
         cmd = ["trufflehog", "filesystem", safe_target_path, "--json"]
         if only_verified:
             cmd.append("--only-verified")
-        
+
         cmd_str = " ".join(cmd)
-        
+
         try:
             result = await self.sandbox_manager.execute_tool_command(
                 command=cmd_str,
                 host_workdir=self.project_root,
                 timeout=180
             )
-            
+
             stdout = result['stdout']
-            
+
             if not stdout.strip():
                 return ToolResult(
                     success=True,
                     data="🔍 TruffleHog 扫描完成，未发现密钥泄露",
                     metadata={"findings_count": 0}
                 )
-            
+
             # TruffleHog 输出每行一个 JSON 对象
             findings = []
             for line in stdout.strip().split('\n'):
@@ -988,28 +985,28 @@ class TruffleHogTool(AgentTool):
                         findings.append(json.loads(line))
                     except:
                         pass
-            
+
             if not findings:
                 return ToolResult(
                     success=True,
                     data="🔍 TruffleHog 扫描完成，未发现密钥泄露",
                     metadata={"findings_count": 0}
                 )
-            
+
             output_parts = ["🔍 TruffleHog 密钥扫描结果\n"]
             output_parts.append(f"⚠️ 发现 {len(findings)} 处密钥泄露!\n")
-            
+
             for i, finding in enumerate(findings[:20]):
                 verified = "✅ 已验证有效" if finding.get("Verified") else "⚠️ 未验证"
                 output_parts.append(f"\n🔴 [{i+1}] {finding.get('DetectorName', 'unknown')} - {verified}")
                 output_parts.append(f"   文件: {finding.get('SourceMetadata', {}).get('Data', {}).get('Filesystem', {}).get('file', '')}")
-            
+
             return ToolResult(
                 success=True,
                 data="\n".join(output_parts),
                 metadata={"findings_count": len(findings)}
             )
-            
+
         except Exception as e:
             error_msg = f"TruffleHog 执行错误: {str(e)}"
             return ToolResult(success=False, data=error_msg, error=error_msg)
@@ -1032,7 +1029,7 @@ class OSVScannerTool(AgentTool):
     Google 开源的漏洞扫描工具，使用 OSV 数据库。
     支持多种包管理器和锁文件。
     """
-    
+
     def __init__(self, project_root: str, sandbox_manager: Optional["SandboxManager"] = None):
         super().__init__()
         # 🔥 将相对路径转换为绝对路径，Docker 需要绝对路径
@@ -1043,7 +1040,7 @@ class OSVScannerTool(AgentTool):
     @property
     def name(self) -> str:
         return "osv_scan"
-    
+
     @property
     def description(self) -> str:
         return """使用 OSV-Scanner 扫描开源依赖漏洞。
@@ -1058,11 +1055,11 @@ Google 开源的漏洞扫描工具。
 - Cargo.lock (Rust)
 - pom.xml (Maven)
 - composer.lock (PHP)"""
-    
+
     @property
     def args_schema(self):
         return OSVScannerInput
-    
+
     async def _execute(
         self,
         target_path: str = ".",
@@ -1085,37 +1082,37 @@ Google 开源的漏洞扫描工具。
         # OSV-Scanner
         cmd = ["osv-scanner", "--json", "-r", safe_target_path]
         cmd_str = " ".join(cmd)
-        
+
         try:
             result = await self.sandbox_manager.execute_tool_command(
                 command=cmd_str,
                 host_workdir=self.project_root,
                 timeout=120
             )
-            
+
             stdout = result['stdout']
-            
+
             try:
                 results = json.loads(stdout)
             except:
                 if "no package sources found" in stdout.lower():
                     return ToolResult(success=True, data="OSV-Scanner: 未找到可扫描的包文件")
                 return ToolResult(success=True, data=f"OSV-Scanner 输出:\n{stdout[:1000]}")
-            
+
             vulns = results.get("results", [])
-            
+
             if not vulns:
                 return ToolResult(
                     success=True,
                     data="📋 OSV-Scanner 扫描完成，未发现依赖漏洞",
                     metadata={"findings_count": 0}
                 )
-            
+
             total_vulns = sum(len(r.get("vulnerabilities", [])) for r in vulns)
-            
+
             output_parts = ["📋 OSV-Scanner 开源漏洞扫描结果\n"]
             output_parts.append(f"发现 {total_vulns} 个漏洞:\n")
-            
+
             for result in vulns[:10]:
                 source = result.get("source", {}).get("path", "unknown")
                 for vuln in result.get("vulnerabilities", [])[:5]:
@@ -1124,13 +1121,13 @@ Google 开源的漏洞扫描工具。
                     output_parts.append(f"\n🔴 {vuln_id}")
                     output_parts.append(f"   来源: {source}")
                     output_parts.append(f"   描述: {summary}")
-            
+
             return ToolResult(
                 success=True,
                 data="\n".join(output_parts),
                 metadata={"findings_count": total_vulns}
             )
-            
+
         except Exception as e:
             error_msg = f"OSV-Scanner 执行错误: {str(e)}"
             return ToolResult(success=False, data=error_msg, error=error_msg)

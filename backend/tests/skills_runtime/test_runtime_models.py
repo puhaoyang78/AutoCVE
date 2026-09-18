@@ -1,4 +1,9 @@
-from app.services.skills_runtime.models import SkillBinding, SkillEntry, SkillPromptState, SkillRoutePlan
+from app.services.skills_runtime.models import (
+    SkillBinding,
+    SkillEntry,
+    SkillPromptState,
+    SkillRoutePlan,
+)
 
 
 def test_skill_entry_defaults():

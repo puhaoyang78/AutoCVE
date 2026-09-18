@@ -1,16 +1,20 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.services.skill_file_service import SkillFileService
-from app.services.skills_runtime.access import list_skill_resources, read_skill_body, read_skill_resource
+from app.services.skills_runtime.access import (
+    list_skill_resources,
+    read_skill_body,
+    read_skill_resource,
+)
 from app.services.skills_runtime.catalog import resolve_agent_skill_state, resolve_skill_entry
 from app.services.skills_runtime.migration import load_agent_bindings
 
 
 class SkillService:
     @classmethod
-    async def list_agent_skill_metadata(cls, user_id: Optional[str], agent_type: str) -> List[Dict[str, Any]]:
+    async def list_agent_skill_metadata(cls, user_id: str | None, agent_type: str) -> list[dict[str, Any]]:
         del user_id
         library_root = SkillFileService.library_root()
         project_root = SkillFileService.project_root()
@@ -24,7 +28,7 @@ class SkillService:
             binding.slug: binding
             for binding in load_agent_bindings(library_root=library_root, agent_type=agent_type)
         }
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         for skill in state.entries:
             binding = bindings_by_slug.get(skill.slug)
             items.append(
@@ -62,7 +66,7 @@ class SkillService:
         return items
 
     @classmethod
-    async def resolve_agent_skills(cls, user_id: Optional[str], agent_type: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def resolve_agent_skills(cls, user_id: str | None, agent_type: str, context: dict[str, Any]) -> dict[str, Any]:
         del user_id
         state = resolve_agent_skill_state(
             library_root=SkillFileService.library_root(),
@@ -114,7 +118,7 @@ class SkillService:
         return {"metadata": metadata, "matched": matched, "prompt": state.prompt, "route_plan": route_plan}
 
     @staticmethod
-    def build_skill_briefing(skill_context: Dict[str, Any]) -> str:
+    def build_skill_briefing(skill_context: dict[str, Any]) -> str:
         prompt = (skill_context.get("prompt") or "").strip()
         route_plan = skill_context.get("route_plan") or {}
         if not prompt:
@@ -142,7 +146,7 @@ class SkillService:
         return "\n".join(lines)
 
     @classmethod
-    def _find_skill(cls, skill_ref: str, agent_type: Optional[str] = None):
+    def _find_skill(cls, skill_ref: str, agent_type: str | None = None):
         return resolve_skill_entry(
             library_root=SkillFileService.library_root(),
             project_root=SkillFileService.project_root(),
@@ -151,12 +155,12 @@ class SkillService:
         )
 
     @classmethod
-    def get_skill_entry(cls, user_id: Optional[str], skill_ref: str, agent_type: Optional[str] = None):
+    def get_skill_entry(cls, user_id: str | None, skill_ref: str, agent_type: str | None = None):
         del user_id
         return cls._find_skill(skill_ref, agent_type=agent_type)
 
     @classmethod
-    async def get_skill_body(cls, user_id: Optional[str], skill_ref: str, agent_type: Optional[str] = None) -> Dict[str, Any]:
+    async def get_skill_body(cls, user_id: str | None, skill_ref: str, agent_type: str | None = None) -> dict[str, Any]:
         del user_id
         entry = cls._find_skill(skill_ref, agent_type=agent_type)
         return read_skill_body(entry)
@@ -164,11 +168,11 @@ class SkillService:
     @classmethod
     async def get_skill_resource(
         cls,
-        user_id: Optional[str],
+        user_id: str | None,
         skill_ref: str,
         resource_name: str,
-        agent_type: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        agent_type: str | None = None,
+    ) -> dict[str, Any]:
         del user_id
         entry = cls._find_skill(skill_ref, agent_type=agent_type)
         return read_skill_resource(entry, resource_name)
@@ -176,17 +180,17 @@ class SkillService:
     @classmethod
     async def list_skill_resources(
         cls,
-        user_id: Optional[str],
+        user_id: str | None,
         skill_ref: str,
         resource_name: str = "",
-        agent_type: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        agent_type: str | None = None,
+    ) -> dict[str, Any]:
         del user_id
         entry = cls._find_skill(skill_ref, agent_type=agent_type)
         return list_skill_resources(entry, resource_name)
 
     @classmethod
-    async def import_github_skill(cls, repo_url: str) -> Dict[str, Any]:
+    async def import_github_skill(cls, repo_url: str) -> dict[str, Any]:
         return await SkillFileService.import_github_skill(repo_url)
 
     @staticmethod

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from types import SimpleNamespace
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -93,7 +92,7 @@ class FakeGitHubClient:
 async def test_discovers_recent_starred_repositories_and_prioritizes_advisories():
     service = GitHubCveDiscoveryService(
         client=FakeGitHubClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=2, excluded_full_names={"already/scanned"})
@@ -164,7 +163,7 @@ async def test_discovery_limits_repositories_to_configured_size(monkeypatch):
     monkeypatch.setattr("app.services.one_click_cve.discovery.settings.ONE_CLICK_CVE_MAX_REPOSITORY_SIZE_KB", 512000)
     service = GitHubCveDiscoveryService(
         client=client,
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=2)
@@ -212,7 +211,7 @@ class RateLimitedPolicyClient:
 async def test_discovers_candidates_when_security_policy_probe_is_rate_limited():
     service = GitHubCveDiscoveryService(
         client=RateLimitedPolicyClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=1)
@@ -266,7 +265,7 @@ class SearchRateLimitedAfterFirstPageClient:
 async def test_uses_collected_candidates_when_later_search_query_is_rate_limited():
     service = GitHubCveDiscoveryService(
         client=SearchRateLimitedAfterFirstPageClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=1)
@@ -323,7 +322,7 @@ class VeryPopularProjectClient:
 async def test_deprioritizes_repositories_above_one_hundred_thousand_stars():
     service = GitHubCveDiscoveryService(
         client=VeryPopularProjectClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=2)
@@ -360,7 +359,7 @@ class TimeoutDuringEnrichmentClient:
 async def test_discovers_candidates_when_enrichment_requests_timeout():
     service = GitHubCveDiscoveryService(
         client=TimeoutDuringEnrichmentClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=1)
@@ -416,7 +415,7 @@ async def test_enriches_only_requested_number_of_top_candidates():
     client = ManyRepositoryClient()
     service = GitHubCveDiscoveryService(
         client=client,
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=5)
@@ -479,7 +478,7 @@ class ReportableAdvisoryClient:
 async def test_prioritizes_advisory_projects_with_private_vulnerability_reporting():
     service = GitHubCveDiscoveryService(
         client=ReportableAdvisoryClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=2)
@@ -541,7 +540,7 @@ async def test_can_disable_security_advisory_priority_and_use_normal_star_sortin
     client = NoAdvisoryPreferenceClient()
     service = GitHubCveDiscoveryService(
         client=client,
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=2, prefer_security_advisory=False)
@@ -621,7 +620,7 @@ class StarBandPriorityClient:
 async def test_prioritizes_star_bands_when_security_advisory_priority_is_disabled():
     service = GitHubCveDiscoveryService(
         client=StarBandPriorityClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=4, prefer_security_advisory=False)
@@ -685,7 +684,7 @@ class PublishedGhsaCountClient:
 async def test_published_ghsa_count_adds_priority_when_security_advisory_priority_is_enabled():
     service = GitHubCveDiscoveryService(
         client=PublishedGhsaCountClient(),
-        now_provider=lambda: datetime(2026, 6, 6, tzinfo=timezone.utc),
+        now_provider=lambda: datetime(2026, 6, 6, tzinfo=UTC),
     )
 
     candidates = await service.discover_candidates(target_count=2)

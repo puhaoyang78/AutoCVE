@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
 
@@ -16,9 +16,9 @@ class AgentTaskQueue:
     def __init__(
         self,
         *,
-        arq_pool: Optional[Any] = None,
-        redis_url: Optional[str] = None,
-        queue_name: Optional[str] = None,
+        arq_pool: Any | None = None,
+        redis_url: str | None = None,
+        queue_name: str | None = None,
     ):
         self.arq_pool = arq_pool
         self.redis_url = redis_url or settings.REDIS_URL

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import PlainTextResponse
@@ -62,15 +61,15 @@ async def _get_owned_report(
 async def list_vulnerabilities(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(deps.get_current_user),
-    project_name: Optional[str] = Query(None),
-    version_label: Optional[str] = Query(None),
-    project_link: Optional[str] = Query(None),
-    repository_url_snapshot: Optional[str] = Query(None),
-    vulnerability_name: Optional[str] = Query(None),
-    vulnerability_type: Optional[str] = Query(None),
-    human_review_result: Optional[str] = Query(None),
-    cve_request_status: Optional[str] = Query(None),
-    cve_id: Optional[str] = Query(None),
+    project_name: str | None = Query(None),
+    version_label: str | None = Query(None),
+    project_link: str | None = Query(None),
+    repository_url_snapshot: str | None = Query(None),
+    vulnerability_name: str | None = Query(None),
+    vulnerability_type: str | None = Query(None),
+    human_review_result: str | None = Query(None),
+    cve_request_status: str | None = Query(None),
+    cve_id: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
@@ -125,7 +124,7 @@ async def update_vulnerability(
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(vulnerability, key, value)
-    vulnerability.updated_at = datetime.now(timezone.utc)
+    vulnerability.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(vulnerability)
     return await _get_owned_vulnerability(db, vulnerability_id=vulnerability_id, owner_id=current_user.id)
@@ -186,8 +185,8 @@ async def update_vulnerability_report(
     report.markdown_content = payload.markdown_content
     report.source_type = payload.source_type or 'manual_edit'
     report.generation_status = 'completed'
-    report.last_edited_at = datetime.now(timezone.utc)
-    report.updated_at = datetime.now(timezone.utc)
+    report.last_edited_at = datetime.now(UTC)
+    report.updated_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(report)
     return report

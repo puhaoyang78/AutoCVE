@@ -1,18 +1,22 @@
 ﻿from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Any, AsyncGenerator, Awaitable, Callable, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
 from app.models.audit_session import AuditCheckpointType, AuditToolCallStatus
-from app.services.runtime_core.permission_runtime import RuntimePermissionRuntime, ToolPermissionDecision
 from app.services.finding_runtime.models import (
     ToolCallRequest,
     ToolExecutionPayload,
     ToolExecutionRecord,
+)
+from app.services.runtime_core.permission_runtime import (
+    RuntimePermissionRuntime,
+    ToolPermissionDecision,
 )
 
 InterruptBehavior = Literal["cancel", "block"]
@@ -90,7 +94,7 @@ class RuntimeTool:
     def requires_user_interaction(self) -> bool:
         return False
 
-    def execution_timeout_seconds(self, parsed_input: Any = None, context: "ToolExecutionContext | None" = None) -> float | None:
+    def execution_timeout_seconds(self, parsed_input: Any = None, context: ToolExecutionContext | None = None) -> float | None:
         del parsed_input, context
         return None
 
@@ -474,7 +478,7 @@ class ToolOrchestrator:
         session: Any = None,
         recon_payload: dict[str, Any] | None = None,
         initial_context: dict[str, Any] | None = None,
-    ) -> "StreamingToolExecutor":
+    ) -> StreamingToolExecutor:
         prepared = [self._prepare_call(tool_call) for tool_call in tool_calls]
         return StreamingToolExecutor(
             orchestrator=self,
@@ -714,7 +718,7 @@ class ToolOrchestrator:
                 if timeout_seconds is not None and timeout_seconds > 0
                 else await execute_coro
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timeout_seconds = self._resolve_tool_timeout(prepared_call.tool, prepared_call.parsed_input, context)
             message = RUNTIME_TOOL_TIMEOUT_HINT
             self._emit_hook_event(

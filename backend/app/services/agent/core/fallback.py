@@ -4,20 +4,18 @@ Fallback and Graceful Degradation Module
 Provides fallback strategies when components fail.
 """
 
-import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, List, Optional, TypeVar
+from typing import Any, TypeVar
 
 from .errors import (
-    AgentError,
+    ExternalToolError,
+    LLMContextLengthError,
     LLMError,
     LLMRateLimitError,
     LLMTimeoutError,
-    LLMContextLengthError,
     ToolError,
-    ExternalToolError,
-    RecoveryStrategy,
 )
 from .logging import get_logger
 
@@ -41,9 +39,9 @@ class FallbackResult:
     """Result of a fallback operation"""
     action: FallbackAction
     success: bool
-    result: Optional[Any] = None
-    error: Optional[Exception] = None
-    fallback_used: Optional[str] = None
+    result: Any | None = None
+    error: Exception | None = None
+    fallback_used: str | None = None
     message: str = ""
 
 
@@ -53,7 +51,7 @@ class FallbackConfig:
     enabled: bool = True
     max_context_reduction_ratio: float = 0.5  # Reduce context to 50%
     continue_on_partial: bool = True
-    tool_fallbacks: Dict[str, str] = field(default_factory=lambda: {
+    tool_fallbacks: dict[str, str] = field(default_factory=lambda: {
         "semgrep_scan": "pattern_match",
         "bandit_scan": "pattern_match",
         "gitleaks_scan": "search_code",
@@ -70,14 +68,14 @@ class FallbackHandler:
         result = await handler.handle_llm_failure(error, context)
     """
 
-    def __init__(self, config: Optional[FallbackConfig] = None):
+    def __init__(self, config: FallbackConfig | None = None):
         self.config = config or FallbackConfig()
 
     async def handle_llm_failure(
         self,
         error: Exception,
-        context: Dict[str, Any],
-        retry_func: Optional[Callable[[], Awaitable[Any]]] = None,
+        context: dict[str, Any],
+        retry_func: Callable[[], Awaitable[Any]] | None = None,
     ) -> FallbackResult:
         """
         Handle LLM call failure.
@@ -159,8 +157,8 @@ class FallbackHandler:
         self,
         tool_name: str,
         error: Exception,
-        tool_input: Dict[str, Any],
-        fallback_executor: Optional[Callable[[str, Dict], Awaitable[Any]]] = None,
+        tool_input: dict[str, Any],
+        fallback_executor: Callable[[str, dict], Awaitable[Any]] | None = None,
     ) -> FallbackResult:
         """
         Handle tool execution failure.
@@ -235,9 +233,9 @@ class FallbackHandler:
 
     def reduce_context(
         self,
-        messages: List[Dict[str, Any]],
-        reduction_ratio: Optional[float] = None,
-    ) -> List[Dict[str, Any]]:
+        messages: list[dict[str, Any]],
+        reduction_ratio: float | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Reduce context size by removing older messages.
 
@@ -297,9 +295,9 @@ class FallbackHandler:
 # ============ Fallback Decorator ============
 
 def with_fallback(
-    fallback_func: Optional[Callable[..., Awaitable[T]]] = None,
-    on_error: Optional[Callable[[Exception], Awaitable[None]]] = None,
-    default_value: Optional[T] = None,
+    fallback_func: Callable[..., Awaitable[T]] | None = None,
+    on_error: Callable[[Exception], Awaitable[None]] | None = None,
+    default_value: T | None = None,
 ):
     """
     Decorator to add fallback behavior to async functions.
@@ -334,7 +332,7 @@ def with_fallback(
 
 # ============ Global Handler ============
 
-_global_handler: Optional[FallbackHandler] = None
+_global_handler: FallbackHandler | None = None
 
 
 def get_fallback_handler() -> FallbackHandler:

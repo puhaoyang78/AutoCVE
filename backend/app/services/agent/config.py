@@ -6,7 +6,6 @@ All configuration values can be overridden via environment variables with AGENT_
 """
 
 import os
-from typing import Any, Dict, List, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import lru_cache
@@ -278,7 +277,7 @@ class AgentConfig(BaseSettings):
     )
 
     # ============ Security ============
-    allowed_file_extensions: Set[str] = Field(
+    allowed_file_extensions: set[str] = Field(
         default={
             ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".go", ".rb", ".php",
             ".c", ".cpp", ".h", ".hpp", ".cs", ".swift", ".kt", ".rs", ".scala",
@@ -289,7 +288,7 @@ class AgentConfig(BaseSettings):
         },
         description="Allowed file extensions for analysis"
     )
-    blocked_directories: Set[str] = Field(
+    blocked_directories: set[str] = Field(
         default={
             "node_modules", "__pycache__", ".git", ".svn", ".hg",
             "venv", ".venv", "env", ".env", "virtualenv",
@@ -346,8 +345,8 @@ class ToolConfig:
     enabled: bool = True
     timeout_seconds: int = 60
     max_retries: int = 2
-    rate_limit_per_second: Optional[float] = None
-    fallback_tool: Optional[str] = None
+    rate_limit_per_second: float | None = None
+    fallback_tool: str | None = None
     circuit_breaker_enabled: bool = True
 
 
@@ -357,13 +356,13 @@ class AgentTypeConfig:
     agent_type: str
     max_iterations: int
     timeout_seconds: int
-    tools: List[str] = field(default_factory=list)
-    knowledge_modules: List[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
+    knowledge_modules: list[str] = field(default_factory=list)
 
 
 # ============ Configuration Factory ============
 
-@lru_cache()
+@lru_cache
 def get_agent_config() -> AgentConfig:
     """
     Get the singleton agent configuration instance.
@@ -379,7 +378,7 @@ def get_tool_config(tool_name: str) -> ToolConfig:
     config = get_agent_config()
 
     # Tool-specific configurations
-    tool_configs: Dict[str, ToolConfig] = {
+    tool_configs: dict[str, ToolConfig] = {
         "semgrep_scan": ToolConfig(
             name="semgrep_scan",
             enabled=config.semgrep_enabled,
@@ -479,7 +478,7 @@ def get_agent_type_config(agent_type: str) -> AgentTypeConfig:
 
 # ============ Configuration Validation ============
 
-def validate_config() -> List[str]:
+def validate_config() -> list[str]:
     """
     Validate current configuration and return list of warnings.
 

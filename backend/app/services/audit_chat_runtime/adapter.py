@@ -12,7 +12,10 @@ from app.services.audit_chat_runtime.prompts import AUDIT_CHAT_SYSTEM_PROMPT
 from app.services.finding_runtime.query_transitions import hydrate_query_loop_state
 from app.services.finding_runtime.skills import RuntimeSkillCatalog
 from app.services.runtime_core.explicit_skill_loader import load_explicit_skill_injections
-from app.services.runtime_core.memory_runtime import RuntimeMemoryManager, build_runtime_memory_prompt
+from app.services.runtime_core.memory_runtime import (
+    RuntimeMemoryManager,
+    build_runtime_memory_prompt,
+)
 from app.services.runtime_core.skill_discovery import SkillDiscoveryScheduler
 from app.services.runtime_core.skill_mentions import collect_explicit_skill_mentions
 

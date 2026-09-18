@@ -2,8 +2,7 @@
 XSS (跨站脚本) 漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 XSS_REFLECTED = KnowledgeDocument(
     id="vuln_xss_reflected",

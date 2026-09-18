@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable, Dict, Set
+from collections.abc import Callable
+from typing import Any
 
 from app.models.agent_task import AgentTask, AgentTaskStatus
 
 logger = logging.getLogger(__name__)
 
-_running_tasks: Dict[str, Any] = {}
-_running_asyncio_tasks: Dict[str, asyncio.Task] = {}
-_cancelled_tasks: Set[str] = set()
+_running_tasks: dict[str, Any] = {}
+_running_asyncio_tasks: dict[str, asyncio.Task] = {}
+_cancelled_tasks: set[str] = set()
 
 
 def is_task_cancelled(task_id: str) -> bool:

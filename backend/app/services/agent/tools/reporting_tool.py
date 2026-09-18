@@ -7,8 +7,9 @@
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
+from datetime import UTC, datetime
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from .base import AgentTool, ToolResult
@@ -20,26 +21,26 @@ class VulnerabilityReportInput(BaseModel):
     """漏洞报告输入参数"""
     title: str = Field(..., description="漏洞标题")
     vulnerability_type: str = Field(
-        ..., 
+        ...,
         description="漏洞类型: sql_injection, xss, ssrf, command_injection, path_traversal, idor, auth_bypass, etc."
     )
     severity: str = Field(
-        ..., 
+        ...,
         description="严重程度: critical, high, medium, low, info"
     )
     description: str = Field(..., description="漏洞详细描述")
     file_path: str = Field(..., description="漏洞所在文件路径")
-    line_start: Optional[int] = Field(default=None, description="起始行号")
-    line_end: Optional[int] = Field(default=None, description="结束行号")
-    code_snippet: Optional[str] = Field(default=None, description="相关代码片段")
-    source: Optional[str] = Field(default=None, description="污点来源（用户输入点）")
-    sink: Optional[str] = Field(default=None, description="危险函数（漏洞触发点）")
-    poc: Optional[str] = Field(default=None, description="概念验证/利用方法")
-    impact: Optional[str] = Field(default=None, description="影响分析")
-    recommendation: Optional[str] = Field(default=None, description="修复建议")
+    line_start: int | None = Field(default=None, description="起始行号")
+    line_end: int | None = Field(default=None, description="结束行号")
+    code_snippet: str | None = Field(default=None, description="相关代码片段")
+    source: str | None = Field(default=None, description="污点来源（用户输入点）")
+    sink: str | None = Field(default=None, description="危险函数（漏洞触发点）")
+    poc: str | None = Field(default=None, description="概念验证/利用方法")
+    impact: str | None = Field(default=None, description="影响分析")
+    recommendation: str | None = Field(default=None, description="修复建议")
     confidence: float = Field(default=0.8, description="置信度 0.0-1.0")
-    cwe_id: Optional[str] = Field(default=None, description="CWE编号")
-    cvss_score: Optional[float] = Field(default=None, description="CVSS评分")
+    cwe_id: str | None = Field(default=None, description="CWE编号")
+    cvss_score: float | None = Field(default=None, description="CVSS评分")
 
 
 class CreateVulnerabilityReportTool(AgentTool):
@@ -56,17 +57,17 @@ class CreateVulnerabilityReportTool(AgentTool):
     """
 
     # 存储所有报告的漏洞
-    _vulnerability_reports: List[Dict[str, Any]] = []
+    _vulnerability_reports: list[dict[str, Any]] = []
 
-    def __init__(self, project_root: Optional[str] = None):
+    def __init__(self, project_root: str | None = None):
         super().__init__()
-        self._reports: List[Dict[str, Any]] = []
+        self._reports: list[dict[str, Any]] = []
         self.project_root = project_root  # 🔥 v2.1: 用于文件验证
-    
+
     @property
     def name(self) -> str:
         return "create_vulnerability_report"
-    
+
     @property
     def description(self) -> str:
         return """创建正式的漏洞报告。这是记录已确认漏洞的唯一方式。
@@ -93,11 +94,11 @@ class CreateVulnerabilityReportTool(AgentTool):
 - confidence: 置信度
 - cwe_id: CWE编号
 - cvss_score: CVSS评分"""
-    
+
     @property
     def args_schema(self):
         return VulnerabilityReportInput
-    
+
     async def _execute(
         self,
         title: str,
@@ -105,28 +106,28 @@ class CreateVulnerabilityReportTool(AgentTool):
         severity: str,
         description: str,
         file_path: str,
-        line_start: Optional[int] = None,
-        line_end: Optional[int] = None,
-        code_snippet: Optional[str] = None,
-        source: Optional[str] = None,
-        sink: Optional[str] = None,
-        poc: Optional[str] = None,
-        impact: Optional[str] = None,
-        recommendation: Optional[str] = None,
+        line_start: int | None = None,
+        line_end: int | None = None,
+        code_snippet: str | None = None,
+        source: str | None = None,
+        sink: str | None = None,
+        poc: str | None = None,
+        impact: str | None = None,
+        recommendation: str | None = None,
         confidence: float = 0.8,
-        cwe_id: Optional[str] = None,
-        cvss_score: Optional[float] = None,
+        cwe_id: str | None = None,
+        cvss_score: float | None = None,
         **kwargs
     ) -> ToolResult:
         """创建漏洞报告"""
-        
+
         # 验证必需字段
         if not title or not title.strip():
             return ToolResult(success=False, error="标题不能为空")
-        
+
         if not description or not description.strip():
             return ToolResult(success=False, error="描述不能为空")
-        
+
         if not file_path or not file_path.strip():
             return ToolResult(success=False, error="文件路径不能为空")
 
@@ -151,13 +152,13 @@ class CreateVulnerabilityReportTool(AgentTool):
         severity = severity.lower()
         if severity not in valid_severities:
             return ToolResult(
-                success=False, 
+                success=False,
                 error=f"无效的严重程度 '{severity}'，必须是: {', '.join(valid_severities)}"
             )
-        
+
         # 验证漏洞类型
         valid_types = [
-            "sql_injection", "nosql_injection", "xss", "ssrf", 
+            "sql_injection", "nosql_injection", "xss", "ssrf",
             "command_injection", "code_injection", "path_traversal",
             "file_inclusion", "idor", "auth_bypass", "broken_auth",
             "sensitive_data_exposure", "hardcoded_secret", "weak_crypto",
@@ -168,13 +169,13 @@ class CreateVulnerabilityReportTool(AgentTool):
         if vulnerability_type not in valid_types:
             # 允许未知类型，但记录警告
             logger.warning(f"Unknown vulnerability type: {vulnerability_type}")
-        
+
         # 验证置信度
         confidence = max(0.0, min(1.0, confidence))
-        
+
         # 生成报告ID
         report_id = f"vuln_{uuid.uuid4().hex[:8]}"
-        
+
         # 构建报告
         report = {
             "id": report_id,
@@ -194,16 +195,16 @@ class CreateVulnerabilityReportTool(AgentTool):
             "confidence": confidence,
             "cwe_id": cwe_id,
             "cvss_score": cvss_score,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "is_verified": True,  # 通过此工具创建的都视为已验证
         }
-        
+
         # 存储报告
         self._reports.append(report)
         CreateVulnerabilityReportTool._vulnerability_reports.append(report)
-        
+
         logger.info(f"Created vulnerability report: [{severity.upper()}] {title}")
-        
+
         # 返回结果
         severity_emoji = {
             "critical": "🔴",
@@ -212,7 +213,7 @@ class CreateVulnerabilityReportTool(AgentTool):
             "low": "🟢",
             "info": "🔵",
         }.get(severity, "⚪")
-        
+
         return ToolResult(
             success=True,
             data={
@@ -222,7 +223,7 @@ class CreateVulnerabilityReportTool(AgentTool):
             },
             metadata=report,
         )
-    
+
     def _get_default_recommendation(self, vuln_type: str) -> str:
         """获取默认修复建议"""
         recommendations = {
@@ -239,16 +240,16 @@ class CreateVulnerabilityReportTool(AgentTool):
             "deserialization": "避免反序列化不可信数据，使用JSON替代pickle/yaml",
         }
         return recommendations.get(vuln_type, "请根据具体情况修复此安全问题")
-    
-    def get_reports(self) -> List[Dict[str, Any]]:
+
+    def get_reports(self) -> list[dict[str, Any]]:
         """获取所有报告"""
         return self._reports.copy()
-    
+
     @classmethod
-    def get_all_reports(cls) -> List[Dict[str, Any]]:
+    def get_all_reports(cls) -> list[dict[str, Any]]:
         """获取所有实例的报告"""
         return cls._vulnerability_reports.copy()
-    
+
     @classmethod
     def clear_all_reports(cls) -> None:
         """清空所有报告"""

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 
 from pydantic import BaseModel
 from sqlalchemy import create_engine
@@ -19,13 +18,21 @@ from app.services.finding_runtime.models import (
     TranscriptItem,
 )
 from app.services.finding_runtime.query_loop import QueryLoop
-from app.services.runtime_core.tool_search_runtime import ToolSearchRuntimeTool
 from app.services.finding_runtime.query_state import QueryLoopState
 from app.services.finding_runtime.runner import FindingRuntimeRunner
-from app.services.finding_runtime.session_store import AuditSessionPersistenceError, AuditSessionStore
+from app.services.finding_runtime.session_store import (
+    AuditSessionPersistenceError,
+    AuditSessionStore,
+)
 from app.services.finding_runtime.skills import RuntimeSkillTool
+from app.services.finding_runtime.tooling import (
+    RuntimeTool,
+    ToolExecutionContext,
+    ToolOrchestrator,
+    ToolRegistry,
+)
 from app.services.finding_runtime.tools.finalize_finding import FinalizeFindingTool
-from app.services.finding_runtime.tooling import RuntimeTool, ToolExecutionContext, ToolOrchestrator, ToolRegistry
+from app.services.runtime_core.tool_search_runtime import ToolSearchRuntimeTool
 
 
 class FakeModelClient:

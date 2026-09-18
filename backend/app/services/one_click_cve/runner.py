@@ -5,16 +5,26 @@ import contextlib
 import json
 import re
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.endpoints.config import _build_test_user_config, _get_user_config_record, _merge_user_config
+from app.api.v1.endpoints.config import (
+    _build_test_user_config,
+    _get_user_config_record,
+    _merge_user_config,
+)
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
-from app.models.agent_task import AgentFinding, AgentTask, AgentTaskPhase, AgentTaskStatus, FindingStatus
+from app.models.agent_task import (
+    AgentFinding,
+    AgentTask,
+    AgentTaskPhase,
+    AgentTaskStatus,
+    FindingStatus,
+)
 from app.models.audit_session import AuditCheckpoint, AuditSession, AuditSessionTurn
 from app.models.managed_vulnerability import ManagedVulnerability
 from app.models.one_click_cve import (
@@ -28,8 +38,10 @@ from app.models.user_config import UserConfig
 from app.services.agent.task_executor import request_agent_task_cancellation
 from app.services.agent.task_queue import enqueue_agent_task, should_use_worker_queue
 from app.services.llm.service import LLMService
-from app.services.one_click_cve.discovery import GitHubCveDiscoveryService, GitHubRepositoryCandidate
-
+from app.services.one_click_cve.discovery import (
+    GitHubCveDiscoveryService,
+    GitHubRepositoryCandidate,
+)
 
 POLL_INTERVAL_SECONDS = 5
 ONE_CLICK_CVE_PREFLIGHT_AGENT = "finding"
@@ -215,7 +227,7 @@ async def run_one_click_cve_batch(batch_id: str) -> None:
             if fresh is not None:
                 fresh.status = OneClickCveBatchStatus.FAILED
                 fresh.error_message = _format_exception_message(exc)
-                fresh.completed_at = datetime.now(timezone.utc)
+                fresh.completed_at = datetime.now(UTC)
                 fresh.current_step = (
                     "检测到共享模型或基础设施故障，已停止整个一键 CVE"
                     if isinstance(exc, OneClickCveFatalAuditError)
@@ -226,7 +238,7 @@ async def run_one_click_cve_batch(batch_id: str) -> None:
 
 async def _mark_batch_preflight(db: AsyncSession, batch: OneClickCveBatch) -> None:
     batch.status = OneClickCveBatchStatus.RUNNING
-    batch.started_at = batch.started_at or datetime.now(timezone.utc)
+    batch.started_at = batch.started_at or datetime.now(UTC)
     batch.current_step = "正在测试模型连通性"
     await db.commit()
     await db.refresh(batch)
@@ -260,14 +272,14 @@ async def _cancel_agent_task_for_batch_cancellation(db: AsyncSession, task_id: s
     if task is None:
         return
     task.status = AgentTaskStatus.CANCELLED
-    task.completed_at = datetime.now(timezone.utc)
+    task.completed_at = datetime.now(UTC)
     task.error_message = task.error_message or "Cancelled by one-click CVE batch cancellation"
     await db.commit()
 
 
 async def _mark_batch_running(db: AsyncSession, batch: OneClickCveBatch) -> None:
     batch.status = OneClickCveBatchStatus.RUNNING
-    batch.started_at = batch.started_at or datetime.now(timezone.utc)
+    batch.started_at = batch.started_at or datetime.now(UTC)
     batch.current_step = "正在从 GitHub 搜索候选项目"
     await db.commit()
     await db.refresh(batch)
@@ -277,7 +289,7 @@ async def _finish_batch(db: AsyncSession, batch: OneClickCveBatch, *, status: st
     await _refresh_batch_summary(db, batch)
     batch.status = status
     batch.current_step = step
-    batch.completed_at = datetime.now(timezone.utc)
+    batch.completed_at = datetime.now(UTC)
     await db.commit()
 
 
@@ -377,7 +389,7 @@ async def _audit_candidate(db: AsyncSession, batch: OneClickCveBatch, candidate:
         if task_ref is not None:
             task_ref.status = AgentTaskStatus.FAILED
             task_ref.error_message = failure_message
-            task_ref.completed_at = datetime.now(timezone.utc)
+            task_ref.completed_at = datetime.now(UTC)
         if item_ref is not None:
             item_ref.status = OneClickCveProjectStatus.FAILED
             item_ref.error_message = failure_message
@@ -515,7 +527,7 @@ async def _wait_for_task_completion(
                 request_agent_task_cancellation(task_id)
             task.status = AgentTaskStatus.CANCELLED
             task.error_message = timeout_message
-            task.completed_at = datetime.now(timezone.utc)
+            task.completed_at = datetime.now(UTC)
             await _mark_latest_audit_session_agent_timeout(
                 db,
                 task_id=task_id,

@@ -3,7 +3,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.services.finding_runtime.final_finding_contract import FinalizedFinding, FinalizedFindingPayload
+from app.services.finding_runtime.final_finding_contract import (
+    FinalizedFinding,
+    FinalizedFindingPayload,
+)
 
 
 def finding_flow(*, control_status: str = "absent") -> dict:

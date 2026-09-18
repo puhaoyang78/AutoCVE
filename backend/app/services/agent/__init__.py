@@ -47,7 +47,15 @@ def __getattr__(name: str):
 
         return {"EventManager": EventManager, "AgentEventEmitter": AgentEventEmitter}[name]
     if name in {"BaseAgent", "AgentConfig", "AgentResult", "OrchestratorAgent", "ReconAgent", "AnalysisAgent", "VerificationAgent"}:
-        from .agents import AnalysisAgent, AgentConfig, AgentResult, BaseAgent, OrchestratorAgent, ReconAgent, VerificationAgent
+        from .agents import (
+            AgentConfig,
+            AgentResult,
+            AnalysisAgent,
+            BaseAgent,
+            OrchestratorAgent,
+            ReconAgent,
+            VerificationAgent,
+        )
 
         mapping = {
             "BaseAgent": BaseAgent,
@@ -60,7 +68,16 @@ def __getattr__(name: str):
         }
         return mapping[name]
     if name in {"AgentState", "AgentStatus", "AgentRegistry", "agent_registry", "AgentMessage", "MessageType", "MessagePriority", "MessageBus"}:
-        from .core import AgentMessage, AgentRegistry, AgentState, AgentStatus, MessageBus, MessagePriority, MessageType, agent_registry
+        from .core import (
+            AgentMessage,
+            AgentRegistry,
+            AgentState,
+            AgentStatus,
+            MessageBus,
+            MessagePriority,
+            MessageType,
+            agent_registry,
+        )
 
         mapping = {
             "AgentState": AgentState,

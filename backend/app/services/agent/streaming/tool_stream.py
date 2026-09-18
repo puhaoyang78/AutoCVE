@@ -4,12 +4,13 @@
 """
 
 import asyncio
-import time
 import logging
-from typing import Any, Dict, Optional, AsyncGenerator, List, Callable
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,23 +29,23 @@ class ToolCallEvent:
     """工具调用事件"""
     tool_name: str
     state: ToolCallState
-    
+
     # 输入输出
-    input_params: Dict[str, Any] = field(default_factory=dict)
-    output_data: Optional[Any] = None
-    error_message: Optional[str] = None
-    
+    input_params: dict[str, Any] = field(default_factory=dict)
+    output_data: Any | None = None
+    error_message: str | None = None
+
     # 时间
-    start_time: Optional[float] = None
-    end_time: Optional[float] = None
+    start_time: float | None = None
+    end_time: float | None = None
     duration_ms: int = 0
-    
+
     # 元数据
-    call_id: Optional[str] = None
+    call_id: str | None = None
     sequence: int = 0
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    
-    def to_dict(self) -> Dict[str, Any]:
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典"""
         return {
             "tool_name": self.tool_name,
@@ -57,7 +58,7 @@ class ToolCallEvent:
             "sequence": self.sequence,
             "timestamp": self.timestamp,
         }
-    
+
     def _truncate(self, data: Any, max_length: int = 500) -> Any:
         """截断数据"""
         if data is None:
@@ -84,31 +85,31 @@ class ToolStreamHandler:
     3. 流式输出执行过程
     4. 记录输出和执行时间
     """
-    
+
     def __init__(
         self,
-        on_event: Optional[Callable[[ToolCallEvent], None]] = None,
+        on_event: Callable[[ToolCallEvent], None] | None = None,
     ):
         self.on_event = on_event
         self._sequence = 0
-        self._active_calls: Dict[str, ToolCallEvent] = {}
-        self._history: List[ToolCallEvent] = []
-    
+        self._active_calls: dict[str, ToolCallEvent] = {}
+        self._history: list[ToolCallEvent] = []
+
     def _next_sequence(self) -> int:
         """获取下一个序列号"""
         self._sequence += 1
         return self._sequence
-    
+
     def _generate_call_id(self) -> str:
         """生成调用 ID"""
         import uuid
         return str(uuid.uuid4())[:8]
-    
+
     async def emit_tool_start(
         self,
         tool_name: str,
-        input_params: Dict[str, Any],
-        call_id: Optional[str] = None,
+        input_params: dict[str, Any],
+        call_id: str | None = None,
     ) -> ToolCallEvent:
         """
         发射工具开始事件
@@ -122,7 +123,7 @@ class ToolStreamHandler:
             工具调用事件
         """
         call_id = call_id or self._generate_call_id()
-        
+
         event = ToolCallEvent(
             tool_name=tool_name,
             state=ToolCallState.RUNNING,
@@ -131,20 +132,20 @@ class ToolStreamHandler:
             call_id=call_id,
             sequence=self._next_sequence(),
         )
-        
+
         self._active_calls[call_id] = event
-        
+
         if self.on_event:
             self.on_event(event)
-        
+
         return event
-    
+
     async def emit_tool_end(
         self,
         call_id: str,
         output_data: Any,
         is_error: bool = False,
-        error_message: Optional[str] = None,
+        error_message: str | None = None,
     ) -> ToolCallEvent:
         """
         发射工具结束事件
@@ -161,53 +162,53 @@ class ToolStreamHandler:
         if call_id not in self._active_calls:
             logger.warning(f"Unknown tool call: {call_id}")
             return None
-        
+
         event = self._active_calls[call_id]
         event.end_time = time.time()
         event.duration_ms = int((event.end_time - event.start_time) * 1000) if event.start_time else 0
         event.output_data = output_data
         event.sequence = self._next_sequence()
-        
+
         if is_error:
             event.state = ToolCallState.ERROR
             event.error_message = error_message or str(output_data)
         else:
             event.state = ToolCallState.SUCCESS
-        
+
         # 移动到历史记录
         del self._active_calls[call_id]
         self._history.append(event)
-        
+
         if self.on_event:
             self.on_event(event)
-        
+
         return event
-    
+
     async def emit_tool_timeout(self, call_id: str, timeout_seconds: int) -> ToolCallEvent:
         """发射工具超时事件"""
         if call_id not in self._active_calls:
             return None
-        
+
         event = self._active_calls[call_id]
         event.end_time = time.time()
         event.duration_ms = int((event.end_time - event.start_time) * 1000) if event.start_time else 0
         event.state = ToolCallState.TIMEOUT
         event.error_message = f"Tool execution timed out after {timeout_seconds}s"
         event.sequence = self._next_sequence()
-        
+
         del self._active_calls[call_id]
         self._history.append(event)
-        
+
         if self.on_event:
             self.on_event(event)
-        
+
         return event
-    
+
     def wrap_tool(
         self,
         tool_func: Callable,
         tool_name: str,
-        timeout: Optional[int] = None,
+        timeout: int | None = None,
     ) -> Callable:
         """
         包装工具函数以自动跟踪
@@ -222,14 +223,14 @@ class ToolStreamHandler:
         """
         async def wrapped(*args, **kwargs):
             call_id = self._generate_call_id()
-            
+
             # 发射开始事件
             await self.emit_tool_start(
                 tool_name=tool_name,
                 input_params={"args": args, "kwargs": kwargs},
                 call_id=call_id,
             )
-            
+
             try:
                 # 执行工具
                 if asyncio.iscoroutinefunction(tool_func):
@@ -248,40 +249,40 @@ class ToolStreamHandler:
                         )
                     else:
                         result = tool_func(*args, **kwargs)
-                
+
                 # 发射结束事件
                 await self.emit_tool_end(call_id, result)
-                
+
                 return result
-                
-            except asyncio.TimeoutError:
+
+            except TimeoutError:
                 await self.emit_tool_timeout(call_id, timeout or 0)
                 raise
-                
+
             except Exception as e:
                 await self.emit_tool_end(call_id, None, is_error=True, error_message=str(e))
                 raise
-        
+
         return wrapped
-    
-    def get_active_calls(self) -> List[ToolCallEvent]:
+
+    def get_active_calls(self) -> list[ToolCallEvent]:
         """获取活跃的调用"""
         return list(self._active_calls.values())
-    
-    def get_history(self, limit: int = 100) -> List[ToolCallEvent]:
+
+    def get_history(self, limit: int = 100) -> list[ToolCallEvent]:
         """获取历史记录"""
         return self._history[-limit:]
-    
-    def get_stats(self) -> Dict[str, Any]:
+
+    def get_stats(self) -> dict[str, Any]:
         """获取统计信息"""
         total_calls = len(self._history)
         success_calls = sum(1 for e in self._history if e.state == ToolCallState.SUCCESS)
         error_calls = sum(1 for e in self._history if e.state == ToolCallState.ERROR)
         timeout_calls = sum(1 for e in self._history if e.state == ToolCallState.TIMEOUT)
-        
+
         total_duration = sum(e.duration_ms for e in self._history)
         avg_duration = total_duration / total_calls if total_calls > 0 else 0
-        
+
         # 按工具统计
         tool_stats = {}
         for event in self._history:
@@ -298,7 +299,7 @@ class ToolStreamHandler:
             elif event.state in [ToolCallState.ERROR, ToolCallState.TIMEOUT]:
                 tool_stats[event.tool_name]["errors"] += 1
             tool_stats[event.tool_name]["total_duration_ms"] += event.duration_ms
-        
+
         return {
             "total_calls": total_calls,
             "success_calls": success_calls,
@@ -310,7 +311,7 @@ class ToolStreamHandler:
             "active_calls": len(self._active_calls),
             "by_tool": tool_stats,
         }
-    
+
     def clear(self):
         """清空记录"""
         self._active_calls.clear()

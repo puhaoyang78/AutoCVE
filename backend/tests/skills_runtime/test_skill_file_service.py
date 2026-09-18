@@ -4,8 +4,8 @@ import zipfile
 
 import pytest
 
-from app.services.init_agent_assets import init_skill_bindings
 import app.services.skill_file_service as skill_file_service_module
+from app.services.init_agent_assets import init_skill_bindings
 from app.services.skill_file_service import SkillFileService
 
 

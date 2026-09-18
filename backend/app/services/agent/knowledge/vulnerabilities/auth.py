@@ -2,8 +2,7 @@
 认证和授权漏洞知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 AUTH_BYPASS = KnowledgeDocument(
     id="vuln_auth_bypass",

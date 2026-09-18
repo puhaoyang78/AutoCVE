@@ -3,7 +3,12 @@
 from pydantic import BaseModel
 
 from app.services.finding_runtime.models import ToolExecutionPayload
-from app.services.runtime_core.tool_runtime import RuntimeTool, ToolExecutionContext, ToolRegistry, build_runtime_tool
+from app.services.runtime_core.tool_runtime import (
+    RuntimeTool,
+    ToolExecutionContext,
+    ToolRegistry,
+    build_runtime_tool,
+)
 
 
 class EchoInput(BaseModel):

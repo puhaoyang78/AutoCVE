@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 from .adapters import (
     AnthropicAdapter,
@@ -16,7 +16,6 @@ from .adapters import (
 from .base_adapter import BaseLLMAdapter
 from .protocols.registry import canonical_endpoint_protocol, get_provider_metadata
 from .types import DEFAULT_MODELS, LLMConfig, LLMProvider
-
 
 NATIVE_ONLY_PROVIDERS = {
     LLMProvider.BAIDU,
@@ -33,7 +32,7 @@ OPENAI_CHAT_NATIVE_CAPABLE_PROVIDERS = {
 class LLMFactory:
     """Create and cache LLM adapters."""
 
-    _adapters: Dict[str, BaseLLMAdapter] = {}
+    _adapters: dict[str, BaseLLMAdapter] = {}
 
     @classmethod
     def create_adapter(cls, config: LLMConfig) -> BaseLLMAdapter:
@@ -110,7 +109,7 @@ class LLMFactory:
         cls._adapters.clear()
 
     @classmethod
-    def get_supported_providers(cls) -> List[LLMProvider]:
+    def get_supported_providers(cls) -> list[LLMProvider]:
         return list(LLMProvider)
 
     @classmethod
@@ -118,9 +117,9 @@ class LLMFactory:
         return str(get_provider_metadata(provider).get("default_model") or DEFAULT_MODELS.get(provider, "gpt-4o-mini"))
 
     @classmethod
-    def get_available_models(cls, provider: LLMProvider) -> List[str]:
+    def get_available_models(cls, provider: LLMProvider) -> list[str]:
         return list(get_provider_metadata(provider).get("models") or [])
 
     @classmethod
-    def get_provider_metadata(cls, provider: LLMProvider) -> Dict[str, Any]:
+    def get_provider_metadata(cls, provider: LLMProvider) -> dict[str, Any]:
         return get_provider_metadata(provider)

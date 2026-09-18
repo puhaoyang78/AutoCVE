@@ -2,21 +2,21 @@
 Git SSH服务 - 生成SSH密钥并使用SSH方式访问Git仓库
 """
 
+import base64
+import hashlib
+import logging
 import os
-import sys
 import re
 import shlex
-import logging
-import tempfile
-import subprocess
 import shutil
-import hashlib
-import base64
-from typing import Tuple, Optional, Dict, List
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
+
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
-from cryptography.hazmat.backends import default_backend
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -166,7 +166,7 @@ class SSHKeyService:
     """SSH密钥服务"""
 
     @staticmethod
-    def get_public_key_fingerprint(public_key: str) -> Optional[str]:
+    def get_public_key_fingerprint(public_key: str) -> str | None:
         """
         计算SSH公钥的SHA256指纹
 
@@ -213,11 +213,11 @@ class SSHKeyService:
             是否匹配
         """
         try:
-            from cryptography.hazmat.primitives.serialization import (
-                load_ssh_private_key,
-                load_pem_private_key
-            )
             from cryptography.hazmat.backends import default_backend
+            from cryptography.hazmat.primitives.serialization import (
+                load_pem_private_key,
+                load_ssh_private_key,
+            )
 
             # 尝试加载私钥（支持多种格式）
             private_key_bytes = private_key.encode('utf-8')
@@ -263,7 +263,7 @@ class SSHKeyService:
             return False
 
     @staticmethod
-    def generate_rsa_key(key_size: int = 4096) -> Tuple[str, str]:
+    def generate_rsa_key(key_size: int = 4096) -> tuple[str, str]:
         """
         生成RSA SSH密钥对
 
@@ -297,7 +297,7 @@ class SSHKeyService:
         return private_pem, public_openssh
 
     @staticmethod
-    def generate_ed25519_key() -> Tuple[str, str]:
+    def generate_ed25519_key() -> tuple[str, str]:
         """
         生成ED25519 SSH密钥对（备用方法，默认使用RSA）
 
@@ -341,7 +341,7 @@ class GitSSHOperations:
         return url.startswith('git@') or url.startswith('ssh://')
 
     @staticmethod
-    def clone_repo_with_ssh(repo_url: str, private_key: str, target_dir: str, branch: str = None) -> Dict[str, any]:
+    def clone_repo_with_ssh(repo_url: str, private_key: str, target_dir: str, branch: str = None) -> dict[str, any]:
         """
         使用SSH密钥克隆Git仓库
 
@@ -432,7 +432,7 @@ class GitSSHOperations:
 
     @staticmethod
     def get_repo_files_via_ssh(repo_url: str, private_key: str, branch: str = "main",
-                                exclude_patterns: List[str] = None) -> List[Dict[str, str]]:
+                                exclude_patterns: list[str] = None) -> list[dict[str, str]]:
         """
         通过SSH克隆仓库并获取文件列表
 
@@ -482,7 +482,7 @@ class GitSSHOperations:
 
                     try:
                         # 读取文件内容
-                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        with open(file_path, encoding='utf-8', errors='ignore') as f:
                             content = f.read()
 
                         files.append({
@@ -504,7 +504,7 @@ class GitSSHOperations:
                 shutil.rmtree(temp_clone_dir, ignore_errors=True)
 
     @staticmethod
-    def test_ssh_key(repo_url: str, private_key: str) -> Dict[str, any]:
+    def test_ssh_key(repo_url: str, private_key: str) -> dict[str, any]:
         """
         测试SSH密钥是否有效
 

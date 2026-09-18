@@ -3,15 +3,15 @@ Agent 测试配置和 Fixtures
 提供测试所需的公共设施
 """
 
-import pytest
 import asyncio
-import tempfile
-import shutil
 import os
-from typing import Dict, Any, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+import shutil
+import tempfile
 from dataclasses import dataclass
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 
 # ============ 测试配置 ============
 
@@ -27,11 +27,11 @@ def event_loop():
 def temp_project_dir():
     """创建临时项目目录，包含测试代码"""
     temp_dir = tempfile.mkdtemp(prefix="auditai_test_")
-    
+
     # 创建测试项目结构
     os.makedirs(os.path.join(temp_dir, "src"), exist_ok=True)
     os.makedirs(os.path.join(temp_dir, "config"), exist_ok=True)
-    
+
     # 创建有漏洞的测试代码 - SQL 注入
     sql_vuln_code = '''
 import sqlite3
@@ -52,7 +52,7 @@ def search_users(name):
     cursor.execute("SELECT * FROM users WHERE name LIKE '%" + name + "%'")
     return cursor.fetchall()
 '''
-    
+
     # 创建有漏洞的测试代码 - 命令注入
     cmd_vuln_code = '''
 import os
@@ -67,7 +67,7 @@ def execute_script(script_name):
     """危险：命令注入漏洞"""
     subprocess.call(f"bash {script_name}", shell=True)
 '''
-    
+
     # 创建有漏洞的测试代码 - XSS
     xss_vuln_code = '''
 from flask import Flask, request, render_template_string
@@ -88,7 +88,7 @@ def search():
     html = f"<p>搜索结果: {query}</p>"
     return render_template_string(html)
 '''
-    
+
     # 创建有漏洞的测试代码 - 路径遍历
     path_vuln_code = '''
 import os
@@ -106,7 +106,7 @@ def download_file(user_path):
     with open(user_path, "rb") as f:
         return f.read()
 '''
-    
+
     # 创建有漏洞的测试代码 - 硬编码密钥
     secret_vuln_code = '''
 # 配置文件
@@ -119,7 +119,7 @@ def connect_database():
     password = "admin123"  # 硬编码密码
     return f"mysql://root:{password}@localhost/mydb"
 '''
-    
+
     # 创建安全的代码（用于对比）
     safe_code = '''
 import sqlite3
@@ -139,7 +139,7 @@ def validate_input(user_input: str) -> str:
         raise ValueError("Invalid input")
     return user_input
 '''
-    
+
     # 创建配置文件
     config_code = '''
 import os
@@ -150,41 +150,41 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY")
     DEBUG = False
 '''
-    
+
     # 创建 requirements.txt
     requirements = '''
 flask>=2.0.0
 sqlalchemy>=2.0.0
 requests>=2.28.0
 '''
-    
+
     # 写入文件
     with open(os.path.join(temp_dir, "src", "sql_vuln.py"), "w") as f:
         f.write(sql_vuln_code)
-    
+
     with open(os.path.join(temp_dir, "src", "cmd_vuln.py"), "w") as f:
         f.write(cmd_vuln_code)
-    
+
     with open(os.path.join(temp_dir, "src", "xss_vuln.py"), "w") as f:
         f.write(xss_vuln_code)
-    
+
     with open(os.path.join(temp_dir, "src", "path_vuln.py"), "w") as f:
         f.write(path_vuln_code)
-    
+
     with open(os.path.join(temp_dir, "src", "secrets.py"), "w") as f:
         f.write(secret_vuln_code)
-    
+
     with open(os.path.join(temp_dir, "src", "safe_code.py"), "w") as f:
         f.write(safe_code)
-    
+
     with open(os.path.join(temp_dir, "config", "settings.py"), "w") as f:
         f.write(config_code)
-    
+
     with open(os.path.join(temp_dir, "requirements.txt"), "w") as f:
         f.write(requirements)
-    
+
     yield temp_dir
-    
+
     # 清理
     shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -254,7 +254,7 @@ class MockAgentTask:
     target_files: list = None
     max_iterations: int = 50
     timeout_seconds: int = 1800
-    
+
     def __post_init__(self):
         if self.project is None:
             self.project = MockProject()
@@ -274,12 +274,12 @@ def mock_task():
 
 # ============ 测试辅助函数 ============
 
-def assert_finding_valid(finding: Dict[str, Any]):
+def assert_finding_valid(finding: dict[str, Any]):
     """验证漏洞发现的格式"""
     required_fields = ["title", "severity", "vulnerability_type"]
     for field in required_fields:
         assert field in finding, f"Missing required field: {field}"
-    
+
     valid_severities = ["critical", "high", "medium", "low", "info"]
     assert finding["severity"] in valid_severities, f"Invalid severity: {finding['severity']}"
 

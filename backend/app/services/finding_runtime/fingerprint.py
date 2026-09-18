@@ -4,7 +4,6 @@ import hashlib
 import re
 from typing import Any
 
-
 _LINE_SUFFIX_RE = re.compile(r":\d+(?:[-:]\d+)?(?:-\d+)?$")
 _WHITESPACE_RE = re.compile(r"\s+")
 

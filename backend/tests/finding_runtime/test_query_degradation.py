@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from app.services.finding_runtime.models import RuntimeContinueReason, RuntimeMessageRole, RuntimeModelResponse, RuntimeStopReason, TranscriptItem
+from app.services.finding_runtime.models import (
+    RuntimeContinueReason,
+    RuntimeMessageRole,
+    RuntimeModelResponse,
+    RuntimeStopReason,
+    TranscriptItem,
+)
 from app.services.finding_runtime.query_degradation import handle_recoverable_response
 from app.services.finding_runtime.query_state import QueryLoopState
 

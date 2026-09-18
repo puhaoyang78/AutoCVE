@@ -2,13 +2,24 @@ from __future__ import annotations
 
 import inspect
 import re
+from collections.abc import Iterable
 from copy import deepcopy
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
-from app.services.finding_runtime.compaction.models import AutoCompactTrackingState, CompactionResult
+from app.services.finding_runtime.compaction.models import (
+    AutoCompactTrackingState,
+    CompactionResult,
+)
 from app.services.finding_runtime.compaction.post_compact import rebuild_post_compact_artifacts
-from app.services.finding_runtime.compaction.prompts import build_compaction_prompt, get_compact_user_summary_message
-from app.services.finding_runtime.models import RuntimeMessageRole, RuntimeModelResponse, TranscriptItem
+from app.services.finding_runtime.compaction.prompts import (
+    build_compaction_prompt,
+    get_compact_user_summary_message,
+)
+from app.services.finding_runtime.models import (
+    RuntimeMessageRole,
+    RuntimeModelResponse,
+    TranscriptItem,
+)
 from app.services.finding_runtime.query_state import QueryLoopState
 
 MAX_PTL_RETRIES = 3

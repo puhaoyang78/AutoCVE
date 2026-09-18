@@ -3,15 +3,14 @@
 支持语义检索和混合检索
 """
 
-import re
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+import re
 from dataclasses import dataclass, field
+from typing import Any
 
 from .embeddings import EmbeddingService
-from .indexer import VectorStore, ChromaVectorStore, InMemoryVectorStore
-from .splitter import CodeChunk, ChunkType
+from .indexer import ChromaVectorStore, InMemoryVectorStore, VectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +26,17 @@ class RetrievalResult:
     line_start: int
     line_end: int
     score: float  # 相似度分数 (0-1, 越高越相似)
-    
+
     # 可选的元数据
-    name: Optional[str] = None
-    parent_name: Optional[str] = None
-    signature: Optional[str] = None
-    security_indicators: List[str] = field(default_factory=list)
-    
+    name: str | None = None
+    parent_name: str | None = None
+    signature: str | None = None
+    security_indicators: list[str] = field(default_factory=list)
+
     # 原始元数据
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "chunk_id": self.chunk_id,
             "content": self.content,
@@ -52,11 +51,11 @@ class RetrievalResult:
             "signature": self.signature,
             "security_indicators": self.security_indicators,
         }
-    
+
     def to_context_string(self, include_metadata: bool = True) -> str:
         """转换为上下文字符串（用于 LLM 输入）"""
         parts = []
-        
+
         if include_metadata:
             header = f"File: {self.file_path}"
             if self.line_start and self.line_end:
@@ -66,9 +65,9 @@ class RetrievalResult:
             if self.parent_name:
                 header += f" in {self.parent_name}"
             parts.append(header)
-        
+
         parts.append(f"```{self.language}\n{self.content}\n```")
-        
+
         return "\n".join(parts)
 
 
@@ -85,10 +84,10 @@ class CodeRetriever:
     def __init__(
         self,
         collection_name: str,
-        embedding_service: Optional[EmbeddingService] = None,
-        vector_store: Optional[VectorStore] = None,
-        persist_directory: Optional[str] = None,
-        api_key: Optional[str] = None,  # 🔥 新增：用于动态创建 embedding 服务
+        embedding_service: EmbeddingService | None = None,
+        vector_store: VectorStore | None = None,
+        persist_directory: str | None = None,
+        api_key: str | None = None,  # 🔥 新增：用于动态创建 embedding 服务
     ):
         """
         初始化检索器
@@ -155,7 +154,7 @@ class CodeRetriever:
                         f"{stored_provider}/{stored_model} (维度: {stored_dimension}) vs "
                         f"{current_provider}/{current_model}"
                     )
-                    logger.info(f"🔄 自动切换到 collection 的 embedding 配置")
+                    logger.info("🔄 自动切换到 collection 的 embedding 配置")
 
                     # 动态创建对应的 embedding 服务
                     api_key = self._api_key
@@ -176,7 +175,7 @@ class CodeRetriever:
 
         self._initialized = True
 
-    async def _infer_embedding_config_from_dimension(self) -> Optional[Dict[str, Any]]:
+    async def _infer_embedding_config_from_dimension(self) -> dict[str, Any] | None:
         """
         🔥 从向量维度推断 embedding 配置（用于处理旧的 collection）
 
@@ -225,7 +224,7 @@ class CodeRetriever:
 
         return None
 
-    def get_collection_embedding_config(self) -> Dict[str, Any]:
+    def get_collection_embedding_config(self) -> dict[str, Any]:
         """
         获取 collection 存储的 embedding 配置
 
@@ -235,16 +234,16 @@ class CodeRetriever:
         if hasattr(self.vector_store, 'get_embedding_config'):
             return self.vector_store.get_embedding_config()
         return {}
-    
+
     async def retrieve(
         self,
         query: str,
         top_k: int = 10,
-        filter_file_path: Optional[str] = None,
-        filter_language: Optional[str] = None,
-        filter_chunk_type: Optional[str] = None,
+        filter_file_path: str | None = None,
+        filter_language: str | None = None,
+        filter_chunk_type: str | None = None,
         min_score: float = 0.0,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """
         语义检索
         
@@ -260,10 +259,10 @@ class CodeRetriever:
             检索结果列表
         """
         await self.initialize()
-        
+
         # 生成查询嵌入
         query_embedding = await self.embedding_service.embed(query)
-        
+
         # 构建过滤条件
         where = {}
         if filter_file_path:
@@ -272,14 +271,14 @@ class CodeRetriever:
             where["language"] = filter_language
         if filter_chunk_type:
             where["chunk_type"] = filter_chunk_type
-        
+
         # 查询向量存储
         raw_results = await self.vector_store.query(
             query_embedding=query_embedding,
             n_results=top_k * 2,  # 多查一些，后面过滤
             where=where if where else None,
         )
-        
+
         # 转换结果
         results = []
         for i, (id_, doc, meta, dist) in enumerate(zip(
@@ -290,10 +289,10 @@ class CodeRetriever:
         )):
             # 将距离转换为相似度分数 (余弦距离)
             score = 1 - dist
-            
+
             if score < min_score:
                 continue
-            
+
             # 解析安全指标（可能是 JSON 字符串）
             security_indicators = meta.get("security_indicators", [])
             if isinstance(security_indicators, str):
@@ -302,7 +301,7 @@ class CodeRetriever:
                     security_indicators = json.loads(security_indicators)
                 except:
                     security_indicators = []
-            
+
             result = RetrievalResult(
                 chunk_id=id_,
                 content=doc,
@@ -319,16 +318,16 @@ class CodeRetriever:
                 metadata=meta,
             )
             results.append(result)
-        
+
         # 按分数排序并截取
         results.sort(key=lambda x: x.score, reverse=True)
         return results[:top_k]
-    
+
     async def retrieve_by_file(
         self,
         file_path: str,
         top_k: int = 50,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """
         按文件路径检索
         
@@ -340,16 +339,16 @@ class CodeRetriever:
             该文件的所有代码块
         """
         await self.initialize()
-        
+
         # 使用一个通用查询
         query_embedding = await self.embedding_service.embed(f"code in {file_path}")
-        
+
         raw_results = await self.vector_store.query(
             query_embedding=query_embedding,
             n_results=top_k,
             where={"file_path": file_path},
         )
-        
+
         results = []
         for id_, doc, meta, dist in zip(
             raw_results["ids"],
@@ -371,16 +370,16 @@ class CodeRetriever:
                 metadata=meta,
             )
             results.append(result)
-        
+
         # 按行号排序
         results.sort(key=lambda x: x.line_start)
         return results
-    
+
     async def retrieve_security_related(
         self,
-        vulnerability_type: Optional[str] = None,
+        vulnerability_type: str | None = None,
         top_k: int = 20,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """
         检索与安全相关的代码
         
@@ -402,22 +401,22 @@ class CodeRetriever:
             "auth_bypass": "authentication login password token session",
             "hardcoded_secret": "password secret key token credential",
         }
-        
+
         if vulnerability_type and vulnerability_type in security_queries:
             query = security_queries[vulnerability_type]
         else:
             query = "security vulnerability dangerous function user input"
-        
+
         return await self.retrieve(query, top_k=top_k)
-    
+
     async def retrieve_function_context(
         self,
         function_name: str,
-        file_path: Optional[str] = None,
+        file_path: str | None = None,
         include_callers: bool = True,
         include_callees: bool = True,
         top_k: int = 10,
-    ) -> Dict[str, List[RetrievalResult]]:
+    ) -> dict[str, list[RetrievalResult]]:
         """
         检索函数上下文
         
@@ -436,7 +435,7 @@ class CodeRetriever:
             "callers": [],
             "callees": [],
         }
-        
+
         # 查找函数定义
         definition_query = f"function definition {function_name}"
         definitions = await self.retrieve(
@@ -444,29 +443,29 @@ class CodeRetriever:
             top_k=5,
             filter_file_path=file_path,
         )
-        
+
         # 过滤出真正的定义
         for result in definitions:
             if result.name == function_name or function_name in (result.content or ""):
                 context["definition"].append(result)
-        
+
         if include_callers:
             # 查找调用此函数的代码
             caller_query = f"calls {function_name} invoke {function_name}"
             callers = await self.retrieve(caller_query, top_k=top_k)
-            
+
             for result in callers:
                 # 检查是否真的调用了这个函数
                 if re.search(rf'\b{re.escape(function_name)}\s*\(', result.content):
                     if result not in context["definition"]:
                         context["callers"].append(result)
-        
+
         if include_callees and context["definition"]:
             # 从函数定义中提取调用的其他函数
             for definition in context["definition"]:
                 calls = re.findall(r'\b(\w+)\s*\(', definition.content)
                 unique_calls = list(set(calls))[:5]  # 限制数量
-                
+
                 for call in unique_calls:
                     if call == function_name:
                         continue
@@ -475,15 +474,15 @@ class CodeRetriever:
                         top_k=2,
                     )
                     context["callees"].extend(callees)
-        
+
         return context
-    
+
     async def retrieve_similar_code(
         self,
         code_snippet: str,
         top_k: int = 5,
-        exclude_file: Optional[str] = None,
-    ) -> List[RetrievalResult]:
+        exclude_file: str | None = None,
+    ) -> list[RetrievalResult]:
         """
         检索相似的代码
         
@@ -499,19 +498,19 @@ class CodeRetriever:
             f"similar code: {code_snippet}",
             top_k=top_k * 2,
         )
-        
+
         if exclude_file:
             results = [r for r in results if r.file_path != exclude_file]
-        
+
         return results[:top_k]
-    
+
     async def hybrid_retrieve(
         self,
         query: str,
-        keywords: Optional[List[str]] = None,
+        keywords: list[str] | None = None,
         top_k: int = 10,
         semantic_weight: float = 0.7,
-    ) -> List[RetrievalResult]:
+    ) -> list[RetrievalResult]:
         """
         混合检索（语义 + 关键字）
         
@@ -526,34 +525,34 @@ class CodeRetriever:
         """
         # 语义检索
         semantic_results = await self.retrieve(query, top_k=top_k * 2)
-        
+
         # 如果有关键字，进行关键字过滤/增强
         if keywords:
             keyword_pattern = '|'.join(re.escape(kw) for kw in keywords)
-            
+
             enhanced_results = []
             for result in semantic_results:
                 # 计算关键字匹配度
                 matches = len(re.findall(keyword_pattern, result.content, re.IGNORECASE))
                 keyword_score = min(1.0, matches / len(keywords))
-                
+
                 # 混合分数
                 hybrid_score = (
                     semantic_weight * result.score +
                     (1 - semantic_weight) * keyword_score
                 )
-                
+
                 result.score = hybrid_score
                 enhanced_results.append(result)
-            
+
             enhanced_results.sort(key=lambda x: x.score, reverse=True)
             return enhanced_results[:top_k]
-        
+
         return semantic_results[:top_k]
-    
+
     def format_results_for_llm(
         self,
-        results: List[RetrievalResult],
+        results: list[RetrievalResult],
         max_tokens: int = 4000,
         include_metadata: bool = True,
     ) -> str:
@@ -570,19 +569,19 @@ class CodeRetriever:
         """
         if not results:
             return "No relevant code found."
-        
+
         parts = []
         total_tokens = 0
-        
+
         for i, result in enumerate(results):
             context = result.to_context_string(include_metadata=include_metadata)
             estimated_tokens = len(context) // 4
-            
+
             if total_tokens + estimated_tokens > max_tokens:
                 break
-            
+
             parts.append(f"### Code Block {i + 1} (Score: {result.score:.2f})\n{context}")
             total_tokens += estimated_tokens
-        
+
         return "\n\n".join(parts)
 

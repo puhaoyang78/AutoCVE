@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 
+from app.services.scan_runtime.executors.semgrep import SemgrepScanExecutor
 from app.services.scan_runtime.normalizers import normalize_semgrep_results
 from app.services.scan_runtime.pipeline import ScanPipeline
-from app.services.scan_runtime.executors.semgrep import SemgrepScanExecutor
 
 
 def _semgrep_payload() -> dict:

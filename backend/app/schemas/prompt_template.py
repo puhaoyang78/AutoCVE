@@ -2,19 +2,20 @@
 提示词模板 Schema
 """
 
-from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PromptTemplateBase(BaseModel):
     """提示词模板基础Schema"""
     name: str = Field(..., min_length=1, max_length=100, description="模板名称")
-    description: Optional[str] = Field(None, description="模板描述")
+    description: str | None = Field(None, description="模板描述")
     template_type: str = Field("system", description="模板类型: system/user/analysis")
-    content_zh: Optional[str] = Field(None, description="中文提示词")
-    content_en: Optional[str] = Field(None, description="英文提示词")
-    variables: Optional[Dict[str, str]] = Field(default_factory=dict, description="模板变量说明")
+    content_zh: str | None = Field(None, description="中文提示词")
+    content_en: str | None = Field(None, description="英文提示词")
+    variables: dict[str, str] | None = Field(default_factory=dict, description="模板变量说明")
     is_active: bool = Field(True, description="是否启用")
     sort_order: int = Field(0, description="排序权重")
 
@@ -26,15 +27,15 @@ class PromptTemplateCreate(PromptTemplateBase):
 
 class PromptTemplateUpdate(BaseModel):
     """更新提示词模板"""
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = None
-    template_type: Optional[str] = None
-    content_zh: Optional[str] = None
-    content_en: Optional[str] = None
-    variables: Optional[Dict[str, str]] = None
-    is_default: Optional[bool] = None
-    is_active: Optional[bool] = None
-    sort_order: Optional[int] = None
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = None
+    template_type: str | None = None
+    content_zh: str | None = None
+    content_en: str | None = None
+    variables: dict[str, str] | None = None
+    is_default: bool | None = None
+    is_active: bool | None = None
+    sort_order: int | None = None
 
 
 class PromptTemplateResponse(PromptTemplateBase):
@@ -42,16 +43,16 @@ class PromptTemplateResponse(PromptTemplateBase):
     id: str
     is_default: bool = False
     is_system: bool = False
-    created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_by: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class PromptTemplateListResponse(BaseModel):
     """提示词模板列表响应"""
-    items: List[PromptTemplateResponse]
+    items: list[PromptTemplateResponse]
     total: int
 
 
@@ -66,6 +67,6 @@ class PromptTestRequest(BaseModel):
 class PromptTestResponse(BaseModel):
     """提示词测试响应"""
     success: bool
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
-    execution_time: Optional[float] = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
+    execution_time: float | None = None

@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -10,17 +10,21 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.api import deps
 import app.api.v1.endpoints.agent_direct_audit as agent_direct_audit_endpoint
+from app.api import deps
 from app.api.v1.endpoints.agent_direct_audit import router as agent_direct_audit_router
 from app.db.base import Base
 from app.models.agent_task import AgentFinding, AgentTask
-from app.models.audit_session import AuditCheckpoint, AuditSession, AuditSessionMessage, AuditToolCall
+from app.models.audit_session import (
+    AuditCheckpoint,
+    AuditSession,
+    AuditSessionMessage,
+    AuditToolCall,
+)
 from app.models.managed_vulnerability import ManagedVulnerability
 from app.models.project import Project
 from app.models.user import User
 from app.services.finding_runtime.models import RuntimeStopReason, TurnExecutionResult
-
 
 EN_REPORT = """# SSRF in /api/fetch via untrusted target parameter (affected versions to be confirmed)
 
@@ -357,8 +361,8 @@ async def test_post_direct_audit_message_appends_user_message_and_continues(monk
                 state="completed",
                 system_prompt="direct audit",
                 recon_payload={"project_name": "Managed Demo"},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         await db.commit()
@@ -425,8 +429,8 @@ async def test_stream_approve_direct_audit_tool_call_grants_write_and_continues(
                     }
                 },
                 runtime_state_json={},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         db.add(
@@ -556,8 +560,8 @@ async def test_stream_direct_audit_message_emits_sse_events(monkeypatch):
                 state="running",
                 system_prompt="direct audit",
                 recon_payload={"project_name": "Managed Demo"},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         await db.commit()
@@ -655,8 +659,8 @@ async def test_continue_direct_audit_session_stream_emits_runtime_error_from_che
                 system_prompt="direct audit",
                 recon_payload={"project_info": {"workspace_root": "D:/Projects/AutoCVE/projects/managed-demo"}},
                 runtime_state_json={},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         db.add(
@@ -740,8 +744,8 @@ async def test_stream_direct_audit_session_creation_emits_session_created_and_me
             system_prompt="direct audit",
             recon_payload={"project_name": project.name},
             runtime_state_json={"metadata": {"guardrails": {"enabled": guardrails_enabled}}},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
         )
         db.add(session)
         db.add(
@@ -855,8 +859,8 @@ async def test_update_direct_audit_guardrails_persists_toggle():
                 system_prompt="direct audit",
                 recon_payload={"project_name": "Managed Demo"},
                 runtime_state_json={},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         await db.commit()
@@ -908,8 +912,8 @@ async def test_stream_approve_direct_audit_shell_tool_call_grants_command_and_co
                     }
                 },
                 runtime_state_json={},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         db.add(
@@ -1044,8 +1048,8 @@ async def test_sync_latest_direct_audit_report_creates_managed_vulnerability_rec
                     }
                 },
                 runtime_state_json={},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         db.add(
@@ -1123,8 +1127,8 @@ async def test_sync_latest_direct_audit_report_reuses_existing_managed_vulnerabi
                     }
                 },
                 runtime_state_json={},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         db.add(
@@ -1203,8 +1207,8 @@ async def test_start_direct_audit_session_finalizes_payload_and_generates_report
                         }
                     },
                     runtime_state_json={},
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
                 )
                 db.add(session)
                 db.add(
@@ -1353,8 +1357,8 @@ async def test_sync_latest_direct_audit_report_generates_missing_bundle_from_fin
                     }
                 },
                 runtime_state_json={},
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         db.add(

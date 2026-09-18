@@ -11,7 +11,10 @@ from app.services.finding_runtime.compaction.auto_compact import (
     get_auto_compact_threshold,
     get_effective_context_window_size,
 )
-from app.services.finding_runtime.compaction.models import AutoCompactTrackingState, CompactionResult
+from app.services.finding_runtime.compaction.models import (
+    AutoCompactTrackingState,
+    CompactionResult,
+)
 from app.services.finding_runtime.compaction.post_compact import build_post_compact_messages
 from app.services.finding_runtime.compaction.prompts import (
     BASE_COMPACT_PROMPT,

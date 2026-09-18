@@ -9,10 +9,10 @@ from arq.connections import RedisSettings
 from arq.worker import func
 
 from app.core.config import settings
-from app.services.one_click_cve.runner import run_one_click_cve_batch
-from app.services.one_click_cve.task_queue import ONE_CLICK_CVE_BATCH_JOB_NAME
 from app.services.finding_runtime.resume_job import run_audit_session_resume_job
 from app.services.finding_runtime.resume_queue import AUDIT_SESSION_RESUME_JOB_NAME
+from app.services.one_click_cve.runner import run_one_click_cve_batch
+from app.services.one_click_cve.task_queue import ONE_CLICK_CVE_BATCH_JOB_NAME
 
 logger = logging.getLogger(__name__)
 

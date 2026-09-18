@@ -80,7 +80,7 @@ def test_runtime_tool_registry_builder_exposes_shared_runtime_tools_for_agent():
     assert "EnterPlanMode" in tool_names
     assert "ExitPlanMode" in tool_names
     assert skill_tool is not None
-    assert getattr(skill_tool, "_agent_type") == "recon"
+    assert skill_tool._agent_type == "recon"
 
 
 def test_runtime_tool_descriptions_explain_audit_usage_and_continue_contract():

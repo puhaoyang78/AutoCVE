@@ -8,7 +8,10 @@ from sqlalchemy import select
 
 from app.models.agent_task import AgentCheckpoint
 from app.services.runtime_core.session_registry import runtime_session_registry
-from app.services.runtime_core.session_state import SessionRuntimeState, sync_agent_metadata_from_runtime_state
+from app.services.runtime_core.session_state import (
+    SessionRuntimeState,
+    sync_agent_metadata_from_runtime_state,
+)
 
 
 class RuntimeSessionCheckpointStore:
@@ -37,7 +40,7 @@ class RuntimeSessionCheckpointStore:
         metadata = getattr(agent_state, "metadata", None)
         if not isinstance(metadata, dict):
             metadata = {}
-            setattr(agent_state, "metadata", metadata)
+            agent_state.metadata = metadata
         if metadata.get("_last_runtime_session_checkpoint_hash") == payload_hash:
             return None
 
@@ -96,7 +99,7 @@ class RuntimeSessionCheckpointStore:
         metadata = getattr(agent_state, "metadata", None)
         if not isinstance(metadata, dict):
             metadata = {}
-            setattr(agent_state, "metadata", metadata)
+            agent_state.metadata = metadata
         interaction_state = metadata.setdefault("interaction_runtime", {})
         tool_runtime = metadata.setdefault("tool_runtime", {})
         sync_agent_metadata_from_runtime_state(

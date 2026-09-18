@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptItem
 from app.services.runtime_core.tool_runtime import match_runtime_event_hooks

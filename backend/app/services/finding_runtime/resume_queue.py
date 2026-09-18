@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import inspect
-from typing import Any, Optional
+from typing import Any
 
 from app.core.config import settings
-
 
 AUDIT_SESSION_RESUME_JOB_NAME = "resume_audit_session"
 
 
 class AuditSessionResumeQueue:
-    def __init__(self, *, arq_pool: Optional[Any] = None):
+    def __init__(self, *, arq_pool: Any | None = None):
         self.arq_pool = arq_pool
         self._owns_pool = arq_pool is None
 

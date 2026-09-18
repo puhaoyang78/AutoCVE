@@ -1,9 +1,8 @@
 ﻿import json
-from typing import Any, Dict
+from typing import Any
 
 from .analysis_workflow import AnalysisWorkflowAgent
 from .base import AgentType, TaskHandoff
-
 
 SCAN_SYSTEM_PROMPT = """你是 AutoCVE 的扫描 Agent，负责调用外部扫描器和模式匹配工具，生成待研判的原始候选结果。
 
@@ -188,7 +187,7 @@ class ScanAgent(AnalysisWorkflowAgent):
     output_key = "raw_findings"
     handoff_target = "triage"
 
-    def __init__(self, llm_service, tools: Dict[str, Any], event_emitter=None):
+    def __init__(self, llm_service, tools: dict[str, Any], event_emitter=None):
         super().__init__(
             name="Scan",
             agent_type=AgentType.SCAN,
@@ -199,7 +198,7 @@ class ScanAgent(AnalysisWorkflowAgent):
             max_iterations=16,
         )
 
-    def _build_initial_message(self, context: Dict[str, Any]) -> str:
+    def _build_initial_message(self, context: dict[str, Any]) -> str:
         project_info = context["project_info"]
         config = context["config"]
         recon_data = context["recon_data"]
@@ -233,7 +232,7 @@ class ScanAgent(AnalysisWorkflowAgent):
 - 优先覆盖项目根目录和重点目录。
 - 最终仅输出原始扫描候选，不做误报判断。"""
 
-    def _postprocess_result(self, raw_result: Dict[str, Any]) -> Dict[str, Any]:
+    def _postprocess_result(self, raw_result: dict[str, Any]) -> dict[str, Any]:
         scanner_runs = raw_result.get("scanner_runs", [])
         standardized = []
         for finding in raw_result.get("raw_findings", []):
@@ -249,7 +248,7 @@ class ScanAgent(AnalysisWorkflowAgent):
             "summary": raw_result.get("summary", ""),
         }
 
-    def _build_handoff(self, processed_result: Dict[str, Any]) -> TaskHandoff | None:
+    def _build_handoff(self, processed_result: dict[str, Any]) -> TaskHandoff | None:
         raw_findings = processed_result.get("raw_findings", [])
         if not raw_findings:
             return None

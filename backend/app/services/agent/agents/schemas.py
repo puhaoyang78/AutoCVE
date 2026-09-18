@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List
+from collections.abc import Iterable
+from typing import Any
 
 
-def _as_dict(value: Any) -> Dict[str, Any]:
+def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _as_list(value: Any) -> List[Any]:
+def _as_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _string_list(values: Any) -> List[str]:
-    result: List[str] = []
+def _string_list(values: Any) -> list[str]:
+    result: list[str] = []
     for item in _as_list(values):
         if isinstance(item, str):
             text = item.strip()
@@ -21,8 +22,8 @@ def _string_list(values: Any) -> List[str]:
     return result
 
 
-def _merge_string_lists(*groups: Iterable[str]) -> List[str]:
-    merged: List[str] = []
+def _merge_string_lists(*groups: Iterable[str]) -> list[str]:
+    merged: list[str] = []
     for group in groups:
         for item in group:
             text = str(item).strip()
@@ -31,7 +32,7 @@ def _merge_string_lists(*groups: Iterable[str]) -> List[str]:
     return merged
 
 
-def _normalize_project_structure(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_project_structure(payload: dict[str, Any]) -> dict[str, Any]:
     raw = _as_dict(payload.get("project_structure"))
     return {
         "key_directories": _merge_string_lists(
@@ -46,7 +47,7 @@ def _normalize_project_structure(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _normalize_project_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_project_profile(payload: dict[str, Any]) -> dict[str, Any]:
     raw = _as_dict(payload.get("project_profile") or payload.get("tech_stack"))
     return {
         "languages": _string_list(raw.get("languages")),
@@ -57,7 +58,7 @@ def _normalize_project_profile(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _normalize_recommended_scanners(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_recommended_scanners(payload: dict[str, Any]) -> dict[str, Any]:
     raw = _as_dict(payload.get("recommended_scanners") or payload.get("recommended_tools"))
     return {
         "must_use": _string_list(raw.get("must_use")),
@@ -69,7 +70,7 @@ def _normalize_recommended_scanners(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _normalize_audit_targets(payload: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_audit_targets(payload: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     raw = _as_dict(payload.get("audit_targets"))
     target_files = _merge_string_lists(
         _string_list(raw.get("target_files")),
@@ -85,7 +86,7 @@ def _normalize_audit_targets(payload: Dict[str, Any], config: Dict[str, Any]) ->
     }
 
 
-def normalize_recon_payload(payload: Dict[str, Any] | None, *, config: Dict[str, Any] | None = None) -> Dict[str, Any]:
+def normalize_recon_payload(payload: dict[str, Any] | None, *, config: dict[str, Any] | None = None) -> dict[str, Any]:
     raw = _as_dict(payload)
     config = _as_dict(config)
 

@@ -6,9 +6,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
+from app.services.agent.tools.base import AgentTool, ToolResult
 from app.services.finding_runtime.bridge import (
-    FindingRuntimeBridge,
     NATIVE_TOOL_CALLING_REMINDER,
+    FindingRuntimeBridge,
     RuntimeLLMModelClient,
 )
 from app.services.finding_runtime.models import (
@@ -20,7 +21,6 @@ from app.services.finding_runtime.models import (
     TranscriptItem,
     TurnExecutionResult,
 )
-from app.services.agent.tools.base import AgentTool, ToolResult
 
 
 class FakeAgentTool(AgentTool):

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 from typing import Any
 
-
 SEVERITY_MAP = {
     "ERROR": "high",
     "WARNING": "medium",

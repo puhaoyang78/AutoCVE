@@ -2,8 +2,7 @@
 Flask 框架安全知识
 """
 
-from ..base import KnowledgeDocument, KnowledgeCategory
-
+from ..base import KnowledgeCategory, KnowledgeDocument
 
 FLASK_SECURITY = KnowledgeDocument(
     id="framework_flask",

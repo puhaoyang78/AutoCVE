@@ -6,7 +6,6 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -350,7 +349,7 @@ async def _run_local_command(*, executable: str, args: list[str], cwd: str, time
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_ms / 1000)
         timed_out = False
-    except asyncio.TimeoutError:
+    except TimeoutError:
         process.kill()
         stdout, stderr = await process.communicate()
         timed_out = True
