@@ -1504,7 +1504,7 @@ def test_query_loop_persists_teammate_idle_hook_checkpoint_when_it_prevents_cont
         for checkpoint in snapshot.checkpoints
     )
 
-def test_query_loop_persists_hook_execution_artifacts_for_teammate_idle_stop():
+def test_query_loop_persists_hook_summary_artifacts_for_teammate_idle_stop():
     store = build_store()
     session_id = store.create_session(project_id="project-1", system_prompt="system")
     store.append_message(session_id, TranscriptItem(role=RuntimeMessageRole.USER, content="inspect code"))
@@ -1537,7 +1537,7 @@ def test_query_loop_persists_hook_execution_artifacts_for_teammate_idle_stop():
     assert artifact_names == ["hook_progress", "hook_stopped_continuation", "stop_hook_summary"]
     assert snapshot.messages[-1].payload["hook_event"] == "TeammateIdle"
 
-def test_query_loop_persists_hook_execution_artifacts_for_teammate_idle_stop():
+def test_query_loop_persists_hook_execution_metadata_for_teammate_idle_stop():
     store = build_store()
     session_id = store.create_session(project_id="project-1", system_prompt="system")
     store.append_message(session_id, TranscriptItem(role=RuntimeMessageRole.USER, content="inspect code"))

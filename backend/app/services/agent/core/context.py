@@ -32,9 +32,9 @@ _current_agent: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 )
 
 # Global context variable for trace path
-_trace_path: contextvars.ContextVar[list[str]] = contextvars.ContextVar(
-    'trace_path',
-    default=[]
+_trace_path: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "trace_path",
+    default=(),
 )
 
 
@@ -76,13 +76,13 @@ def set_current_agent(agent_name: str) -> contextvars.Token:
 
 def get_trace_path() -> list[str]:
     """Get the current trace path (list of agent names)"""
-    return _trace_path.get().copy()
+    return list(_trace_path.get())
 
 
 def push_trace(agent_name: str) -> None:
     """Add an agent to the trace path"""
     current = _trace_path.get()
-    _trace_path.set([*current, agent_name])
+    _trace_path.set((*current, agent_name))
 
 
 def pop_trace() -> str | None:

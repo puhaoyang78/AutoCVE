@@ -5,6 +5,7 @@ import inspect
 import re
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from app.models.audit_session import AuditCheckpointType
 from app.services.finding_runtime.compaction.auto_compact import auto_compact_if_needed
@@ -157,7 +158,6 @@ class QueryLoop:
                     },
                 },
             )
-        assistant_stream_started = False
         assistant_stream_sequence = (snapshot.messages[-1].sequence if snapshot.messages else 0) + 1
         assistant_stream_placeholder_id = f"streaming-{session_id}-{turn_id}"
 

@@ -140,7 +140,6 @@ POWERSHELL_ALIAS_MAP = {
     "mv": "move-item",
     "move": "move-item",
     "ren": "rename-item",
-    "type": "get-content",
     "ps": "get-process",
 }
 POWERSHELL_SEARCH_COMMANDS = {"select-string", "get-childitem", "findstr", "where.exe"}

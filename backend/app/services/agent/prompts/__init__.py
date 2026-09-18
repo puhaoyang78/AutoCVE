@@ -10,7 +10,13 @@ Agent Prompts 模块
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+
+from .system_prompts import (
+    FILE_VALIDATION_RULES,
+    MULTI_AGENT_RULES,
+    TOOL_USAGE_GUIDE,
+    build_enhanced_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -213,14 +219,6 @@ def build_specialized_prompt(
 """
 
 
-# 导入系统提示词
-from .system_prompts import (
-    FILE_VALIDATION_RULES,  # 🔥 v2.1
-    MULTI_AGENT_RULES,
-    TOOL_USAGE_GUIDE,
-    build_enhanced_prompt,
-)
-
 __all__ = [
     # 模块管理
     "get_available_prompt_modules",
@@ -231,7 +229,7 @@ __all__ = [
     "load_prompt_modules",
     "build_specialized_prompt",
     # 系统提示词
-    "FILE_VALIDATION_RULES",  # 🔥 v2.1
+    "FILE_VALIDATION_RULES",
     "TOOL_USAGE_GUIDE",
     "MULTI_AGENT_RULES",
     "build_enhanced_prompt",
