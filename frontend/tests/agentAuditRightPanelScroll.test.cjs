@@ -1,9 +1,9 @@
-import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import test from "node:test";
+const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { resolve } = require("node:path");
+const test = require("node:test");
 
-const sourceRoot = resolve(import.meta.dirname, "..");
+const sourceRoot = resolve(__dirname, "..", "src");
 
 test("agent audit right panel keeps the stats pane scrollable", () => {
   const agentAuditSource = readFileSync(resolve(sourceRoot, "pages/AgentAudit/index.tsx"), "utf8");
@@ -20,5 +20,8 @@ test("agent audit right panel keeps the stats pane scrollable", () => {
     agentAuditSource,
     /<div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scrollbar bg-card">/
   );
-  assert.doesNotMatch(agentAuditSource, /Bottom section - Stats \*\/\s*<div className="flex-shrink-0 p-4 bg-card">/);
+  assert.doesNotMatch(
+    agentAuditSource,
+    /Bottom section - Stats \*\/\s*<div className="flex-shrink-0 p-4 bg-card">/
+  );
 });

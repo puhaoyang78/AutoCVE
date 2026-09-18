@@ -58,6 +58,8 @@ jobs:
         run: pnpm lint
       - name: Type-check frontend
         run: pnpm type-check
+      - name: Run frontend tests
+        run: pnpm test
       - name: Build frontend
         run: pnpm build
 

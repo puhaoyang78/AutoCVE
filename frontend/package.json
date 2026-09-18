@@ -9,6 +9,7 @@
     "lint": "tsgo -p tsconfig.check.json; biome lint --only=correctness/noUndeclaredDependencies; ast-grep scan",
     "lint:fix": "biome check --apply .",
     "type-check": "tsc --noEmit",
+    "test": "node --test tests/*.test.cjs",
     "format": "biome format --write .",
     "clean": "rm -rf dist node_modules/.vite",
     "analyze": "vite build --mode analyze"
