@@ -15,10 +15,12 @@ ENV PIP_DEFAULT_TIMEOUT=120
 
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/99-retries     && echo 'Acquire::http::Timeout "30";' >> /etc/apt/apt.conf.d/99-retries     && echo 'Acquire::https::Timeout "30";' >> /etc/apt/apt.conf.d/99-retries     && apt-get update     && apt-get install -y --no-install-recommends gcc libpq-dev libffi-dev python3-venv     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml requirements-lock.txt README.md ./
+COPY backend/pyproject.toml backend/requirements-lock.txt backend/README.md ./
 RUN python -m venv /app/.venv     && /app/.venv/bin/pip install --upgrade pip setuptools wheel     && /app/.venv/bin/pip install --retries 5 -r requirements-lock.txt     && /app/.venv/bin/pip install --retries 5 "psycopg[binary]>=3.2.1"
 
-COPY . .
+COPY backend/ .
+COPY skill_library ./skill_library
+COPY report_template_library ./report_template_library
 RUN /app/.venv/bin/pip install --no-deps -e . \
     && /app/.venv/bin/python -m arq --help >/dev/null
 
@@ -38,7 +40,9 @@ ARG no_proxy
 RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/99-retries     && echo 'Acquire::http::Timeout "30";' >> /etc/apt/apt.conf.d/99-retries     && echo 'Acquire::https::Timeout "30";' >> /etc/apt/apt.conf.d/99-retries     && apt-get update     && apt-get install -y --no-install-recommends         libpq5         curl         ripgrep         git         openssh-client         libpango-1.0-0         libpangoft2-1.0-0         libpangocairo-1.0-0         libcairo2         libgdk-pixbuf-2.0-0         libglib2.0-0         shared-mime-info         fonts-noto-cjk     && fc-cache -fv     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.venv /app/.venv
-COPY . .
+COPY backend/ .
+COPY skill_library ./skill_library
+COPY report_template_library ./report_template_library
 
 RUN mkdir -p /app/uploads/zip_files     && sed -i 's/\r$//' /app/docker-entrypoint.sh     && chmod +x /app/docker-entrypoint.sh
 

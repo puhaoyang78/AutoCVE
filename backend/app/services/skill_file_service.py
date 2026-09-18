@@ -129,10 +129,6 @@ class SkillFileService:
         return cls.agent_root(agent_type) / "bindings.json"
 
     @classmethod
-    def agent_skill_dir(cls, agent_type: str, slug: str) -> Path:
-        return cls.agent_root(agent_type) / cls.slugify(slug)
-
-    @classmethod
     def _build_paths(cls, base_dir: Path, file_name: str = "SKILL.md") -> Dict[str, str]:
         relative = base_dir.relative_to(cls.project_root()).as_posix()
         return {
@@ -231,17 +227,6 @@ class SkillFileService:
             "workspace_relative_path": paths["workspace_relative_path"],
             "skill_root": paths["skill_root"],
         }
-
-    @classmethod
-    def _write_agent_binding_mirror(cls, binding: Dict[str, Any]) -> None:
-        del binding
-        return None
-
-    @classmethod
-    def _remove_agent_binding_mirror(cls, agent_type: str, slug: str) -> None:
-        mirror_dir = cls.agent_root(agent_type) / cls.slugify(slug)
-        if mirror_dir.exists():
-            shutil.rmtree(mirror_dir)
 
     @classmethod
     def _collect_bindings_for_slug(cls, slug: str) -> List[Dict[str, Any]]:
@@ -476,8 +461,6 @@ class SkillFileService:
                     changed = True
             if changed:
                 cls._write_json(cls.bindings_file(agent_type), payload)
-            cls._remove_agent_binding_mirror(agent_type, current_slug)
-            cls._remove_agent_binding_mirror(agent_type, new_slug)
 
         cls.sync_all()
         return cls.read_skill(new_slug)
@@ -498,7 +481,6 @@ class SkillFileService:
             ]
             if len(skills) != len(payload.get("skills", [])):
                 cls._write_json(cls.bindings_file(agent_type), {"agent_type": agent_type, "skills": skills})
-            cls._remove_agent_binding_mirror(agent_type, normalized_slug)
 
         shutil.rmtree(skill_dir)
         cls.sync_all()
@@ -555,7 +537,6 @@ class SkillFileService:
             payload["skills"].append(binding)
         payload["skills"] = sorted(payload["skills"], key=lambda item: (item["sort_order"], item["slug"]))
         cls._write_json(cls.bindings_file(agent_type), payload)
-        cls._remove_agent_binding_mirror(agent_type, normalized_slug)
         cls.sync_skill_runtime(normalized_slug)
         return binding
 
@@ -583,7 +564,6 @@ class SkillFileService:
             raise FileNotFoundError(f"Binding '{agent_type}:{normalized_slug}' not found")
         payload["skills"] = new_items
         cls._write_json(cls.bindings_file(agent_type), payload)
-        cls._remove_agent_binding_mirror(agent_type, normalized_slug)
         cls.sync_skill_runtime(normalized_slug)
 
     @classmethod

@@ -1,47 +1,56 @@
-# 依赖
+# Git and editor state
+.git
+.github
+.vscode
+.idea
+.history
+*.swp
+*.swo
+*~
+
+# Local environment and secrets
+.env
+.env.*
+backend/.env
+backend/.env.*
+
+# Dependency and build caches
 node_modules
-
-# 构建产物
+backend/.venv
+backend/venv
+backend/**/__pycache__
+backend/**/*.pyc
+backend/.pytest_cache
+backend/.pytest_tmp
+backend/.pytest*
+backend/.mypy_cache
+backend/.ruff_cache
+backend/tmp*
+backend/managed-projects-*
+backend/pytest-cache-files-*
+backend/runtime-write-*
+backend/uploads
 dist
+build
 .vite
+.cache
+coverage
+.nyc_output
 
-# 环境变量（保留 .env 用于构建）
-.env.local
-.env.*.local
+# Unrelated build trees
+frontend
+docker
+docs
+projects
+scripts
+supabase
 
-# 日志
+# Logs and OS metadata
 logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# 编辑器
-.vscode
-.idea
-*.swp
-*.swo
-*~
-
-# 操作系统
 .DS_Store
 Thumbs.db
-
-# Git
-.git
-.gitignore
-.gitattributes
-
-# 测试
-coverage
-.nyc_output
-
-# 文档
-README.md
-README_EN.md
-docs
-
-# 其他
-.history
-.cache

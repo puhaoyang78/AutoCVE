@@ -239,7 +239,7 @@ jobs:
       - name: 构建并推送后端 Docker 镜像
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
+          context: .
           file: ./backend/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
