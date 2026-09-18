@@ -75,6 +75,9 @@ services:
       - WORKFLOW_URL=${WORKFLOW_URL:-}
       - WORKFLOW_API_TOKEN=${WORKFLOW_API_TOKEN:-}
       # LLM 配置 - 请根据需要修改
+      - SECRET_KEY=${SECRET_KEY:-}
+      - ENABLE_DEMO_DATA=${ENABLE_DEMO_DATA:-false}
+      - BACKEND_CORS_ORIGINS=${BACKEND_CORS_ORIGINS:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-openai}
       - LLM_MODEL=${LLM_MODEL:-gpt-4o}
       - LLM_API_KEY=${LLM_API_KEY:-your-api-key-here}
@@ -86,6 +89,7 @@ services:
       - https_proxy=
       - NO_PROXY=*
       - no_proxy=*
+    command: ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       db:
         condition: service_healthy

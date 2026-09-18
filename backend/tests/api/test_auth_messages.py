@@ -2,6 +2,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.v1.endpoints.auth import RegisterRequest, login, register
+from app.main import root
 
 
 class _FakeScalarResult:
@@ -103,3 +104,11 @@ async def test_register_existing_email_message():
 
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "该邮箱已被注册"
+
+
+@pytest.mark.asyncio
+async def test_root_does_not_expose_demo_credentials():
+    payload = await root()
+
+    assert "demo_account" not in payload
+    assert "demo123" not in str(payload)

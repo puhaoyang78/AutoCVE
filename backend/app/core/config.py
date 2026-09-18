@@ -1,6 +1,7 @@
+import secrets
 from pathlib import Path
 
-from pydantic import AnyHttpUrl, ValidationInfo, field_validator
+from pydantic import AnyHttpUrl, Field, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_MANAGED_PROJECTS_ROOT = str(Path(__file__).resolve().parents[3] / "projects")
@@ -12,7 +13,16 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AutoCVE"
     API_V1_STR: str = "/api/v1"
 
-    SECRET_KEY: str = "changethis_in_production_to_a_long_random_string"
+    SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(48))
+    ENABLE_DEMO_DATA: bool = False
+    @field_validator("SECRET_KEY", mode="before")
+    @classmethod
+    def normalize_secret_key(cls, v: str | None) -> str:
+        value = str(v or "").strip()
+        if not value or value == "changethis_in_production_to_a_long_random_string":
+            return secrets.token_urlsafe(48)
+        return value
+
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
 
@@ -22,7 +32,7 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_cors_origins(cls, v: str | list[str]) -> list[str] | str:
         if isinstance(v, str) and not v.startswith("["):
-            return [item.strip() for item in v.split(",")]
+            return [item.strip() for item in v.split(",") if item.strip()]
         if isinstance(v, (list, str)):
             return v
         raise ValueError(v)

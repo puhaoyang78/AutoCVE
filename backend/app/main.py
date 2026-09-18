@@ -59,19 +59,9 @@ async def lifespan(app: FastAPI):
     """
     logger.info("AutoCVE 后端服务启动中...")
 
-    # 初始化数据库（创建默认账户）
-    # 注意：需要先运行 alembic upgrade head 创建表结构
-    try:
-        async with AsyncSessionLocal() as db:
-            await init_db(db)
-        logger.info("  - 数据库初始化完成")
-    except Exception as e:
-        # 表不存在时静默跳过，等待用户运行数据库迁移
-        error_msg = str(e)
-        if "does not exist" in error_msg or "UndefinedTableError" in error_msg:
-            logger.info("数据库表未创建，请先运行: alembic upgrade head")
-        else:
-            logger.warning(f"数据库初始化跳过: {e}")
+    async with AsyncSessionLocal() as db:
+        await init_db(db)
+    logger.info("  - 数据库初始化完成")
 
     # 检查 Agent 服务
     logger.info("检查 Agent 核心服务...")
@@ -89,10 +79,6 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     logger.info("AutoCVE 后端服务已启动")
     logger.info("API 文档: http://localhost:8000/docs")
-    logger.info("=" * 50)
-    logger.info("演示账户: demo@example.com / demo123")
-    logger.info("=" * 50)
-
     yield
 
     logger.info("AutoCVE 后端服务已关闭")
@@ -104,11 +90,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS - Allow all origins in development
+cors_origins = [str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific frontend URL
-    allow_credentials=True,
+    allow_origins=cors_origins or ["*"],
+    allow_credentials=bool(cors_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -126,8 +112,4 @@ async def root():
     return {
         "message": "Welcome to AutoCVE API",
         "docs": "/docs",
-        "demo_account": {
-            "email": "demo@example.com",
-            "password": "demo123"
-        }
     }

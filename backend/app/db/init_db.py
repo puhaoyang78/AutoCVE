@@ -1,6 +1,6 @@
 """
-数据库初始化模块
-在应用启动时创建默认演示账户和演示数据
+数据库初始化模块。
+负责初始化系统数据，并可按配置创建演示账户和演示数据。
 """
 import json
 import logging
@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.core.config import settings
 from app.core.security import get_password_hash
 from app.models.analysis import InstantAnalysis
 from app.models.audit import AuditIssue, AuditTask
@@ -261,32 +262,23 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
 
 
 async def init_db(db: AsyncSession) -> None:
-    """
-    初始化数据库
-    """
+    """初始化数据库和运行时资产。"""
     logger.info("开始初始化数据库...")
 
-    # 创建演示用户
-    demo_user = await create_demo_user(db)
-
-    # 创建演示数据
-    if demo_user:
-        await create_demo_data(db, demo_user)
+    if settings.ENABLE_DEMO_DATA:
+        demo_user = await create_demo_user(db)
+        if demo_user:
+            await create_demo_data(db, demo_user)
+    else:
+        logger.info("演示账户和演示数据初始化已关闭")
 
     await db.commit()
 
-    # 初始化系统模板和规则
-    try:
-        from app.services.init_templates import init_templates_and_rules
-        await init_templates_and_rules(db)
-    except Exception as e:
-        logger.warning(f"????????????: {e}")
+    from app.services.init_templates import init_templates_and_rules
 
-    # ??? Agent Skills ?????
-    try:
-        from app.services.init_agent_assets import init_agent_assets
-        await init_agent_assets(db)
-    except Exception as e:
-        logger.warning(f"初始化模板和规则跳过: {e}")
+    await init_templates_and_rules(db)
 
+    from app.services.init_agent_assets import init_agent_assets
+
+    await init_agent_assets(db)
     logger.info("数据库初始化完成")
