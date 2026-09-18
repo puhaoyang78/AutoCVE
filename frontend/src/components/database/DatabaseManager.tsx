@@ -18,7 +18,6 @@ import {
   AlertTriangle,
   Info
 } from 'lucide-react';
-import { dbMode } from '@/shared/config/database';
 import { api } from '@/shared/api/database';
 import { toast } from 'sonner';
 
@@ -429,9 +428,7 @@ export function DatabaseManager() {
               <Info className="h-5 w-5 text-sky-400 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-sky-300/80">
                 <strong className="uppercase text-sky-400">提示：</strong>
-                {dbMode === 'api'
-                  ? '数据存储在后端 PostgreSQL 数据库中，支持多用户、多设备同步。建议定期导出备份。'
-                  : '建议定期导出数据备份，以防意外数据丢失。'}
+                数据存储在后端 PostgreSQL 数据库中，支持多用户、多设备同步。建议定期导出备份。
               </p>
             </div>
           </div>

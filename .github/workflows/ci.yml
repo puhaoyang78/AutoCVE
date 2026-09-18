@@ -54,6 +54,12 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check frontend dependency hygiene
+        run: |
+          if grep -R -n -E '(@supabase/supabase-js|miaoda-auth-react|miaoda-sc-plugin|@google/generative-ai|shared/config/database|\bdbMode\b|\bisDemoMode\b|\bisLocalMode\b)' src package.json pnpm-lock.yaml vite.config.ts; then
+            echo "Obsolete frontend compatibility dependency or path detected."
+            exit 1
+          fi
       - name: Lint frontend
         run: pnpm lint
       - name: Type-check frontend

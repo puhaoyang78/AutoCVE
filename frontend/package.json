@@ -15,7 +15,6 @@
     "analyze": "vite build --mode analyze"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -43,7 +42,6 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-visually-hidden": "^1.2.4",
-    "@supabase/supabase-js": "^2.87.3",
     "axios": "^1.13.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -58,8 +56,6 @@
     "ky": "^1.14.1",
     "lucide-react": "^0.525.0",
     "marked": "^17.0.1",
-    "miaoda-auth-react": "^2.0.6",
-    "miaoda-sc-plugin": "^1.0.39",
     "next-themes": "^0.4.6",
     "qrcode": "^1.5.4",
     "react": "^18.3.1",

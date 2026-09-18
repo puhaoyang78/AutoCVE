@@ -32,7 +32,6 @@ export default defineConfig({
             '@radix-ui/react-progress'
           ],
           charts: ['recharts'],
-          ai: ['@google/generative-ai'],
           utils: ['clsx', 'tailwind-merge', 'date-fns', 'sonner']
         },
       },
@@ -90,7 +89,6 @@ export default defineConfig({
       'react',
       'react-dom',
       'react-router-dom',
-      '@google/generative-ai',
       'recharts',
       'sonner'
     ],
