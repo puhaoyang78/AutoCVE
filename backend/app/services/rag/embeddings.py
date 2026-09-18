@@ -7,6 +7,7 @@ import asyncio
 import hashlib
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import httpx
@@ -689,8 +690,8 @@ class EmbeddingService:
         texts: list[str],
         batch_size: int = 100,
         show_progress: bool = False,
-        progress_callback: callable | None = None,
-        cancel_check: callable | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
+        cancel_check: Callable[[], bool] | None = None,
     ) -> list[list[float]]:
         """
         批量嵌入文本
