@@ -1196,7 +1196,7 @@ def test_runtime_model_client_build_messages_uses_native_openai_tool_history():
         "content": "source",
     }
 
-def test_runtime_model_client_assistant_history_sanitizes_legacy_text_tool_calls_into_user_context_note():
+def test_runtime_model_client_sanitizes_textual_tool_call_history_into_user_context_note():
     mapped = RuntimeLLMModelClient._map_transcript_item(
         TranscriptItem(
             role=RuntimeMessageRole.ASSISTANT,

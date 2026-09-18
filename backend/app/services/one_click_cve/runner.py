@@ -458,10 +458,7 @@ async def _create_agent_task(
         exclude_patterns=["node_modules", "__pycache__", ".git", "*.min.js", "dist", "build", "vendor"],
         max_iterations=settings.AGENT_MAX_ITERATIONS,
         timeout_seconds=getattr(settings, "ONE_CLICK_CVE_AGENT_TIMEOUT_SECONDS", 3000),
-        agent_config={
-            "finding_runtime_stack": getattr(settings, "FINDING_RUNTIME_STACK_DEFAULT", "runtime"),
-            "one_click_cve_batch_id": batch_id,
-        },
+        agent_config={"one_click_cve_batch_id": batch_id},
         audit_scope={
             "one_click_cve": {
                 "batch_id": batch_id,

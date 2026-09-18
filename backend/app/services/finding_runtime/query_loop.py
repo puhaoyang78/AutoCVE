@@ -7,7 +7,6 @@ import uuid
 from datetime import datetime, timezone
 
 from app.models.audit_session import AuditCheckpointType
-from app.services.agent.json_parser import AgentJsonParser
 from app.services.finding_runtime.models import (
     RuntimeCompletionMode,
     RuntimeContinueReason,
@@ -59,7 +58,6 @@ from app.services.finding_runtime.query_transitions import (
 
 
 class QueryLoop:
-    ALLOW_LEGACY_TEXT_TOOL_CALLS = False
     MODEL_STREAM_MAX_RETRIES = 5
     _CONTINUE_INTENT_PATTERNS = (
         re.compile(r"继续审查"),
@@ -330,7 +328,6 @@ class QueryLoop:
         streamed_records = collected["records"]
         tool_use_context = collected["tool_use_context"]
         streamed_tool_uses = bool(collected.get("tool_uses_appended"))
-        legacy_text_tool_calls = list(collected.get("legacy_text_tool_calls") or [])
         stop_reason: RuntimeStopReason | None = None
         transition: RuntimeContinueReason | None = None
         checkpoint_extra: dict[str, object] | None = None
@@ -339,64 +336,6 @@ class QueryLoop:
         final_payload: dict[str, Any] | None = None
         continue_intent_without_action = False
         empty_model_response = False
-
-        if not tool_requests and legacy_text_tool_calls and tool_definitions and self._tool_orchestrator is not None:
-            legacy_tool_names = [str(item.get("name") or "").strip() for item in legacy_text_tool_calls if str(item.get("name") or "").strip()]
-            if self._should_issue_legacy_tool_syntax_nudge(state=state):
-                transition = RuntimeContinueReason.LEGACY_TOOL_SYNTAX_NUDGE
-                nudge_message = TranscriptItem(
-                    role=RuntimeMessageRole.USER,
-                    content=(
-                        "你刚刚使用了纯文本工具调用语法（例如 Tool Call:/Action:），这类内容不会被执行。"
-                        "如果还需要继续审计，请改用模型提供方原生的结构化工具调用重新发起同一动作。"
-                        "如果你已经充分完成主要攻击面覆盖，并且准备结束整个 Finding 阶段，请调用 FinalizeFinding 提交最终结构化结果。"
-                        "如果只是已有一个漏洞或仍有高风险方向未检查，请继续调用工具审计，不要提前终止。"
-                    ),
-                    name="legacy_tool_syntax_nudge",
-                    metadata={"synthetic": True, "kind": "legacy_tool_syntax_nudge"},
-                )
-                next_state = build_continue_state(state, messages=[*working_messages, nudge_message], transition=transition)
-                next_state.tool_use_context["legacy_text_tool_call_nudge_count"] = int(
-                    (state.tool_use_context or {}).get("legacy_text_tool_call_nudge_count") or 0
-                ) + 1
-                self._session_store.save_query_loop_state(session_id, next_state)
-                self._session_store.close_turn(turn_id, status="legacy_tool_syntax_nudge")
-                self._write_checkpoint(
-                    session_id=session_id,
-                    turn_id=turn_id,
-                    stop_reason=None,
-                    transition=transition,
-                    assistant_message_id=assistant_message_id,
-                    tool_call_ids=[],
-                    extra_state_payload={
-                        "phase": "legacy_tool_syntax",
-                        "legacy_text_tool_call_names": legacy_tool_names,
-                    },
-                )
-                return TurnExecutionResult(
-                    turn_id=turn_id,
-                    stop_reason=None,
-                    assistant_message_id=assistant_message_id,
-                    tool_call_ids=[],
-                    tool_result_message_ids=[],
-                    transition=transition,
-                )
-
-            return self._finalize_terminal_result(
-                session_id=session_id,
-                turn_id=turn_id,
-                state=state,
-                messages=working_messages,
-                stop_reason=RuntimeStopReason.COMPLETED,
-                status="legacy_tool_syntax_incomplete",
-                assistant_message_id=assistant_message_id,
-                terminal_action=RuntimeTerminalAction.NATURAL_END_WITHOUT_TERMINAL_ACTION,
-                completion_mode=RuntimeCompletionMode.INCOMPLETE,
-                checkpoint_extra={
-                    "phase": "legacy_tool_syntax",
-                    "legacy_text_tool_call_names": legacy_tool_names,
-                },
-            )
 
         if tool_requests:
             if not streamed_tool_uses:
@@ -1127,13 +1066,6 @@ class QueryLoop:
                             }
                         )
             raw_tool_calls = list(model_response.tool_calls or [])
-            legacy_text_tool_calls: list[dict[str, object]] = []
-            if not raw_tool_calls and model_response.content and tool_definitions and self._tool_orchestrator is not None:
-                extracted_tool_calls = self._extract_text_tool_calls(model_response.content)
-                if self.ALLOW_LEGACY_TEXT_TOOL_CALLS:
-                    raw_tool_calls = extracted_tool_calls
-                else:
-                    legacy_text_tool_calls = list(extracted_tool_calls)
             return {
                 "model_response": model_response,
                 "assistant_message_id": assistant_message_id,
@@ -1151,7 +1083,6 @@ class QueryLoop:
                 "records": [],
                 "tool_use_context": dict(state.tool_use_context or {}),
                 "tool_uses_appended": False,
-                "legacy_text_tool_calls": legacy_text_tool_calls,
             }
 
         working_messages = list(state.messages)
@@ -1381,20 +1312,6 @@ class QueryLoop:
                         "usage": dict(model_response.usage or {}),
                     }
                 )
-        legacy_text_tool_calls: list[dict[str, object]] = []
-        if not tool_requests and model_response.content and tool_definitions and self._tool_orchestrator is not None:
-            raw_tool_calls = self._extract_text_tool_calls(model_response.content)
-            if self.ALLOW_LEGACY_TEXT_TOOL_CALLS:
-                for index, item in enumerate(raw_tool_calls, start=1):
-                    tool_requests.append(
-                        ToolCallRequest(
-                            id=item.get("id") or f"tool-use-{index}",
-                            name=item["name"],
-                            input=dict(item.get("input") or {}),
-                        )
-                    )
-            else:
-                legacy_text_tool_calls = list(raw_tool_calls)
         return {
             "model_response": model_response,
             "assistant_message_id": assistant_message_id,
@@ -1405,7 +1322,6 @@ class QueryLoop:
             "records": records,
             "tool_use_context": tool_use_context,
             "tool_uses_appended": False,
-            "legacy_text_tool_calls": legacy_text_tool_calls,
         }
 
     @staticmethod
@@ -1561,15 +1477,6 @@ class QueryLoop:
         )
 
     @classmethod
-    def _should_issue_legacy_tool_syntax_nudge(
-        cls,
-        *,
-        state: QueryLoopState,
-    ) -> bool:
-        nudge_count = int((state.tool_use_context or {}).get("legacy_text_tool_call_nudge_count") or 0)
-        return nudge_count < 1
-
-    @classmethod
     def _has_continue_intent_without_action(
         cls,
         *,
@@ -1717,50 +1624,3 @@ class QueryLoop:
             return RuntimeStopReason(normalized)
         except ValueError:
             return RuntimeStopReason.COMPLETED
-
-    @staticmethod
-    def _extract_text_tool_calls(content: str) -> list[dict[str, object]]:
-        text = (content or '').strip()
-        if not text:
-            return []
-
-        tool_call_match = re.search(r'Tool Call:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(.*)$', text, re.DOTALL)
-        if tool_call_match:
-            tool_name = tool_call_match.group(1).strip()
-            payload_text = tool_call_match.group(2).strip()
-            parsed_payload = AgentJsonParser.parse_any(payload_text, default={})
-            tool_input = QueryLoop._extract_tool_input_from_payload(parsed_payload)
-            return [{'id': 'text-tool-call-1', 'name': tool_name, 'input': tool_input}]
-
-        action_match = re.search(r'Action:\s*([A-Za-z_][A-Za-z0-9_]*)\s*Action Input:\s*(.*)$', text, re.DOTALL)
-        if action_match:
-            tool_name = action_match.group(1).strip()
-            parsed_payload = AgentJsonParser.parse_any(action_match.group(2).strip(), default={})
-            tool_input = QueryLoop._extract_tool_input_from_payload(parsed_payload)
-            if tool_input:
-                return [{'id': 'text-tool-call-1', 'name': tool_name, 'input': tool_input}]
-        return []
-
-    @staticmethod
-    def _extract_tool_input_from_payload(parsed_payload: object) -> dict[str, object]:
-        if isinstance(parsed_payload, dict) and isinstance(parsed_payload.get('input'), dict):
-            return dict(parsed_payload.get('input') or {})
-        if isinstance(parsed_payload, dict):
-            return dict(parsed_payload)
-        if isinstance(parsed_payload, list):
-            for item in parsed_payload:
-                tool_input = QueryLoop._extract_tool_input_from_payload(item)
-                if tool_input:
-                    return tool_input
-        return {}
-
-
-
-
-
-
-
-
-
-
-

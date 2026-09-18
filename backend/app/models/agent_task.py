@@ -1,4 +1,4 @@
-﻿"""
+"""
 Agent 审计任务模型
 支持 AI Agent 自主漏洞挖掘和验证
 """
@@ -410,19 +410,6 @@ class AgentFinding(Base):
     
     def __repr__(self):
         return f"<AgentFinding {self.vulnerability_type} - {self.severity} - {self.file_path}>"
-    
-    def generate_fingerprint(self) -> str:
-        """生成去重指纹"""
-        import hashlib
-        components = [
-            self.vulnerability_type or "",
-            self.file_path or "",
-            str(self.line_start or 0),
-            self.function_name or "",
-            (self.code_snippet or "")[:200],
-        ]
-        content = "|".join(components)
-        return hashlib.sha256(content.encode()).hexdigest()[:16]
     
     def to_dict(self) -> dict:
         """转换为字典"""

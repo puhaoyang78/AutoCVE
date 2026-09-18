@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -23,7 +23,6 @@ from app.models.audit_session import AuditSession, AuditSessionMessage, AuditSes
 from app.models.managed_vulnerability import ManagedVulnerability
 from app.models.project import Project
 from app.models.user import User
-from app.services.finding_runtime.config import FindingRuntimeStack
 from app.services.vulnerability_report_generation import GeneratedReportBundle, VulnerabilityReportGenerationService
 import app.services.agent.tools as agent_tools_module
 import app.services.rag as rag_module
@@ -360,7 +359,6 @@ async def test_agent_task_detail_exposes_finding_outcome_semantics():
             current_phase='reporting',
             created_at=now,
             agent_config={
-                'finding_runtime_stack': 'runtime',
                 'finding_runtime_result': {
                     'finding_outcome': 'recovered_only',
                     'runtime_completion_mode': 'fallback_recovered',
@@ -396,7 +394,6 @@ async def test_agent_task_detail_exposes_finding_outcome_semantics():
             findings_count=2,
             high_count=2,
             agent_config={
-                'finding_runtime_stack': 'runtime',
                 'finding_runtime_result': {
                     'finding_outcome': 'finalized',
                     'runtime_completion_mode': 'finalize_tool',
@@ -445,193 +442,7 @@ async def test_agent_task_detail_exposes_finding_outcome_semantics():
     assert finalized_response.json()['handoff_ready'] is True
 
 
-@pytest.mark.asyncio
-async def test_create_agent_task_persists_runtime_stack_in_agent_config(monkeypatch):
-    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async with session_factory() as db:
-        user = User(
-            id='user-1',
-            email='owner@example.com',
-            hashed_password='not-a-real-hash',
-            full_name='Owner',
-            is_active=True,
-        )
-        project = Project(
-            id='project-1',
-            name='Demo Project',
-            owner_id='user-1',
-            source_type='repository',
-        )
-        db.add_all([user, project])
-        await db.commit()
-
-    async def fake_execute_agent_task(task_id: str):
-        return None
-
-    monkeypatch.setattr(agent_tasks_endpoint, '_execute_agent_task', fake_execute_agent_task)
-
-    app = build_test_app()
-
-    async def override_get_db():
-        async with session_factory() as db:
-            yield db
-
-    async def override_get_current_user():
-        return SimpleNamespace(id='user-1', is_active=True)
-
-    app.dependency_overrides[deps.get_db] = override_get_db
-    app.dependency_overrides[deps.get_current_user] = override_get_current_user
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url='http://testserver') as client:
-        response = await client.post(
-            '/api/v1/agent-tasks/',
-            json={
-                'project_id': 'project-1',
-                'name': 'Runtime audit',
-                'version_label': 'runtime-v1',
-                'finding_runtime_stack': 'runtime',
-            },
-        )
-
-    async with session_factory() as db:
-        task = await db.get(AgentTask, response.json()['id'])
-
-    await engine.dispose()
-
-    assert response.status_code == 200
-    assert task is not None
-    assert task.agent_config == {'finding_runtime_stack': 'runtime'}
-
-
-@pytest.mark.asyncio
-async def test_agent_task_routes_include_resolved_runtime_stack():
-    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async with session_factory() as db:
-        user = User(
-            id='user-1',
-            email='owner@example.com',
-            hashed_password='not-a-real-hash',
-            full_name='Owner',
-            is_active=True,
-        )
-        project = Project(
-            id='project-1',
-            name='Demo Project',
-            owner_id='user-1',
-            source_type='repository',
-        )
-        task = AgentTask(
-            id='task-1',
-            project_id='project-1',
-            created_by='user-1',
-            name='Audit demo',
-            version_label='runtime-test',
-            status=AgentTaskStatus.RUNNING,
-            current_phase='analysis',
-            created_at=datetime.now(timezone.utc),
-            agent_config={'finding_runtime_stack': 'runtime'},
-        )
-        db.add_all([user, project, task])
-        await db.commit()
-
-    app = build_test_app()
-
-    async def override_get_db():
-        async with session_factory() as db:
-            yield db
-
-    async def override_get_current_user():
-        return SimpleNamespace(id='user-1', is_active=True)
-
-    app.dependency_overrides[deps.get_db] = override_get_db
-    app.dependency_overrides[deps.get_current_user] = override_get_current_user
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url='http://testserver') as client:
-        list_response = await client.get('/api/v1/agent-tasks/')
-        detail_response = await client.get('/api/v1/agent-tasks/task-1')
-
-    await engine.dispose()
-
-    assert list_response.status_code == 200
-    assert list_response.json()[0]['finding_runtime_stack'] == 'runtime'
-    assert detail_response.status_code == 200
-    assert detail_response.json()['finding_runtime_stack'] == 'runtime'
-
-
-@pytest.mark.asyncio
-async def test_create_agent_task_uses_default_runtime_stack_from_settings(monkeypatch):
-    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async with session_factory() as db:
-        user = User(
-            id='user-1',
-            email='owner@example.com',
-            hashed_password='not-a-real-hash',
-            full_name='Owner',
-            is_active=True,
-        )
-        project = Project(
-            id='project-1',
-            name='Demo Project',
-            owner_id='user-1',
-            source_type='repository',
-        )
-        db.add_all([user, project])
-        await db.commit()
-
-    async def fake_execute_agent_task(task_id: str):
-        return None
-
-    monkeypatch.setattr(agent_tasks_endpoint, '_execute_agent_task', fake_execute_agent_task)
-    monkeypatch.setattr(agent_tasks_endpoint.settings, 'FINDING_RUNTIME_STACK_DEFAULT', 'runtime', raising=False)
-
-    app = build_test_app()
-
-    async def override_get_db():
-        async with session_factory() as db:
-            yield db
-
-    async def override_get_current_user():
-        return SimpleNamespace(id='user-1', is_active=True)
-
-    app.dependency_overrides[deps.get_db] = override_get_db
-    app.dependency_overrides[deps.get_current_user] = override_get_current_user
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url='http://testserver') as client:
-        response = await client.post(
-            '/api/v1/agent-tasks/',
-            json={
-                'project_id': 'project-1',
-                'name': 'Default runtime audit',
-                'version_label': 'runtime-default',
-            },
-        )
-
-    async with session_factory() as db:
-        task = await db.get(AgentTask, response.json()['id'])
-
-    await engine.dispose()
-
-    assert response.status_code == 200
-    assert task is not None
-    assert task.agent_config == {'finding_runtime_stack': 'runtime'}
 
 
 @pytest.mark.asyncio
@@ -1018,7 +829,7 @@ async def test_auto_generate_managed_reports_runs_when_verification_config_missi
             version_label='runtime-test',
             status=AgentTaskStatus.COMPLETED,
             current_phase='reporting',
-            agent_config={'finding_runtime_stack': 'runtime'},
+            agent_config={},
         )
         finding = AgentFinding(
             id='finding-1',
@@ -1079,7 +890,7 @@ async def test_auto_generate_managed_reports_runs_when_verification_config_missi
         stats = await agent_tasks_endpoint._auto_generate_managed_vulnerability_reports(
             db=db,
             task=task,
-            workflow_config={'finding_runtime_stack': 'runtime'},
+            workflow_config={},
             findings=[finding],
         )
         await db.commit()
@@ -1139,7 +950,7 @@ async def test_generate_managed_report_bundle_uses_unbounded_report_continuation
 
     result = await agent_tasks_endpoint._generate_managed_report_bundle_from_session(
         db=None,
-        session=SimpleNamespace(id="session-1", runtime_stack=FindingRuntimeStack.RUNTIME.value),
+        session=SimpleNamespace(id="session-1", runtime_stack="runtime"),
         task=SimpleNamespace(created_by="user-1"),
         finding=SimpleNamespace(id="finding-1"),
         managed_vulnerability=managed,

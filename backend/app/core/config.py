@@ -141,7 +141,6 @@ class Settings(BaseSettings):
     ONE_CLICK_CVE_AGENT_TIMEOUT_SECONDS: int = 3000
     AUDIT_SESSION_RESUME_TIMEOUT_SECONDS: int = 3000
     REDIS_URL: str = "redis://localhost:6379/0"
-    FINDING_RUNTIME_STACK_DEFAULT: str = "runtime"
     SANDBOX_IMAGE: str = "autocve-sandbox:latest"
     SANDBOX_MEMORY_LIMIT: str = "512m"
     SANDBOX_CPU_LIMIT: float = 1.0

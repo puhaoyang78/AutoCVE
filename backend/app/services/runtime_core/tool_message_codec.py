@@ -8,7 +8,6 @@ from app.services.finding_runtime.models import RuntimeMessageRole, TranscriptIt
 
 
 class ToolMessageFormat(StrEnum):
-    LEGACY_TEXT = "legacy_text"
     OPENAI_TOOLS = "openai_tools"
     ANTHROPIC_BLOCKS = "anthropic_blocks"
     RESPONSES_ITEMS = "responses_items"
@@ -47,12 +46,6 @@ def build_runtime_model_messages(
             recon_payload=recon_payload,
             transcript=transcript,
             native_tool_history=bool(tool_definitions),
-        )
-    if message_format is ToolMessageFormat.LEGACY_TEXT:
-        return _build_legacy_text_messages(
-            system_prompt=system_prompt,
-            recon_payload=recon_payload,
-            transcript=transcript,
         )
     return _build_openai_messages(
         system_prompt=system_prompt,
@@ -167,7 +160,7 @@ def _build_openai_messages(
         if _is_tool_use(item):
             if not native_tool_history:
                 messages.append(
-                    {"role": "user", "content": _format_legacy_tool_history(item)}
+                    {"role": "user", "content": _format_tool_history_note(item)}
                 )
                 index += 1
                 continue
@@ -181,7 +174,7 @@ def _build_openai_messages(
         if _is_tool_result(item):
             if not native_tool_history:
                 messages.append(
-                    {"role": "user", "content": _format_legacy_tool_result(item)}
+                    {"role": "user", "content": _format_tool_result_note(item)}
                 )
             index += 1
             continue
@@ -346,44 +339,14 @@ def _append_anthropic_tool_results(
     if result_blocks:
         messages.append({"role": "user", "content": result_blocks})
 
-
-def _build_legacy_text_messages(
-    *,
-    system_prompt: str | None,
-    recon_payload: dict[str, Any],
-    transcript: list[Any],
-) -> list[dict[str, Any]]:
-    messages: list[dict[str, Any]] = []
-    system = _system_message(system_prompt, recon_payload)
-    if system is not None:
-        messages.append(system)
-    for item in transcript:
-        role = _item_role(item)
-        content = _item_content(item)
-        if role == RuntimeMessageRole.SYSTEM.value:
-            continue
-        if role == RuntimeMessageRole.ASSISTANT.value:
-            messages.append({"role": "assistant", "content": content})
-        elif _is_tool_use(item):
-            messages.append({"role": "user", "content": _format_legacy_tool_history(item)})
-        elif _is_tool_result(item):
-            messages.append({"role": "user", "content": _format_legacy_tool_result(item)})
-        elif role == RuntimeMessageRole.HANDOFF.value:
-            target = _item_payload(item).get("target") or "verification"
-            messages.append({"role": "user", "content": f"Handoff ({target}):\n{content}"})
-        else:
-            messages.append({"role": "user", "content": content})
-    return messages
-
-
-def _format_legacy_tool_history(item: Any) -> str:
+def _format_tool_history_note(item: Any) -> str:
     return (
         f"Prior tool request history ({_tool_name(item)}):\n"
         f"{json.dumps(_tool_input(item), ensure_ascii=False)}"
     )
 
 
-def _format_legacy_tool_result(item: Any) -> str:
+def _format_tool_result_note(item: Any) -> str:
     payload = _item_payload(item)
     metadata = _item_metadata(item)
     summary: dict[str, Any] = {

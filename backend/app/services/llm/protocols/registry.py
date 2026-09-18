@@ -34,10 +34,6 @@ TOOL_FORMAT_ALIASES = {
     "gemini_parts": "gemini_parts",
     "responses": "responses_items",
     "responses_items": "responses_items",
-    "legacy": "legacy_text",
-    "legacy_text": "legacy_text",
-    "xml": "legacy_text",
-    "json": "legacy_text",
 }
 
 DEFAULT_MODEL_CAPABILITIES = {

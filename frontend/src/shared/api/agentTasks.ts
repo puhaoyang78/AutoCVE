@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Agent Tasks API
  * Agent 瀹¤浠诲姟鐩稿叧鐨?API 璋冪敤
  */
@@ -22,7 +22,6 @@ export interface AgentTask {
   commit_sha?: string | null;
   repository_url_snapshot?: string | null;
   runtime_session_id?: string | null;
-  finding_runtime_stack?: string | null;
 
   // 缁熻
   total_files: number;
@@ -195,7 +194,6 @@ export interface CreateAgentTaskRequest {
   max_iterations?: number;
   token_budget?: number;
   timeout_seconds?: number;
-  finding_runtime_stack?: "legacy" | "runtime";
 }
 
 export interface AgentTaskSummary {

@@ -41,7 +41,7 @@ class AuditSession(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     project_id = Column(String(36), nullable=False, index=True)
     task_id = Column(String(36), nullable=True, index=True)
-    runtime_stack = Column(String(32), nullable=False, default="legacy")
+    runtime_stack = Column(String(32), nullable=False, default="runtime")
     state = Column(String(32), nullable=False, default="pending")
     system_prompt = Column(Text, nullable=True)
     recon_payload = Column(JSON, nullable=True)

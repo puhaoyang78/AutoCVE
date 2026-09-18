@@ -10,7 +10,6 @@ import os
 import re
 import zipfile
 import shutil
-import hashlib
 from typing import Any, Callable, List, Optional, Dict, Set
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -32,8 +31,8 @@ from app.models.agent_task import (
     VulnerabilitySeverity, FindingStatus,
 )
 from app.models.audit_session import AuditCheckpoint, AuditSession, AuditSessionMessage, AuditSessionTurn, AuditToolCall
-from app.services.finding_runtime.config import FindingRuntimeStack, coerce_finding_runtime_stack
 from app.services.finding_runtime.final_finding_contract import has_meaningful_poc, is_placeholder_finding
+from app.services.finding_runtime.fingerprint import build_finding_fingerprint
 from app.models.project import Project
 from app.models.user import User
 from app.models.user_config import UserConfig
@@ -128,7 +127,7 @@ async def _mark_latest_runtime_session_manual_cancelled(db: AsyncSession, task_i
         )
     )
 
-# Running task registry kept for cancellation and legacy task lookups.
+# Running task registry kept for cancellation and task lookups.
 
 
 
@@ -162,7 +161,6 @@ class AgentTaskCreate(BaseModel):
 
     max_iterations: int = Field(50, ge=1, le=200, description="Maximum agent iterations")
     timeout_seconds: int = Field(1800, ge=60, le=7200, description="Task timeout in seconds")
-    finding_runtime_stack: Optional[str] = Field(None, description="Finding runtime stack: legacy or runtime")
 
 
 class AgentTaskResponse(BaseModel):
@@ -220,7 +218,6 @@ class AgentTaskResponse(BaseModel):
     
     error_message: Optional[str] = None
     runtime_session_id: Optional[str] = None
-    finding_runtime_stack: str = FindingRuntimeStack.RUNTIME.value
     finding_outcome: str = "none"
     runtime_completion_mode: Optional[str] = None
     finalized_findings_count: int = 0
@@ -290,11 +287,9 @@ class AgentFindingResponse(BaseModel):
     verification_notes: Optional[str] = None
     references: List[str] = Field(default_factory=list)
     origin: Optional[str] = None
-    evidence_type: Optional[str] = None
     entry_point_refs: List[str] = Field(default_factory=list)
     priority_path_refs: List[str] = Field(default_factory=list)
     business_flow_notes: List[str] = Field(default_factory=list)
-    evidence_gaps: List[str] = Field(default_factory=list)
     created_at: datetime
 
     model_config = {
@@ -391,15 +386,6 @@ def _merge_task_workflow_config(global_workflow: Optional[Dict[str, Any]], audit
     return merged
 
 
-def _resolve_task_runtime_stack(agent_config: Any) -> str:
-    if isinstance(agent_config, dict):
-        raw_value = agent_config.get("finding_runtime_stack")
-    else:
-        raw_value = None
-    if raw_value in (None, ""):
-        raw_value = getattr(settings, "FINDING_RUNTIME_STACK_DEFAULT", FindingRuntimeStack.LEGACY.value)
-    return coerce_finding_runtime_stack(raw_value).value
-
 
 def _extract_finding_runtime_payload(result_data: Any) -> Dict[str, Any]:
     if not isinstance(result_data, dict):
@@ -429,8 +415,6 @@ def _normalize_recovered_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
         "line_end": candidate.get("line_end"),
         "report_status": candidate.get("report_status") or "recovered_candidate",
         "verdict": candidate.get("verdict"),
-        "origin": candidate.get("origin") or "transcript_recovery",
-        "evidence_type": candidate.get("evidence_type") or "transcript_recovery",
         "not_finalized": bool(candidate.get("not_finalized", True)),
         "source": candidate.get("source"),
         "sink": candidate.get("sink"),
@@ -439,7 +423,6 @@ def _normalize_recovered_candidate(candidate: Any) -> Optional[Dict[str, Any]]:
         "verification_notes": candidate.get("verification_notes"),
         "exploit_chain": candidate.get("exploit_chain") or [],
         "references": candidate.get("references") or [],
-        "evidence_gaps": candidate.get("evidence_gaps") or [],
     }
     return normalized
 
@@ -532,7 +515,7 @@ async def _restore_agents_from_checkpoints(agents: List[Any]) -> List[Dict[str, 
     return restored
 
 
-async def _bootstrap_legacy_agent_memories(
+async def _bootstrap_agent_memories(
     *,
     agents: List[Any],
     project_root: str,
@@ -918,7 +901,7 @@ async def _generate_managed_report_bundle_from_session(
     managed_vulnerability: Any,
     report_service: Any,
 ):
-    if session.runtime_stack == FindingRuntimeStack.RUNTIME.value:
+    if session is not None:
         from app.api.v1.endpoints.audit_sessions import _build_runtime_follow_up_context
 
         bridge, sandbox_manager, model_name, _max_turns = await _build_runtime_follow_up_context(session=session, db=db)
@@ -1010,7 +993,7 @@ async def _auto_generate_managed_vulnerability_reports(
             activity_after_sequence = await _latest_audit_session_message_sequence(db, session.id)
 
         try:
-            if session is not None and session.runtime_stack == FindingRuntimeStack.RUNTIME.value:
+            if session is not None:
                 # Runtime report generation writes its own committed transcript message
                 # through AuditSessionStore before the continuation starts.
                 pass
@@ -1350,11 +1333,11 @@ async def _execute_agent_task_impl(task_id: str):
             def check_global_cancel() -> bool:
                 return is_task_cancelled(task_id)
 
-            legacy_agents = [orchestrator, recon_agent, analysis_agent, scan_agent, triage_agent, finding_agent, verification_agent]
-            for agent in legacy_agents:
+            agents = [orchestrator, recon_agent, analysis_agent, scan_agent, triage_agent, finding_agent, verification_agent]
+            for agent in agents:
                 agent.set_cancel_callback(check_global_cancel)
                 agent.configure_runtime_session_persistence(task_id=task_id, checkpoint_store=runtime_session_checkpoint_store)
-            restored_agents = await _restore_agents_from_checkpoints(legacy_agents)
+            restored_agents = await _restore_agents_from_checkpoints(agents)
             if _mark_task_resume_restore(task, restored_agents):
                 await db.commit()
 
@@ -1378,8 +1361,8 @@ async def _execute_agent_task_impl(task_id: str):
             task.total_files = project_info.get("file_count", 0)
             await db.commit()
 
-            preloaded_memories = await _bootstrap_legacy_agent_memories(
-                agents=legacy_agents,
+            preloaded_memories = await _bootstrap_agent_memories(
+                agents=agents,
                 project_root=project_root,
                 project_info=project_info,
                 task=task,
@@ -1390,13 +1373,10 @@ async def _execute_agent_task_impl(task_id: str):
                     metadata={"preloaded_memories": preloaded_memories},
                 )
 
-            runtime_agent_config = dict(task.agent_config or {})
-            finding_runtime_stack = runtime_agent_config.get("finding_runtime_stack") or "legacy"
             global_workflow_config = (other_config or {}).get("workflowConfig", {})
             if _is_one_click_cve_scope(task.audit_scope):
                 global_workflow_config = await _get_raw_user_workflow_config(db, task.created_by)
             workflow_config = _merge_task_workflow_config(global_workflow_config, task.audit_scope)
-            workflow_config["finding_runtime_stack"] = finding_runtime_stack
             input_data = {
                 "project_id": str(project.id),
                 "project_info": project_info,
@@ -1408,12 +1388,10 @@ async def _execute_agent_task_impl(task_id: str):
                     "max_iterations": task.max_iterations or 50,
                     "finding_runtime_max_iterations": resolve_runtime_turn_limit("finding"),
                     "user_id": task.created_by,
-                    "finding_runtime_stack": finding_runtime_stack,
                     "workflow": workflow_config,
                 },
                 "project_root": project_root,
                 "task_id": task_id,
-                "finding_runtime_stack": finding_runtime_stack,
             }
 
             task.current_phase = AgentTaskPhase.ANALYSIS
@@ -1976,35 +1954,15 @@ def _merge_existing_finding_record(existing: AgentFinding, incoming: AgentFindin
     if latest_report_status and metadata.get("report_status") != latest_report_status:
         metadata["report_status"] = latest_report_status
         changed = True
-    if raw_finding.get("origin") and metadata.get("origin") != raw_finding.get("origin"):
-        metadata["origin"] = raw_finding.get("origin")
-        changed = True
-    if raw_finding.get("evidence_type") and metadata.get("evidence_type") != raw_finding.get("evidence_type"):
-        metadata["evidence_type"] = raw_finding.get("evidence_type")
+    if metadata.get("raw_finding") != raw_finding:
+        metadata["raw_finding"] = raw_finding
         changed = True
     if changed:
-        metadata["raw_finding"] = raw_finding
         metadata["merge_count"] = int(metadata.get("merge_count") or 0) + 1
         metadata["last_merged_at"] = datetime.now(timezone.utc).isoformat()
         existing.finding_metadata = metadata
     return changed
 
-
-def _build_finding_fingerprint(record: AgentFinding) -> str:
-    record.fingerprint = record.fingerprint or record.generate_fingerprint()
-    normalized = str(record.fingerprint or "").strip()
-    if normalized:
-        return normalized
-    components = [
-        str(record.vulnerability_type or ""),
-        str(record.file_path or ""),
-        str(record.line_start or 0),
-        str(record.line_end or 0),
-        str(record.title or ""),
-    ]
-    fingerprint = hashlib.sha256("|".join(components).encode("utf-8")).hexdigest()[:16]
-    record.fingerprint = fingerprint
-    return fingerprint
 
 
 async def _save_findings(
@@ -2031,7 +1989,9 @@ async def _save_findings(
     existing_findings = list(existing_findings_result or [])
     existing_by_fingerprint: Dict[str, AgentFinding] = {}
     for existing in existing_findings:
-        existing_by_fingerprint[_build_finding_fingerprint(existing)] = existing
+        fingerprint = build_finding_fingerprint(existing)
+        existing.fingerprint = fingerprint
+        existing_by_fingerprint[fingerprint] = existing
 
     severity_map = {
         "critical": VulnerabilitySeverity.CRITICAL,
@@ -2219,11 +2179,10 @@ async def _save_findings(
                 finding_metadata={
                     "raw_finding": finding,
                     "report_status": finding.get("report_status") or verdict,
-                    "origin": finding.get("origin"),
-                    "evidence_type": finding.get("evidence_type"),
                 },
             )
-            fingerprint = _build_finding_fingerprint(record)
+            fingerprint = build_finding_fingerprint(record)
+            record.fingerprint = fingerprint
             existing = existing_by_fingerprint.get(fingerprint)
             if existing is not None:
                 if _merge_existing_finding_record(existing, record, finding):
@@ -2571,7 +2530,7 @@ async def create_agent_task(
         target_files=request.target_files,
         max_iterations=request.max_iterations or 50,
         timeout_seconds=request.timeout_seconds or 1800,
-        agent_config={"finding_runtime_stack": coerce_finding_runtime_stack(request.finding_runtime_stack or getattr(settings, "FINDING_RUNTIME_STACK_DEFAULT", FindingRuntimeStack.LEGACY.value)).value},
+        agent_config={},
         created_by=current_user.id,
         audit_scope=request.audit_scope,
     )
@@ -2635,7 +2594,6 @@ async def list_agent_tasks(
         if task_runtime_stats.get("tokens_used"):
             setattr(task, "tokens_used", max(int(task.tokens_used or 0), int(task_runtime_stats["tokens_used"])))
         setattr(task, "runtime_session_id", runtime_session_ids.get(task.id))
-        setattr(task, "finding_runtime_stack", _resolve_task_runtime_stack(task.agent_config))
         setattr(task, "finding_outcome", runtime_result["finding_outcome"])
         setattr(task, "runtime_completion_mode", runtime_result["runtime_completion_mode"])
         setattr(task, "finalized_findings_count", runtime_result["finalized_findings_count"])
@@ -2790,7 +2748,6 @@ async def get_agent_task(
         "completed_at": task.completed_at,
         "error_message": task.error_message,
         "runtime_session_id": runtime_session_ids.get(task.id),
-        "finding_runtime_stack": _resolve_task_runtime_stack(task.agent_config),
         "finding_outcome": runtime_result["finding_outcome"],
         "runtime_completion_mode": runtime_result["runtime_completion_mode"],
         "finalized_findings_count": runtime_result["finalized_findings_count"],

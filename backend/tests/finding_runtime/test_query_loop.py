@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 import json
@@ -335,41 +335,6 @@ def test_query_loop_defaults_stop_reason_when_model_omits_it():
 
     assert result.stop_reason is RuntimeStopReason.COMPLETED
     assert result.transition is None
-
-
-def test_query_loop_rejects_textual_tool_call_fallback_and_requests_native_tool_call():
-    store = build_store()
-    session_id = store.create_session(project_id="project-1", system_prompt="system")
-    store.append_message(session_id, TranscriptItem(role=RuntimeMessageRole.USER, content="inspect code"))
-    client = FakeModelClient(
-        responses=[
-            {
-                "content": "Thought: inspect a file first.\nTool Call: echo\n{\"text\": \"repo summary\"}",
-                "stop_reason": RuntimeStopReason.COMPLETED.value,
-                "tool_calls": [],
-            },
-        ]
-    )
-    registry = ToolRegistry([EchoTool()])
-    orchestrator = ToolOrchestrator(session_store=store, tool_registry=registry)
-    loop = QueryLoop(session_store=store, model_client=client, tool_registry=registry, tool_orchestrator=orchestrator)
-
-    result = asyncio.run(loop.run_turn(session_id=session_id, model_name="gpt-test"))
-    state = store.load_query_loop_state(session_id)
-    snapshot = store.load_session_snapshot(session_id)
-
-    assert result.stop_reason is None
-    assert result.transition is RuntimeContinueReason.LEGACY_TOOL_SYNTAX_NUDGE
-    assert len(snapshot.tool_calls) == 0
-    visible_messages = _messages_without_system(snapshot)
-    assert [message.role for message in visible_messages] == [
-        RuntimeMessageRole.USER.value,
-        RuntimeMessageRole.ASSISTANT.value,
-    ]
-    assert state.messages[-1].name == "legacy_tool_syntax_nudge"
-    assert state.messages[-1].content
-    assert state.tool_use_context["legacy_text_tool_call_nudge_count"] == 1
-    assert snapshot.checkpoints[-1].state_payload["transition"] == RuntimeContinueReason.LEGACY_TOOL_SYNTAX_NUDGE.value
 
 
 def test_runner_finalize_finding_tool_marks_terminal_completion():
