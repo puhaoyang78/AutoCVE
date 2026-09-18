@@ -30,6 +30,8 @@ An authenticated attacker can trigger server-side requests to internal resources
 ## Details
 The request handler forwards a user-controlled URL to the outbound HTTP client without an allowlist or scheme restriction.
 
+Core vulnerable code path:
+
 ```python
 target = request.json["target"]
 response = httpx.get(target, timeout=5)
@@ -79,6 +81,8 @@ ZH_REPORT = """# SSRF in /api/fetch锛堝彈褰卞搷鐗堟湰寰呯‘璁わ級
 
 ## Details
 璇锋眰澶勭悊閫昏緫浼氬皢鐢ㄦ埛鍙帶 URL 鐩存帴浼犵粰鍑虹珯 HTTP 瀹㈡埛绔紝涓旀病鏈夊仛 allowlist 鎴栧崗璁檺鍒躲€?
+
+Core vulnerable code path:
 
 ```python
 target = request.json["target"]
