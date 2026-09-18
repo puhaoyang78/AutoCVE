@@ -1,4 +1,4 @@
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 
 export async function runRepositoryAudit(params: {
   projectId: string;

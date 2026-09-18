@@ -29,7 +29,7 @@ import {
 	RotateCcw,
 	Trash2,
 } from "lucide-react";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import { apiClient } from "@/shared/api/serverClient";
 import type { AuditTask } from "@/shared/types";
 import { Link, useNavigate } from "react-router-dom";

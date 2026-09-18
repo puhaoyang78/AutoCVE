@@ -28,7 +28,7 @@ import {
   GitBranch,
   Terminal
 } from "lucide-react";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import type { Project, AuditTask, CreateProjectForm, AuditIssue } from "@/shared/types";
 import type { AgentFinding, AgentTask } from "@/shared/api/agentTasks";
 import { getAgentTasks, updateAgentFinding } from "@/shared/api/agentTasks";

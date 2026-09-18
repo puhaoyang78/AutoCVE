@@ -92,7 +92,7 @@ export default function TerminalProgressDialog({
 
         // 2. 立即更新数据库状态
         try {
-            const { api } = await import("@/shared/config/database");
+            const { api } = await import("@/shared/api/database");
             // biome-ignore lint/suspicious/noExplicitAny: API type mismatch workaround
             await api.updateAuditTask(taskId, { status: 'cancelled' } as any);
             addLog("[WARN] 任务状态已更新为已取消", "warning");
@@ -178,7 +178,7 @@ export default function TerminalProgressDialog({
                 const requestStartTime = Date.now();
 
                 // 使用 api.getAuditTaskById 获取任务状态
-                const { api } = await import("@/shared/config/database");
+                const { api } = await import("@/shared/api/database");
                 const task = await api.getAuditTaskById(taskId);
 
                 const requestDuration = Date.now() - requestStartTime;
@@ -267,7 +267,7 @@ export default function TerminalProgressDialog({
                         // 解析问题类型分布
                         if (task.issues_count > 0) {
                             try {
-                                const { api: apiImport } = await import("@/shared/config/database");
+                                const { api: apiImport } = await import("@/shared/api/database");
                                 const issues = await apiImport.getAuditIssues(taskId);
 
                                 const severityCounts = {

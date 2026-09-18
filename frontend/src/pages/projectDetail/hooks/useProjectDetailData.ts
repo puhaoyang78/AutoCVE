@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import type { Project, AuditTask } from "@/shared/types";
 import type { AgentTask } from "@/shared/api/agentTasks";
 import { getAgentTasks } from "@/shared/api/agentTasks";

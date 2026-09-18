@@ -1,5 +1,5 @@
 import type { AuditTask, AuditIssue, CodeAnalysisResult } from "@/shared/types";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 
 // 导出 JSON 格式报告
 export async function exportToJSON(task: AuditTask, issues: AuditIssue[]) {

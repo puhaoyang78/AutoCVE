@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAgentTasks, type AgentTask } from "@/shared/api/agentTasks";
 import { listVulnerabilities, type ManagedVulnerability } from "@/shared/api/vulnerabilities";
-import { api, isDemoMode } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import type { AuditTask, Project, ProjectStats, UnifiedTask } from "@/shared/types";
 
 const runningStatuses = new Set([
@@ -310,22 +310,6 @@ export default function Dashboard() {
             </div>
           </div>
         </section>
-
-        {isDemoMode && (
-          <div className="rounded-[24px] border border-amber-300 bg-amber-50 p-4 shadow-[0_12px_28px_rgba(160,115,48,0.07)]">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
-              <div className="text-sm text-slate-700">
-                {t("dashboard.demoPrefix")}
-                <span className="font-bold text-amber-700">{t("dashboard.demoMode")}</span>
-                {t("dashboard.demoSuffix")}
-                <Link to="/admin" className="ml-2 font-bold text-[hsl(var(--primary))] hover:underline">
-                  {t("dashboard.configure")}
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
 
         <section className="grid gap-4 md:grid-cols-3">
           {summaryCards.map((card) => {

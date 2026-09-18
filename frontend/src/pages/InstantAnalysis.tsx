@@ -33,7 +33,7 @@ import {
   Terminal
 } from "lucide-react";
 import { CodeAnalysisEngine } from "@/features/analysis/services";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import type { CodeAnalysisResult, InstantAnalysis as InstantAnalysisType } from "@/shared/types";
 import { toast } from "sonner";
 import InstantExportDialog from "@/components/reports/InstantExportDialog";

@@ -40,7 +40,7 @@ import {
 	buildAgentTaskAuditScope,
 	getAuditModeLabel,
 } from "@/components/agent/auditModeConfig";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import { createAgentTask } from "@/shared/api/agentTasks";
 import { isRepositoryProject, isZipProject } from "@/shared/utils/projectUtils";
 import type { Project } from "@/shared/types";

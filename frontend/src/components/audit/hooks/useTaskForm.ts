@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Project, CreateAuditTaskForm } from "@/shared/types";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import { toast } from "sonner";
 
 const DEFAULT_EXCLUDE_PATTERNS = [

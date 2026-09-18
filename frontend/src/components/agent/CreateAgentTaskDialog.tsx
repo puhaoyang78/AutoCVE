@@ -42,7 +42,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import { createAgentTask } from "@/shared/api/agentTasks";
 import { isRepositoryProject, isZipProject } from "@/shared/utils/projectUtils";
 import { getZipFileInfo, type ZipFileMeta } from "@/shared/utils/zipStorage";

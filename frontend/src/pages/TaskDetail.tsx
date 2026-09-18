@@ -37,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import type { AuditTask, AuditIssue } from "@/shared/types";
 import { toast } from "sonner";
 import ExportReportDialog from "@/components/reports/ExportReportDialog";

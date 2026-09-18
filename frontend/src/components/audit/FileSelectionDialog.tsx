@@ -34,7 +34,7 @@ import {
     ChevronsUpDown,
     ChevronsDownUp,
 } from "lucide-react";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import { toast } from "sonner";
 
 interface FileSelectionDialogProps {

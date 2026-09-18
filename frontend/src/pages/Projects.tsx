@@ -38,7 +38,7 @@ import {
   Key,
   HardDrive
 } from "lucide-react";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import { BranchSelector } from "@/components/ui/branch-selector";
 import { validateZipFile } from "@/features/projects/services";
 import type { Project, CreateProjectForm } from "@/shared/types";

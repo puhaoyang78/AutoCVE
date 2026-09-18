@@ -28,7 +28,7 @@ import {
 } from "@/shared/api/agentDirectAudit";
 import type { AuditSessionMessage, AuditSessionStreamEvent } from "@/shared/api/auditSessions";
 import type { ManagedVulnerability } from "@/shared/api/vulnerabilities";
-import { api } from "@/shared/config/database";
+import { api } from "@/shared/api/database";
 import type { Project, ProjectFileContent } from "@/shared/types";
 import { getLatestDirectAuditReportMessage, getSyncedDirectAuditMessageIds } from "@/shared/utils/directAuditReports";
 import { closeFileTab, openFileTab, type WorkspaceTabState } from "@/pages/AgentDirectAudit/lib/workspaceState";
