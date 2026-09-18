@@ -74,13 +74,13 @@ The affected version range is still being confirmed.
 - CWE: CWE-918 Server-Side Request Forgery (SSRF)
 """
 
-ZH_REPORT = """# SSRF in /api/fetch锛堝彈褰卞搷鐗堟湰寰呯‘璁わ級
+ZH_REPORT = """# /api/fetch 中由不可信 target 参数触发的 SSRF（受影响版本待确认）
 
 ## Summary
-鍏峰璁よ瘉鏉冮檺鐨勬敾鍑昏€呭彲浠ラ€氳繃鍚?`/api/fetch` 绔偣鎻愪氦涓嶅彈淇′换鐨?`target` 鍙傛暟锛岃鏈嶅姟鍣ㄥ悜鍐呴儴璧勬簮鍙戣捣璇锋眰銆?
+已认证攻击者可以向 `/api/fetch` 端点提交不可信的 `target` 参数，使服务器向内部资源发起请求。
 
 ## Details
-璇锋眰澶勭悊閫昏緫浼氬皢鐢ㄦ埛鍙帶 URL 鐩存帴浼犵粰鍑虹珯 HTTP 瀹㈡埛绔紝涓旀病鏈夊仛 allowlist 鎴栧崗璁檺鍒躲€?
+请求处理逻辑将用户可控 URL 直接传递给出站 HTTP 客户端，且未实施目标白名单或协议限制。
 
 Core vulnerable code path:
 
@@ -90,8 +90,8 @@ response = httpx.get(target, timeout=5)
 ```
 
 ## POC
-1. 鐧诲綍搴旂敤銆?
-2. 鍚?`/api/fetch` 鍙戦€?POST 璇锋眰锛屽苟鎶?`target` 璁句负鍐呴儴璧勬簮鍦板潃銆?
+1. 登录应用。
+2. 向 `/api/fetch` 发送 POST 请求，并将 `target` 设置为内部资源地址。
 
 ```http
 POST /api/fetch HTTP/1.1
@@ -102,15 +102,15 @@ Content-Type: application/json
 ```
 
 ## Impact
-鏀诲嚮鑰呭彲浠ュ€熸璁块棶鏈笉搴旀毚闇茬殑鍐呴儴鏈嶅姟銆佸厓鏁版嵁鎺ュ彛鎴栫鐞嗘帴鍙ｃ€?
+攻击者可能借此访问原本不应暴露的内部服务、元数据端点或管理接口。
 
 ## Remediation
-瀵瑰嚭绔欑洰鏍囧疄鏂戒弗鏍?allowlist锛屾爣鍑嗗寲 URL 鍚庡啀鏍￠獙锛屽苟闃绘鍐呴儴 IP 娈靛拰鍗遍櫓鍗忚銆?
+对出站目标实施严格白名单，在校验前规范化 URL，并阻止内部 IP 地址段和危险协议。
 
 ## Disclosure Notes
-鍙楀奖鍝嶇増鏈寖鍥翠粛寰呯‘璁ゃ€?
+受影响版本范围仍待确认。
 
-## 琛ュ厖淇℃伅
+## 补充信息
 ### Affected products
 - Ecosystem: self-hosted
 - Package name: demo-app
