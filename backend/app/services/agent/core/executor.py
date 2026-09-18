@@ -14,13 +14,13 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class ExecutionMode(str, Enum):
+class ExecutionMode(StrEnum):
     """执行模式"""
     SEQUENTIAL = "sequential"  # 顺序执行
     PARALLEL = "parallel"      # 并行执行

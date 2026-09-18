@@ -9,13 +9,13 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class ToolCallState(str, Enum):
+class ToolCallState(StrEnum):
     """工具调用状态"""
     PENDING = "pending"       # 等待执行
     RUNNING = "running"       # 执行中

@@ -6,7 +6,7 @@ Provides fallback strategies when components fail.
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, TypeVar
 
 from .errors import (
@@ -24,7 +24,7 @@ logger = get_logger("fallback")
 T = TypeVar("T")
 
 
-class FallbackAction(str, Enum):
+class FallbackAction(StrEnum):
     """Actions to take when fallback is triggered"""
     RETRY = "retry"
     RETRY_WITH_REDUCED_CONTEXT = "retry_reduced"

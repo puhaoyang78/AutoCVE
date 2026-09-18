@@ -8,7 +8,7 @@ import asyncio
 import random
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from functools import wraps
 from typing import Any, Generic, TypeVar
 
@@ -25,7 +25,7 @@ from .errors import (
 T = TypeVar("T")
 
 
-class BackoffStrategy(str, Enum):
+class BackoffStrategy(StrEnum):
     """Backoff strategies"""
     CONSTANT = "constant"
     LINEAR = "linear"

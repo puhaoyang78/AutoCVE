@@ -8,7 +8,7 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from functools import wraps
 from typing import Any, TypeVar
 
@@ -17,7 +17,7 @@ from .errors import CircuitOpenError
 T = TypeVar("T")
 
 
-class CircuitState(str, Enum):
+class CircuitState(StrEnum):
     """Circuit breaker states"""
     CLOSED = "closed"
     OPEN = "open"

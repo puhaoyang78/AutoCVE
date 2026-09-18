@@ -10,7 +10,7 @@ Agent 状态管理模块
 
 import uuid
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,7 +21,7 @@ def _generate_agent_id() -> str:
     return f"agent_{uuid.uuid4().hex[:8]}"
 
 
-class AgentStatus(str, Enum):
+class AgentStatus(StrEnum):
     """Agent 运行状态"""
     CREATED = "created"          # 已创建，未开始
     RUNNING = "running"          # 运行中

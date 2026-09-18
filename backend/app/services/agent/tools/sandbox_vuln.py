@@ -6,7 +6,7 @@
 import logging
 import os
 import re
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -16,7 +16,7 @@ from .sandbox_tool import SandboxManager
 logger = logging.getLogger(__name__)
 
 
-class VulnType(str, Enum):
+class VulnType(StrEnum):
     """漏洞类型枚举"""
     SQL_INJECTION = "sql_injection"
     COMMAND_INJECTION = "command_injection"

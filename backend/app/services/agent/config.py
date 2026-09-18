@@ -7,14 +7,14 @@ All configuration values can be overridden via environment variables with AGENT_
 
 import os
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     """Logging levels"""
     DEBUG = "DEBUG"
     INFO = "INFO"

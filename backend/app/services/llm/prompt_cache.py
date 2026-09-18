@@ -17,7 +17,7 @@ Prompt Caching 模块
 
 import logging
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from .tokenizer import TokenEstimator
@@ -25,7 +25,7 @@ from .tokenizer import TokenEstimator
 logger = logging.getLogger(__name__)
 
 
-class CacheStrategy(str, Enum):
+class CacheStrategy(StrEnum):
     """缓存策略"""
     NONE = "none"                    # 不缓存
     SYSTEM_ONLY = "system_only"      # 仅缓存系统提示词

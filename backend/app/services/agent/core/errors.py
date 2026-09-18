@@ -7,11 +7,11 @@ Provides structured error types with recovery strategies and metadata.
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class ErrorSeverity(str, Enum):
+class ErrorSeverity(StrEnum):
     """Error severity levels for monitoring and alerting"""
     LOW = "low"           # Minor issues, can be ignored
     MEDIUM = "medium"     # Notable issues, may affect results
@@ -19,7 +19,7 @@ class ErrorSeverity(str, Enum):
     CRITICAL = "critical" # Severe issues, operation cannot continue
 
 
-class RecoveryStrategy(str, Enum):
+class RecoveryStrategy(StrEnum):
     """Strategies for recovering from errors"""
     RETRY = "retry"                     # Retry the same operation
     RETRY_WITH_BACKOFF = "retry_backoff" # Retry with exponential backoff

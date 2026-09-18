@@ -11,13 +11,13 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     """消息类型"""
     QUERY = "query"              # 查询消息（请求信息）
     INSTRUCTION = "instruction"  # 指令消息（要求执行操作）
@@ -26,7 +26,7 @@ class MessageType(str, Enum):
     ERROR = "error"              # 错误消息
 
 
-class MessagePriority(str, Enum):
+class MessagePriority(StrEnum):
     """消息优先级"""
     LOW = "low"
     NORMAL = "normal"

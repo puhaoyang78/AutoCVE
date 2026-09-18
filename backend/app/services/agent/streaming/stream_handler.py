@@ -6,13 +6,13 @@ import logging
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class StreamEventType(str, Enum):
+class StreamEventType(StrEnum):
     LLM_START = "llm_start"
     LLM_THOUGHT = "llm_thought"
     LLM_DECISION = "llm_decision"

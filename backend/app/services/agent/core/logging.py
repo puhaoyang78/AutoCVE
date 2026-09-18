@@ -9,7 +9,7 @@ import json
 import logging
 import sys
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from functools import wraps
 from typing import Any
 
@@ -22,7 +22,7 @@ from .context import (
 
 # ============ Log Levels ============
 
-class LogLevel(str, Enum):
+class LogLevel(StrEnum):
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"
