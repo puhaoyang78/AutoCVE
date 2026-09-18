@@ -7,10 +7,10 @@ Agent 工具集
 - 外部安全工具（Semgrep、Bandit等）
 - 协作工具（Think、Agent通信）
 - 报告工具（漏洞报告）
-- 🔥 智能扫描工具（批量扫描、快速审计）
+- 智能扫描工具（批量扫描、快速审计）
 """
 
-# 🔥 新增：Agent协作工具
+# 新增：Agent协作工具
 from .agent_tools import (
     AgentFinishTool,
     CollectSubAgentResultsTool,
@@ -21,7 +21,7 @@ from .agent_tools import (
     WaitForMessageTool,
 )
 from .base import AgentTool, ToolResult
-from .code_analysis_tool import CodeAnalysisTool, DataFlowAnalysisTool, VulnerabilityValidationTool
+from .code_analysis_tool import DataFlowAnalysisTool
 
 # 外部安全工具
 from .external_tools import (
@@ -35,7 +35,7 @@ from .external_tools import (
 )
 from .file_tool import FileReadTool, FileSearchTool, ListFilesTool, ReadManyFilesTool
 
-# 🔥 新增：扫描完成工具
+# 新增：扫描完成工具
 from .finish_tool import FinishScanTool
 from .interaction_agent_tools import (
     AskUserTool,
@@ -44,18 +44,18 @@ from .interaction_agent_tools import (
     TodoWriteTool,
 )
 
-# 🔥 新增：Kunlun-M 静态代码分析工具 (MIT License)
+# 新增：Kunlun-M 静态代码分析工具 (MIT License)
 from .kunlun_tool import KunlunMTool, KunlunPluginTool, KunlunRuleListTool
 from .pattern_tool import PatternMatchTool
 from .rag_tool import FunctionContextTool, RAGQueryTool, SecurityCodeSearchTool
 
-# 🔥 新增：漏洞报告工具
+# 新增：漏洞报告工具
 from .reporting_tool import CreateVulnerabilityReportTool
 
-# 🔥 新增：通用代码执行工具 (LLM 驱动的 Fuzzing Harness)
+# 新增：通用代码执行工具 (LLM 驱动的 Fuzzing Harness)
 from .run_code import ExtractFunctionTool, RunCodeTool
 
-# 🔥 多语言代码测试工具
+# 多语言代码测试工具
 from .sandbox_language import (
     GoTestTool,
     JavaScriptTestTool,
@@ -73,7 +73,7 @@ from .sandbox_tool import (
     VulnerabilityVerifyTool,
 )
 
-# 🔥 漏洞验证专用工具
+# 漏洞验证专用工具
 from .sandbox_vuln import (
     CommandInjectionTestTool,
     DeserializationTestTool,
@@ -90,10 +90,10 @@ from .shared_catalog import (
     shared_skill_library_roots,
 )
 
-# 🔥 新增：智能扫描工具
+# 新增：智能扫描工具
 from .smart_scan_tool import QuickAuditTool, SmartScanTool
 
-# 🔥 新增：思考和推理工具
+# 新增：思考和推理工具
 from .thinking_tool import ReflectTool, ThinkTool
 
 __all__ = [
@@ -124,7 +124,7 @@ __all__ = [
     "VulnerabilityVerifyTool",
     "SandboxManager",
 
-    # 🔥 多语言代码测试工具
+    # 多语言代码测试工具
     "PhpTestTool",
     "PythonTestTool",
     "JavaScriptTestTool",
@@ -134,7 +134,7 @@ __all__ = [
     "ShellTestTool",
     "UniversalCodeTestTool",
 
-    # 🔥 漏洞验证专用工具
+    # 漏洞验证专用工具
     "CommandInjectionTestTool",
     "SqlInjectionTestTool",
     "XssTestTool",
@@ -152,17 +152,17 @@ __all__ = [
     "TruffleHogTool",
     "OSVScannerTool",
 
-    # 🔥 思考和推理工具
+    # 思考和推理工具
     "ThinkTool",
     "ReflectTool",
 
-    # 🔥 漏洞报告工具
+    # 漏洞报告工具
     "CreateVulnerabilityReportTool",
 
-    # 🔥 扫描完成工具
+    # 扫描完成工具
     "FinishScanTool",
 
-    # 🔥 Agent协作工具
+    # Agent协作工具
     "CreateSubAgentTool",
     "SendMessageTool",
     "ViewAgentGraphTool",
@@ -171,16 +171,16 @@ __all__ = [
     "RunSubAgentsTool",
     "CollectSubAgentResultsTool",
 
-    # 🔥 智能扫描工具
+    # 智能扫描工具
     "SmartScanTool",
     "QuickAuditTool",
 
-    # 🔥 Kunlun-M 工具 (MIT License - https://github.com/LoRexxar/Kunlun-M)
+    # Kunlun-M 工具 (MIT License - https://github.com/LoRexxar/Kunlun-M)
     "KunlunMTool",
     "KunlunRuleListTool",
     "KunlunPluginTool",
 
-    # 🔥 通用代码执行工具 (LLM 驱动的 Fuzzing Harness)
+    # 通用代码执行工具 (LLM 驱动的 Fuzzing Harness)
     "RunCodeTool",
     "ExtractFunctionTool",
     "TodoWriteTool",
