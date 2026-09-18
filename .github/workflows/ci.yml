@@ -33,7 +33,7 @@ jobs:
           python -m pip install -e '.[dev]'
       - name: Check backend runtime hygiene
         run: |
-          if grep -R -n -E '(FindingRuntimeStack|finding_runtime_stack|finding_skill_router|evidence_type|evidence_gaps|legacy_text_tool_calls|ALLOW_LEGACY_TEXT_TOOL_CALLS|test_finding_v2|test_legacy_|test_compat_)' app tests; then
+          if grep -R -n -E '(FindingRuntimeStack|finding_runtime_stack|finding_skill_router|evidence_type|evidence_gaps|legacy_text_tool_calls|ALLOW_LEGACY_TEXT_TOOL_CALLS|test_finding_v2|test_legacy_|test_compat_|build_legacy_agent_runtime_state|sync_legacy_agent_metadata_from_runtime_state)' app tests; then
             echo "Obsolete backend runtime compatibility identifier detected."
             exit 1
           fi

@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 from app.services.runtime_core.interaction_runtime import InteractionRuntime
 from app.services.runtime_core.session_state import (
     SessionRuntimeState,
-    build_legacy_agent_runtime_state,
-    sync_legacy_agent_metadata_from_runtime_state,
+    build_agent_runtime_state,
+    sync_agent_metadata_from_runtime_state,
 )
 
 from .base import AgentTool, ToolResult
@@ -51,7 +51,7 @@ def _interaction_state(agent) -> dict[str, Any]:
 
 
 def _build_runtime_state(agent) -> SessionRuntimeState:
-    return build_legacy_agent_runtime_state(
+    return build_agent_runtime_state(
         session_id=agent.agent_id,
         agent_type=agent.agent_type.value,
         interaction_state=_interaction_state(agent),
@@ -61,7 +61,7 @@ def _build_runtime_state(agent) -> SessionRuntimeState:
 
 
 def _sync_runtime_state(agent, runtime_state: SessionRuntimeState) -> dict[str, Any]:
-    stored, tool_runtime = sync_legacy_agent_metadata_from_runtime_state(
+    stored, tool_runtime = sync_agent_metadata_from_runtime_state(
         runtime_state,
         agent_type=agent.agent_type.value,
         interaction_state=_interaction_state(agent),
