@@ -78,7 +78,7 @@ class ToolCallEvent:
 class ToolStreamHandler:
     """
     工具调用流式处理器
-    
+
     功能:
     1. 跟踪工具调用状态
     2. 记录输入参数
@@ -113,12 +113,12 @@ class ToolStreamHandler:
     ) -> ToolCallEvent:
         """
         发射工具开始事件
-        
+
         Args:
             tool_name: 工具名称
             input_params: 输入参数
             call_id: 调用 ID
-            
+
         Returns:
             工具调用事件
         """
@@ -149,13 +149,13 @@ class ToolStreamHandler:
     ) -> ToolCallEvent:
         """
         发射工具结束事件
-        
+
         Args:
             call_id: 调用 ID
             output_data: 输出数据
             is_error: 是否错误
             error_message: 错误消息
-            
+
         Returns:
             工具调用事件
         """
@@ -212,12 +212,12 @@ class ToolStreamHandler:
     ) -> Callable:
         """
         包装工具函数以自动跟踪
-        
+
         Args:
             tool_func: 工具函数
             tool_name: 工具名称
             timeout: 超时时间（秒）
-            
+
         Returns:
             包装后的函数
         """

@@ -338,7 +338,7 @@ class VerificationStep:
 class VerificationAgent(BaseAgent):
     """
     漏洞验证 Agent - LLM 驱动版
-    
+
     LLM 全程参与，自主决定：
     1. 如何验证每个漏洞
     2. 使用什么工具

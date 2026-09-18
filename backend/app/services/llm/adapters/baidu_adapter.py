@@ -28,7 +28,7 @@ class BaiduAdapter(BaseLLMAdapter):
 
     async def _get_access_token(self) -> str:
         """获取百度API的access_token
-        
+
         注意：百度API使用API Key和Secret Key来获取access_token
         这里假设api_key格式为: "api_key:secret_key"
         """

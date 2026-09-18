@@ -28,8 +28,8 @@ function Comment({ content }) {
 // 安全 - 使用DOMPurify
 import DOMPurify from 'dompurify';
 function Comment({ content }) {
-    return <div dangerouslySetInnerHTML={{ 
-        __html: DOMPurify.sanitize(content) 
+    return <div dangerouslySetInnerHTML={{
+        __html: DOMPurify.sanitize(content)
     }} />;
 }
 ```

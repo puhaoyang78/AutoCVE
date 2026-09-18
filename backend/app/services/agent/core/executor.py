@@ -71,7 +71,7 @@ class ExecutionResult:
 class DynamicAgentExecutor:
     """
     动态 Agent 树执行器
-    
+
     负责：
     1. 管理 Agent 的创建和执行
     2. 处理并行执行和依赖关系
@@ -89,7 +89,7 @@ class DynamicAgentExecutor:
     ):
         """
         初始化执行器
-        
+
         Args:
             llm_service: LLM 服务
             tools: 可用工具
@@ -135,14 +135,14 @@ class DynamicAgentExecutor:
     ) -> dict[str, Any]:
         """
         执行单个 Agent
-        
+
         Args:
             agent_class: Agent 类
             agent_config: Agent 配置
             input_data: 输入数据
             parent_id: 父 Agent ID
             knowledge_modules: 知识模块列表
-            
+
         Returns:
             Agent 执行结果
         """
@@ -198,11 +198,11 @@ class DynamicAgentExecutor:
     ) -> ExecutionResult:
         """
         并行执行多个 Agent 任务
-        
+
         Args:
             tasks: 任务列表
             agent_factory: Agent 工厂函数，接收任务返回执行结果
-            
+
         Returns:
             汇总的执行结果
         """
@@ -357,7 +357,7 @@ class DynamicAgentExecutor:
 class SubAgentExecutor:
     """
     子 Agent 执行器
-    
+
     专门用于从父 Agent 创建和执行子 Agent
     """
 
@@ -389,13 +389,13 @@ class SubAgentExecutor:
     ) -> dict[str, Any]:
         """
         创建并运行子 Agent
-        
+
         Args:
             agent_type: Agent 类型 (analysis, verification, specialist)
             task: 任务描述
             context: 任务上下文
             knowledge_modules: 知识模块
-            
+
         Returns:
             子 Agent 执行结果
         """
@@ -444,11 +444,11 @@ class SubAgentExecutor:
     ) -> ExecutionResult:
         """
         并行运行多个子 Agent
-        
+
         Args:
             sub_agent_configs: 子 Agent 配置列表
                 [{"agent_type": "analysis", "task": "...", "context": {...}, "knowledge_modules": [...]}]
-                
+
         Returns:
             汇总的执行结果
         """

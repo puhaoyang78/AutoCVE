@@ -35,10 +35,10 @@ class EncryptionService:
     def encrypt(self, plaintext: str) -> str:
         """
         加密明文字符串
-        
+
         Args:
             plaintext: 要加密的明文
-            
+
         Returns:
             加密后的密文（base64编码）
         """
@@ -51,10 +51,10 @@ class EncryptionService:
     def decrypt(self, ciphertext: str) -> str:
         """
         解密密文字符串
-        
+
         Args:
             ciphertext: 要解密的密文（base64编码）
-            
+
         Returns:
             解密后的明文
         """
@@ -71,10 +71,10 @@ class EncryptionService:
     def is_encrypted(self, value: str) -> bool:
         """
         检查值是否已加密
-        
+
         Args:
             value: 要检查的值
-            
+
         Returns:
             是否已加密
         """

@@ -41,12 +41,12 @@ class SmartScanInput(BaseModel):
 class SmartScanTool(AgentTool):
     """
     智能批量扫描工具
-    
+
     自动整合多种扫描能力：
     - 危险模式匹配 (pattern)
     - 密钥泄露检测 (secret)
     - 依赖漏洞检查 (dependency)
-    
+
     特点：
     1. 自动识别项目类型和技术栈
     2. 智能选择最适合的扫描策略
@@ -439,7 +439,7 @@ class QuickAuditInput(BaseModel):
 class QuickAuditTool(AgentTool):
     """
     快速文件审计工具
-    
+
     对单个文件进行全面的安全审计，包括：
     - 模式匹配
     - 上下文分析

@@ -32,13 +32,13 @@ class ThinkInput(BaseModel):
 class ThinkTool(AgentTool):
     """
     Think 工具
-    
+
     这是一个让Agent进行深度推理的工具。Agent可以用它来：
     - 分析复杂情况：当面对复杂的代码逻辑或不确定的漏洞线索时
     - 规划下一步行动：在执行具体操作之前先规划策略
     - 评估发现的严重性：发现可疑点后评估其真实性和影响
     - 决定是否需要分解任务：当任务变得复杂时分析是否需要创建子Agent
-    
+
     Think工具的输出会被记录到Agent的对话历史中，帮助LLM保持思路的连贯性。
     """
 
@@ -76,7 +76,7 @@ class ThinkTool(AgentTool):
     ) -> ToolResult:
         """
         执行思考
-        
+
         实际上这个工具不执行任何操作，只是记录思考内容。
         但它的存在让Agent有一个"思考"的动作，有助于推理。
         """
@@ -119,7 +119,7 @@ class ThinkTool(AgentTool):
 class ReflectTool(AgentTool):
     """
     反思工具
-    
+
     让Agent回顾和总结当前的分析进展
     """
 

@@ -28,7 +28,7 @@ class TokenChunk:
 class TokenStreamer:
     """
     LLM Token 流式输出处理器
-    
+
     最佳实践:
     1. 使用 LiteLLM 的流式 API
     2. 实时发送每个 Token
@@ -64,12 +64,12 @@ class TokenStreamer:
     ) -> AsyncGenerator[TokenChunk, None]:
         """
         流式调用 LLM
-        
+
         Args:
             messages: 消息列表
             temperature: 温度
             max_tokens: 最大 Token 数
-            
+
         Yields:
             TokenChunk: Token 块
         """
@@ -140,13 +140,13 @@ class TokenStreamer:
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         带工具调用的流式输出
-        
+
         Args:
             messages: 消息列表
             tools: 工具定义列表
             temperature: 温度
             max_tokens: 最大 Token 数
-            
+
         Yields:
             包含 token 或 tool_call 的字典
         """

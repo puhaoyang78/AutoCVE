@@ -37,7 +37,7 @@ class CodeAnalysisTool(AgentTool):
     def __init__(self, llm_service):
         """
         初始化代码分析工具
-        
+
         Args:
             llm_service: LLM 服务实例
         """

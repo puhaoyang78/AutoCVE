@@ -85,13 +85,13 @@ from sqlalchemy import select
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
     amount = request.json['amount']
-    
+
     with db.begin():
         # 行级锁
         user = db.execute(
             select(User).where(User.id == current_user.id).with_for_update()
         ).scalar_one()
-        
+
         if user.balance >= amount:
             user.balance -= amount
             return transfer_money(amount)

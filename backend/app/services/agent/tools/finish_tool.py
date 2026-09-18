@@ -31,13 +31,13 @@ class FinishScanInput(BaseModel):
 class FinishScanTool(AgentTool):
     """
     扫描完成工具
-    
+
     只有根Agent（主Agent）才能使用此工具来正式结束安全审计任务。
-    
+
     使用前置条件：
     1. 所有子Agent必须已完成（completed, failed, 或 stopped 状态）
     2. 必须提供最终报告内容
-    
+
     使用约束：
     - 子Agent必须使用 agent_finish 工具
     - 根Agent必须使用此工具

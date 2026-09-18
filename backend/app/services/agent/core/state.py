@@ -36,7 +36,7 @@ class AgentStatus(str, Enum):
 class AgentState(BaseModel):
     """
     Agent 状态模型
-    
+
     包含Agent执行所需的所有状态信息，支持：
     - 完整的生命周期管理
     - 状态序列化和持久化

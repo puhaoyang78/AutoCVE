@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class SecurityKnowledgeRAG:
     """
     安全知识RAG检索系统
-    
+
     使用现有的RAG模块进行向量检索
     """
 
@@ -121,12 +121,12 @@ class SecurityKnowledgeRAG:
     ) -> list[dict[str, Any]]:
         """
         搜索安全知识
-        
+
         Args:
             query: 搜索查询
             category: 知识类别过滤
             top_k: 返回数量
-            
+
         Returns:
             匹配的知识文档列表
         """
@@ -223,10 +223,10 @@ class SecurityKnowledgeRAG:
     ) -> dict[str, Any] | None:
         """
         获取特定漏洞类型的知识
-        
+
         Args:
             vuln_type: 漏洞类型（如sql_injection, xss等）
-            
+
         Returns:
             漏洞知识文档
         """
@@ -253,10 +253,10 @@ class SecurityKnowledgeRAG:
     ) -> dict[str, Any] | None:
         """
         获取特定框架的安全知识
-        
+
         Args:
             framework: 框架名称（如fastapi, django等）
-            
+
         Returns:
             框架安全知识文档
         """

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AgentRegistry:
     """
     Agent 注册表
-    
+
     管理所有Agent实例，维护动态Agent树结构
     """
 
@@ -63,7 +63,7 @@ class AgentRegistry:
     ) -> dict[str, Any]:
         """
         注册Agent到注册表
-        
+
         Args:
             agent_id: Agent唯一标识
             agent_name: Agent名称
@@ -73,7 +73,7 @@ class AgentRegistry:
             agent_instance: Agent实例
             state: Agent状态
             knowledge_modules: 加载的知识模块
-            
+
         Returns:
             注册的节点信息
         """

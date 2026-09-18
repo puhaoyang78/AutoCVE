@@ -45,10 +45,10 @@ class CreateAgentInput(BaseModel):
 class CreateSubAgentTool(AgentTool):
     """
     创建子Agent工具
-    
+
     允许Agent动态创建专业化的子Agent来处理特定任务。
     子Agent可以加载特定的知识模块，专注于特定领域。
-    
+
     支持两种模式：
     1. 仅创建：创建Agent但不执行，后续可以批量执行
     2. 立即执行：创建并立即执行Agent，等待结果返回
@@ -244,7 +244,7 @@ class SendMessageInput(BaseModel):
 class SendMessageTool(AgentTool):
     """
     发送消息工具
-    
+
     向其他Agent发送消息，实现Agent间通信
     """
 
@@ -337,7 +337,7 @@ class SendMessageTool(AgentTool):
 class ViewAgentGraphTool(AgentTool):
     """
     查看Agent图工具
-    
+
     查看当前的Agent树结构和状态
     """
 
@@ -381,7 +381,7 @@ class ViewAgentGraphTool(AgentTool):
 class WaitForMessageTool(AgentTool):
     """
     等待消息工具
-    
+
     让Agent进入等待状态，等待其他Agent的消息
     """
 
@@ -450,7 +450,7 @@ class AgentFinishInput(BaseModel):
 class AgentFinishTool(AgentTool):
     """
     Agent完成工具
-    
+
     子Agent完成任务后调用，向父Agent报告结果
     """
 
@@ -550,7 +550,7 @@ class RunSubAgentsInput(BaseModel):
 class RunSubAgentsTool(AgentTool):
     """
     批量执行子Agent工具
-    
+
     执行已创建的子Agent，支持并行执行
     """
 
@@ -695,7 +695,7 @@ class RunSubAgentsTool(AgentTool):
 class CollectSubAgentResultsTool(AgentTool):
     """
     收集子Agent结果工具
-    
+
     收集所有子Agent的执行结果和发现
     """
 

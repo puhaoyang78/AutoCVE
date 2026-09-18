@@ -62,7 +62,7 @@ class PatternMatchTool(AgentTool):
     def __init__(self, project_root: str = None):
         """
         初始化模式匹配工具
-        
+
         Args:
             project_root: 项目根目录（可选，用于上下文）
         """

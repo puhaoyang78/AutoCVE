@@ -27,7 +27,7 @@ class SecurityKnowledgeQueryInput(BaseModel):
 class SecurityKnowledgeQueryTool(AgentTool):
     """
     安全知识查询工具
-    
+
     用于查询安全漏洞知识、最佳实践、修复建议等
     """
 
@@ -135,7 +135,7 @@ class VulnerabilityKnowledgeInput(BaseModel):
 class GetVulnerabilityKnowledgeTool(AgentTool):
     """
     获取特定漏洞类型的完整知识
-    
+
     返回该漏洞类型的检测方法、危险模式、修复建议等完整信息
     """
 

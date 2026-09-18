@@ -415,12 +415,12 @@ class CodeSplitter:
     ) -> list[CodeChunk]:
         """
         分割单个文件
-        
+
         Args:
             content: 文件内容
             file_path: 文件路径
             language: 编程语言（可选）
-            
+
         Returns:
             代码块列表
         """

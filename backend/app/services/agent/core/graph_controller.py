@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AgentGraphController:
     """
     Agent 图控制器
-    
+
     提供对Agent树的高级控制操作
     """
 
@@ -33,10 +33,10 @@ class AgentGraphController:
     def stop_agent(self, agent_id: str) -> dict[str, Any]:
         """
         停止指定Agent
-        
+
         Args:
             agent_id: Agent ID
-            
+
         Returns:
             操作结果
         """
@@ -86,10 +86,10 @@ class AgentGraphController:
     def stop_all_agents(self, exclude_root: bool = True) -> dict[str, Any]:
         """
         停止所有Agent
-        
+
         Args:
             exclude_root: 是否排除根Agent
-            
+
         Returns:
             操作结果
         """
@@ -130,14 +130,14 @@ class AgentGraphController:
     ) -> dict[str, Any]:
         """
         向指定Agent发送消息
-        
+
         Args:
             from_agent: 发送者Agent ID（或 "user"）
             target_agent_id: 目标Agent ID
             message: 消息内容
             message_type: 消息类型
             priority: 优先级
-            
+
         Returns:
             操作结果
         """
@@ -186,11 +186,11 @@ class AgentGraphController:
     ) -> dict[str, Any]:
         """
         发送用户消息到Agent
-        
+
         Args:
             target_agent_id: 目标Agent ID
             message: 消息内容
-            
+
         Returns:
             操作结果
         """
@@ -207,10 +207,10 @@ class AgentGraphController:
     def get_agent_graph(self, current_agent_id: str | None = None) -> dict[str, Any]:
         """
         获取Agent图结构
-        
+
         Args:
             current_agent_id: 当前Agent ID（用于标识）
-            
+
         Returns:
             Agent图信息
         """
@@ -308,10 +308,10 @@ class AgentGraphController:
     def check_active_agents(self, exclude_agent_id: str | None = None) -> dict[str, Any]:
         """
         检查是否有活跃的Agent
-        
+
         Args:
             exclude_agent_id: 要排除的Agent ID
-            
+
         Returns:
             活跃Agent信息
         """

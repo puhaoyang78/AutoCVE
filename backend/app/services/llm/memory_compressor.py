@@ -80,7 +80,7 @@ def extract_message_text(msg: dict[str, Any]) -> str:
 class MemoryCompressor:
     """
     对话历史压缩器
-    
+
     当对话历史超过token限制时，自动压缩较早的消息，
     同时保留关键的安全审计上下文。
     """
@@ -93,7 +93,7 @@ class MemoryCompressor:
     ):
         """
         初始化压缩器
-        
+
         Args:
             max_total_tokens: 最大总token数
             min_recent_messages: 最少保留的最近消息数
@@ -109,16 +109,16 @@ class MemoryCompressor:
     ) -> list[dict[str, Any]]:
         """
         压缩对话历史
-        
+
         策略：
         1. 保留所有系统消息
         2. 保留最近的N条消息
         3. 对较早的消息进行摘要压缩
         4. 保留关键信息
-        
+
         Args:
             messages: 原始消息列表
-            
+
         Returns:
             压缩后的消息列表
         """
@@ -169,11 +169,11 @@ class MemoryCompressor:
     ) -> list[dict[str, Any]]:
         """
         压缩消息列表
-        
+
         Args:
             messages: 要压缩的消息
             chunk_size: 每次压缩的消息数量
-            
+
         Returns:
             压缩后的消息列表
         """
@@ -194,10 +194,10 @@ class MemoryCompressor:
     def _summarize_chunk(self, messages: list[dict[str, Any]]) -> dict[str, Any] | None:
         """
         摘要一组消息
-        
+
         Args:
             messages: 要摘要的消息
-            
+
         Returns:
             摘要消息
         """
@@ -236,10 +236,10 @@ class MemoryCompressor:
     def _extract_key_info(self, messages: list[dict[str, Any]]) -> dict[str, list[str]]:
         """
         从消息中提取关键信息
-        
+
         Args:
             messages: 消息列表
-            
+
         Returns:
             关键信息字典
         """
@@ -321,10 +321,10 @@ class MemoryCompressor:
     def should_compress(self, messages: list[dict[str, Any]]) -> bool:
         """
         检查是否需要压缩
-        
+
         Args:
             messages: 消息列表
-            
+
         Returns:
             是否需要压缩
         """
@@ -339,11 +339,11 @@ def compress_conversation(
 ) -> list[dict[str, Any]]:
     """
     压缩对话历史的便捷函数
-    
+
     Args:
         messages: 消息列表
         max_tokens: 最大token数
-        
+
     Returns:
         压缩后的消息列表
     """

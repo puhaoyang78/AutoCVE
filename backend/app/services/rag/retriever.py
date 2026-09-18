@@ -246,7 +246,7 @@ class CodeRetriever:
     ) -> list[RetrievalResult]:
         """
         语义检索
-        
+
         Args:
             query: 查询文本
             top_k: 返回数量
@@ -254,7 +254,7 @@ class CodeRetriever:
             filter_language: 语言过滤
             filter_chunk_type: 块类型过滤
             min_score: 最小相似度分数
-            
+
         Returns:
             检索结果列表
         """
@@ -330,11 +330,11 @@ class CodeRetriever:
     ) -> list[RetrievalResult]:
         """
         按文件路径检索
-        
+
         Args:
             file_path: 文件路径
             top_k: 返回数量
-            
+
         Returns:
             该文件的所有代码块
         """
@@ -382,11 +382,11 @@ class CodeRetriever:
     ) -> list[RetrievalResult]:
         """
         检索与安全相关的代码
-        
+
         Args:
             vulnerability_type: 漏洞类型（如 sql_injection, xss 等）
             top_k: 返回数量
-            
+
         Returns:
             安全相关的代码块
         """
@@ -419,14 +419,14 @@ class CodeRetriever:
     ) -> dict[str, list[RetrievalResult]]:
         """
         检索函数上下文
-        
+
         Args:
             function_name: 函数名
             file_path: 文件路径（可选）
             include_callers: 是否包含调用者
             include_callees: 是否包含被调用者
             top_k: 每类返回数量
-            
+
         Returns:
             包含函数定义、调用者、被调用者的字典
         """
@@ -485,12 +485,12 @@ class CodeRetriever:
     ) -> list[RetrievalResult]:
         """
         检索相似的代码
-        
+
         Args:
             code_snippet: 代码片段
             top_k: 返回数量
             exclude_file: 排除的文件
-            
+
         Returns:
             相似代码列表
         """
@@ -513,13 +513,13 @@ class CodeRetriever:
     ) -> list[RetrievalResult]:
         """
         混合检索（语义 + 关键字）
-        
+
         Args:
             query: 查询文本
             keywords: 额外的关键字
             top_k: 返回数量
             semantic_weight: 语义检索权重
-            
+
         Returns:
             检索结果列表
         """
@@ -558,12 +558,12 @@ class CodeRetriever:
     ) -> str:
         """
         将检索结果格式化为 LLM 输入
-        
+
         Args:
             results: 检索结果
             max_tokens: 最大 Token 数
             include_metadata: 是否包含元数据
-            
+
         Returns:
             格式化的字符串
         """

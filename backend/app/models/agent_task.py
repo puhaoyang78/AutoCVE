@@ -436,7 +436,7 @@ class AgentFinding(Base):
 class AgentCheckpoint(Base):
     """
     Agent 检查点
-    
+
     用于持久化 Agent 状态，支持：
     - 任务恢复
     - 状态回滚
@@ -501,7 +501,7 @@ class AgentCheckpoint(Base):
 class AgentTreeNode(Base):
     """
     Agent 树节点
-    
+
     记录动态 Agent 树的结构，用于：
     - 可视化 Agent 树
     - 追踪 Agent 间关系

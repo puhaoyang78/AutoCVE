@@ -110,7 +110,7 @@ class OpenAIEmbedding(EmbeddingProvider):
 class AzureOpenAIEmbedding(EmbeddingProvider):
     """
     Azure OpenAI 嵌入服务
-    
+
     使用最新 API 版本 2024-10-21 (GA)
     端点格式: https://<resource>.openai.azure.com/openai/deployments/<deployment>/embeddings?api-version=2024-10-21
     """
@@ -253,7 +253,7 @@ class OllamaEmbedding(EmbeddingProvider):
 class CohereEmbedding(EmbeddingProvider):
     """
     Cohere 嵌入服务
-    
+
     使用新的 v2 API (2024年起):
     - 端点: https://api.cohere.com/v2/embed
     - 使用 'inputs' 参数替代 'texts'
@@ -330,7 +330,7 @@ class CohereEmbedding(EmbeddingProvider):
 class HuggingFaceEmbedding(EmbeddingProvider):
     """
     HuggingFace Inference Providers 嵌入服务
-    
+
     使用新的 Router 端点 (2025年起):
     https://router.huggingface.co/hf-inference/models/{model}/pipeline/feature-extraction
     """
@@ -660,10 +660,10 @@ class EmbeddingService:
     async def embed(self, text: str) -> list[float]:
         """
         嵌入单个文本
-        
+
         Args:
             text: 文本内容
-            
+
         Returns:
             嵌入向量
         """

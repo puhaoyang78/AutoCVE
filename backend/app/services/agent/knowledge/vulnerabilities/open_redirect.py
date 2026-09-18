@@ -88,14 +88,14 @@ ALLOWED_HOSTS = ['example.com', 'app.example.com']
 def is_safe_url(url):
     if not url:
         return False
-    
+
     # 检查协议
     parsed = urlparse(url)
-    
+
     # 只允许相对路径
     if not parsed.netloc:
         return url.startswith('/')
-    
+
     # 检查域名白名单
     return parsed.netloc in ALLOWED_HOSTS
 

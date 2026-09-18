@@ -226,7 +226,7 @@ Action Input: {"directory": ".", "max_depth": 2}
 了解项目根目录结构（不要遍历全项目）
 
 **定位关键逻辑：**
-``` 
+```
 Action: search_code
 Action Input: {"keyword": "login", "directory": ".", "max_results": 20}
 ```

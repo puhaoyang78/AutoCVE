@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class AgentStatePersistence:
     """
     Agent 状态持久化管理器
-    
+
     支持：
     - 文件系统持久化
     - 数据库持久化（可选）
@@ -38,7 +38,7 @@ class AgentStatePersistence:
     ):
         """
         初始化持久化管理器
-        
+
         Args:
             persist_dir: 持久化目录
             use_database: 是否使用数据库持久化
@@ -56,11 +56,11 @@ class AgentStatePersistence:
     def save_state(self, state: AgentState, checkpoint_name: str | None = None) -> str:
         """
         保存 Agent 状态到文件
-        
+
         Args:
             state: Agent 状态
             checkpoint_name: 检查点名称（可选）
-            
+
         Returns:
             保存的文件路径
         """
@@ -86,10 +86,10 @@ class AgentStatePersistence:
     def load_state(self, filepath: str) -> AgentState | None:
         """
         从文件加载 Agent 状态
-        
+
         Args:
             filepath: 文件路径
-            
+
         Returns:
             Agent 状态，如果加载失败返回 None
         """
@@ -108,10 +108,10 @@ class AgentStatePersistence:
     def load_latest_checkpoint(self, agent_id: str) -> AgentState | None:
         """
         加载指定 Agent 的最新检查点
-        
+
         Args:
             agent_id: Agent ID
-            
+
         Returns:
             Agent 状态
         """
@@ -130,10 +130,10 @@ class AgentStatePersistence:
     def list_checkpoints(self, agent_id: str | None = None) -> list[dict[str, Any]]:
         """
         列出检查点
-        
+
         Args:
             agent_id: Agent ID（可选，不指定则列出所有）
-            
+
         Returns:
             检查点信息列表
         """
@@ -160,10 +160,10 @@ class AgentStatePersistence:
     def delete_checkpoint(self, filepath: str) -> bool:
         """
         删除检查点
-        
+
         Args:
             filepath: 文件路径
-            
+
         Returns:
             是否删除成功
         """
@@ -182,11 +182,11 @@ class AgentStatePersistence:
     ) -> int:
         """
         清理旧的检查点，只保留最新的几个
-        
+
         Args:
             agent_id: Agent ID
             keep_count: 保留的检查点数量
-            
+
         Returns:
             删除的检查点数量
         """
@@ -236,11 +236,11 @@ class AgentStatePersistence:
     ) -> bool:
         """
         保存 Agent 状态到数据库
-        
+
         Args:
             state: Agent 状态
             task_id: 关联的任务 ID
-            
+
         Returns:
             是否保存成功
         """
@@ -280,11 +280,11 @@ class AgentStatePersistence:
     ) -> AgentState | None:
         """
         从数据库加载 Agent 状态
-        
+
         Args:
             task_id: 任务 ID
             agent_id: Agent ID（可选）
-            
+
         Returns:
             Agent 状态
         """
@@ -324,7 +324,7 @@ class AgentStatePersistence:
 class CheckpointManager:
     """
     检查点管理器
-    
+
     提供自动检查点功能：
     - 定期保存检查点
     - 错误恢复
@@ -344,10 +344,10 @@ class CheckpointManager:
     def should_checkpoint(self, state: AgentState) -> bool:
         """
         判断是否应该创建检查点
-        
+
         Args:
             state: Agent 状态
-            
+
         Returns:
             是否应该创建检查点
         """
@@ -361,11 +361,11 @@ class CheckpointManager:
     ) -> str:
         """
         创建检查点
-        
+
         Args:
             state: Agent 状态
             checkpoint_name: 检查点名称
-            
+
         Returns:
             检查点文件路径
         """
@@ -376,10 +376,10 @@ class CheckpointManager:
     def auto_checkpoint(self, state: AgentState) -> str | None:
         """
         自动检查点（如果需要）
-        
+
         Args:
             state: Agent 状态
-            
+
         Returns:
             检查点文件路径，如果没有创建则返回 None
         """
@@ -394,11 +394,11 @@ class CheckpointManager:
     ) -> AgentState | None:
         """
         从检查点恢复
-        
+
         Args:
             agent_id: Agent ID
             checkpoint_filepath: 检查点文件路径（可选，不指定则使用最新的）
-            
+
         Returns:
             恢复的 Agent 状态
         """

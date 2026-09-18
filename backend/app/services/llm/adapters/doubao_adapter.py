@@ -8,7 +8,7 @@ from ..types import LLMConfig, LLMError, LLMProvider, LLMRequest, LLMResponse, L
 
 class DoubaoAdapter(BaseLLMAdapter):
     """字节跳动豆包API适配器
-    
+
     豆包使用OpenAI兼容的API格式
     """
 

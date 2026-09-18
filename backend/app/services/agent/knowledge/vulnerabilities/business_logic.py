@@ -33,7 +33,7 @@ def checkout():
 def apply_discount(cart):
     quantity = int(request.form['quantity'])
     # 未检查负数，可能导致退款
-    total = item_price * quantity  
+    total = item_price * quantity
 ```
 
 ### 3. 流程跳过

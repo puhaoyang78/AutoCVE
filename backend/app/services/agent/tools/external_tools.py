@@ -25,12 +25,12 @@ def _smart_resolve_target_path(
 ) -> tuple[str, str, str | None]:
     """
     智能解析目标路径
-    
+
     Args:
         target_path: 用户/Agent 传入的目标路径
         project_root: 项目根目录（绝对路径）
         tool_name: 工具名称（用于日志）
-    
+
     Returns:
         (safe_target_path, host_check_path, error_msg)
         - safe_target_path: 容器内使用的安全路径
@@ -95,10 +95,10 @@ class SemgrepInput(BaseModel):
 class SemgrepTool(AgentTool):
     """
     Semgrep 静态分析工具
-    
+
     Semgrep 是一款快速、轻量级的静态分析工具，支持多种编程语言。
     提供丰富的安全规则库，可以检测各种安全漏洞。
-    
+
     官方规则集:
     - p/security-audit: 综合安全审计
     - p/owasp-top-ten: OWASP Top 10 漏洞
@@ -320,7 +320,7 @@ class BanditInput(BaseModel):
 class BanditTool(AgentTool):
     """
     Bandit Python 安全扫描工具
-    
+
     Bandit 是专门用于 Python 代码的安全分析工具，
     可以检测常见的 Python 安全问题，如：
     - 硬编码密码
@@ -462,7 +462,7 @@ class GitleaksInput(BaseModel):
 class GitleaksTool(AgentTool):
     """
     Gitleaks 密钥泄露检测工具
-    
+
     Gitleaks 是一款专门用于检测代码中硬编码密钥的工具。
     可以检测：
     - API Keys (AWS, GCP, Azure, GitHub, etc.)
@@ -623,7 +623,7 @@ class NpmAuditInput(BaseModel):
 class NpmAuditTool(AgentTool):
     """
     npm audit 依赖漏洞扫描工具
-    
+
     扫描 Node.js 项目的依赖漏洞，基于 npm 官方漏洞数据库。
     """
 
@@ -772,7 +772,7 @@ class SafetyInput(BaseModel):
 class SafetyTool(AgentTool):
     """
     Safety Python 依赖漏洞扫描工具
-    
+
     检查 Python 依赖中的已知安全漏洞。
     """
 
@@ -902,7 +902,7 @@ class TruffleHogInput(BaseModel):
 class TruffleHogTool(AgentTool):
     """
     TruffleHog 深度密钥扫描工具
-    
+
     TruffleHog 可以检测代码和 Git 历史中的密钥泄露，
     并可以验证密钥是否仍然有效。
     """
@@ -1025,7 +1025,7 @@ class OSVScannerInput(BaseModel):
 class OSVScannerTool(AgentTool):
     """
     OSV-Scanner 开源漏洞扫描工具
-    
+
     Google 开源的漏洞扫描工具，使用 OSV 数据库。
     支持多种包管理器和锁文件。
     """

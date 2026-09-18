@@ -101,11 +101,11 @@ def safe_join(base_dir, user_path):
     # 规范化路径
     base_dir = os.path.abspath(base_dir)
     full_path = os.path.abspath(os.path.join(base_dir, user_path))
-    
+
     # 验证路径在基础目录内
     if not full_path.startswith(base_dir + os.sep):
         raise ValueError("Path traversal detected")
-    
+
     return full_path
 
 # 使用

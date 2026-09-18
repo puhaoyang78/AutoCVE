@@ -110,13 +110,13 @@ class SandboxManager:
     ) -> dict[str, Any]:
         """
         在沙箱中执行命令
-        
+
         Args:
             command: 要执行的命令
             working_dir: 工作目录
             env: 环境变量
             timeout: 超时时间（秒）
-            
+
         Returns:
             执行结果
         """
@@ -238,14 +238,14 @@ class SandboxManager:
     ) -> dict[str, Any]:
         """
         在沙箱中对指定目录执行工具命令
-        
+
         Args:
             command: 要执行的命令
             host_workdir: 宿主机上的工作目录（将被挂载到 /workspace）
             timeout: 超时时间
             env: 环境变量
             network_mode: 网络模式 (none, bridge, host)
-            
+
         Returns:
             执行结果
         """
@@ -465,11 +465,11 @@ class SandboxManager:
     ) -> dict[str, Any]:
         """
         在沙箱中执行 Python 代码
-        
+
         Args:
             code: Python 代码
             timeout: 超时时间
-            
+
         Returns:
             执行结果
         """
@@ -488,14 +488,14 @@ class SandboxManager:
     ) -> dict[str, Any]:
         """
         在沙箱中执行 HTTP 请求
-        
+
         Args:
             method: HTTP 方法
             url: URL
             headers: 请求头
             data: 请求体
             timeout: 超时
-            
+
         Returns:
             HTTP 响应
         """
@@ -551,13 +551,13 @@ class SandboxManager:
     ) -> dict[str, Any]:
         """
         验证漏洞
-        
+
         Args:
             vulnerability_type: 漏洞类型
             target_url: 目标 URL
             payload: 攻击载荷
             expected_pattern: 期望在响应中匹配的模式
-            
+
         Returns:
             验证结果
         """

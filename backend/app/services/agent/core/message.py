@@ -38,7 +38,7 @@ class MessagePriority(str, Enum):
 class AgentMessage:
     """
     Agent 消息
-    
+
     用于Agent间通信的消息结构
     """
     id: str = field(default_factory=lambda: f"msg_{uuid.uuid4().hex[:8]}")
@@ -107,7 +107,7 @@ class AgentMessage:
 class MessageBus:
     """
     消息总线
-    
+
     管理Agent间的消息传递
     """
 
@@ -138,7 +138,7 @@ class MessageBus:
     ) -> AgentMessage:
         """
         发送消息
-        
+
         Args:
             from_agent: 发送者Agent ID
             to_agent: 接收者Agent ID
@@ -146,7 +146,7 @@ class MessageBus:
             message_type: 消息类型
             priority: 优先级
             metadata: 附加数据
-            
+
         Returns:
             发送的消息
         """
@@ -181,12 +181,12 @@ class MessageBus:
     ) -> list[AgentMessage]:
         """
         获取Agent的消息
-        
+
         Args:
             agent_id: Agent ID
             unread_only: 是否只获取未读消息
             mark_as_read: 是否标记为已读
-            
+
         Returns:
             消息列表
         """

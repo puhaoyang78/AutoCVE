@@ -69,7 +69,7 @@ class CacheStats:
 class PromptCacheManager:
     """
     Prompt 缓存管理器
-    
+
     负责:
     1. 检测 LLM 是否支持缓存
     2. 根据对话长度选择缓存策略
@@ -105,11 +105,11 @@ class PromptCacheManager:
     def supports_caching(self, model: str, provider: str) -> bool:
         """
         检查模型是否支持缓存
-        
+
         Args:
             model: 模型名称
             provider: 提供商名称
-            
+
         Returns:
             是否支持缓存
         """
@@ -132,11 +132,11 @@ class PromptCacheManager:
     ) -> CacheStrategy:
         """
         根据对话状态确定缓存策略
-        
+
         Args:
             messages: 消息列表
             system_prompt_tokens: 系统提示词的 token 数
-            
+
         Returns:
             缓存策略
         """
@@ -167,15 +167,15 @@ class PromptCacheManager:
     ) -> list[dict[str, Any]]:
         """
         为 Anthropic Claude 消息添加缓存标记
-        
+
         Anthropic 的缓存格式:
         - 在 content 中使用 cache_control 字段
         - 支持 text 类型的 content block
-        
+
         Args:
             messages: 原始消息列表
             strategy: 缓存策略
-            
+
         Returns:
             添加了缓存标记的消息列表
         """
@@ -212,10 +212,10 @@ class PromptCacheManager:
     def _add_cache_to_message(self, msg: dict[str, Any]) -> dict[str, Any]:
         """
         为单条消息添加缓存标记
-        
+
         Args:
             msg: 原始消息
-            
+
         Returns:
             添加了缓存标记的消息
         """
@@ -248,13 +248,13 @@ class PromptCacheManager:
     ) -> tuple[list[dict[str, Any]], bool]:
         """
         处理消息，添加缓存标记
-        
+
         Args:
             messages: 原始消息列表
             model: 模型名称
             provider: 提供商名称
             system_prompt_tokens: 系统提示词 token 数
-            
+
         Returns:
             (处理后的消息列表, 是否启用了缓存)
         """
@@ -282,7 +282,7 @@ class PromptCacheManager:
     ):
         """
         更新缓存统计
-        
+
         Args:
             cache_creation_input_tokens: 缓存创建的 token 数
             cache_read_input_tokens: 缓存读取的 token 数

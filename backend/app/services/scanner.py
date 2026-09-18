@@ -324,7 +324,7 @@ async def get_gitea_files(repo_url: str, branch: str, token: str = None, exclude
 async def scan_repo_task(task_id: str, db_session_factory, user_config: dict = None):
     """
     后台仓库扫描任务
-    
+
     Args:
         task_id: 任务ID
         db_session_factory: 数据库会话工厂

@@ -23,7 +23,7 @@ FRAMEWORKS_DIR = PROMPTS_DIR / "frameworks"
 def get_available_prompt_modules() -> dict[str, list[str]]:
     """
     获取所有可用的提示词模块
-    
+
     Returns:
         按类别组织的模块字典 {category: [module_names]}
     """
@@ -65,10 +65,10 @@ def get_all_module_names() -> set[str]:
 def validate_module_names(module_names: list[str]) -> dict[str, list[str]]:
     """
     验证模块名称是否有效
-    
+
     Args:
         module_names: 要验证的模块名称列表
-        
+
     Returns:
         {"valid": [...], "invalid": [...]}
     """
@@ -118,10 +118,10 @@ def generate_modules_description() -> str:
 def load_prompt_module(module_name: str) -> str | None:
     """
     加载单个提示词模块
-    
+
     Args:
         module_name: 模块名称
-        
+
     Returns:
         模块内容（如果存在）
     """
@@ -160,10 +160,10 @@ def load_prompt_module(module_name: str) -> str | None:
 def load_prompt_modules(module_names: list[str]) -> dict[str, str]:
     """
     批量加载提示词模块
-    
+
     Args:
         module_names: 模块名称列表
-        
+
     Returns:
         模块名称到内容的映射
     """
@@ -181,11 +181,11 @@ def build_specialized_prompt(
 ) -> str:
     """
     构建包含专业知识模块的提示词
-    
+
     Args:
         base_prompt: 基础提示词
         module_names: 要加载的模块名称
-        
+
     Returns:
         增强后的提示词
     """

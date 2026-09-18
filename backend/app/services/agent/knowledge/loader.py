@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class KnowledgeLoader:
     """
     知识加载器
-    
+
     负责将RAG检索的知识集成到Agent系统提示词中
     """
 
@@ -27,10 +27,10 @@ class KnowledgeLoader:
     async def load_module(self, module_name: str) -> str:
         """
         加载单个知识模块
-        
+
         Args:
             module_name: 模块名称（如sql_injection, xss等）
-            
+
         Returns:
             模块内容
         """
@@ -42,10 +42,10 @@ class KnowledgeLoader:
     async def load_modules(self, module_names: list[str]) -> dict[str, str]:
         """
         批量加载知识模块
-        
+
         Args:
             module_names: 模块名称列表
-            
+
         Returns:
             模块名称到内容的映射
         """
@@ -63,11 +63,11 @@ class KnowledgeLoader:
     ) -> list[dict[str, Any]]:
         """
         搜索相关知识
-        
+
         Args:
             query: 搜索查询
             top_k: 返回数量
-            
+
         Returns:
             相关知识列表
         """
@@ -80,11 +80,11 @@ class KnowledgeLoader:
     ) -> str:
         """
         构建包含知识模块的系统提示词（同步版本，使用内置知识）
-        
+
         Args:
             base_prompt: 基础系统提示词
             module_names: 要加载的模块名称列表
-            
+
         Returns:
             增强后的系统提示词
         """
@@ -145,10 +145,10 @@ class KnowledgeLoader:
     def validate_modules(self, module_names: list[str]) -> dict[str, list[str]]:
         """
         验证知识模块是否存在
-        
+
         Args:
             module_names: 要验证的模块名称列表
-            
+
         Returns:
             {"valid": [...], "invalid": [...]}
         """

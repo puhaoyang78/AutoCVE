@@ -53,7 +53,7 @@ class ReportGenerator:
                     font-family: serif;
                 }
             }
-            
+
             body {
                 font-family: "Songti SC", "SimSun", "Times New Roman", serif;
                 color: #000;
@@ -61,7 +61,7 @@ class ReportGenerator:
                 font-size: 10pt;
                 margin: 0;
             }
-            
+
             /* 页眉 Logo 定义 */
             .running-logo {
                 position: running(logoRunning);
@@ -69,32 +69,32 @@ class ReportGenerator:
                 width: auto;
                 margin-bottom: 10px;
             }
-            
+
             /* 头部 */
             .header {
                 padding-bottom: 10px;
-                display: table; 
+                display: table;
                 width: 100%;
             }
-            
+
             .header-line {
                 border-bottom: 2px solid #000;
                 margin-bottom: 20px;
                 margin-top: 5px;
             }
-            
+
             .header-left {
                 display: table-cell;
                 vertical-align: middle;
             }
-            
+
             /* Logo removed from here */
-            
+
             .title-group {
                 display: block; /* Changed to block since it's the only child */
                 vertical-align: middle;
             }
-            
+
             .title {
                 font-size: 18pt;
                 font-weight: bold;
@@ -103,7 +103,7 @@ class ReportGenerator:
                 color: #000;
                 line-height: 1.1;
             }
-            
+
             .subtitle {
                 font-size: 10pt;
                 color: #444;
@@ -111,7 +111,7 @@ class ReportGenerator:
                 margin: 0;
                 line-height: 1.3;
             }
-            
+
             .meta-info {
                 display: table-cell;
                 text-align: right;
@@ -120,17 +120,17 @@ class ReportGenerator:
                 color: #333;
                 width: 250px;
             }
-            
+
             .meta-item {
                 margin-bottom: 2px;
             }
-            
+
             /* 通用工具类 */
             .text-right { text-align: right; }
             .text-center { text-align: center; }
             .bold { font-weight: bold; }
             .mono { font-family: "Menlo", "Consolas", "Courier New", "PingFang SC", "Microsoft YaHei", monospace; }
-            
+
             /* 概览表格 */
             .section-header {
                 font-size: 11pt;
@@ -144,7 +144,7 @@ class ReportGenerator:
                 padding-top: 5px;
                 padding-bottom: 5px;
             }
-            
+
             /* 评分栏 */
             .score-box {
                 border: 1px solid #000;
@@ -154,43 +154,43 @@ class ReportGenerator:
                 width: 100%;
                 box-sizing: border-box;
             }
-            
+
             .score-left {
                 display: table-cell;
                 vertical-align: middle;
                 width: 40%;
             }
-            
+
             .score-right {
                 display: table-cell;
                 vertical-align: middle;
                 text-align: right;
                 width: 60%;
             }
-            
+
             .score-val {
                 font-size: 24pt;
                 font-weight: bold;
                 font-family: sans-serif;
                 line-height: 1;
             }
-            
+
             /* 统计数据表格 */
             .stats-table {
                 width: 100%;
                 border-collapse: collapse;
             }
-            
+
             .stats-table td {
                 text-align: center;
                 padding: 0 10px;
                 border-left: 1px solid #ddd;
             }
-            
+
             .stats-table td:first-child {
                 border-left: none;
             }
-            
+
             .stat-label {
                 font-size: 8pt;
                 color: #666;
@@ -198,24 +198,24 @@ class ReportGenerator:
                 margin-bottom: 3px;
                 display: block;
             }
-            
+
             .stat-value {
                 font-size: 11pt;
                 font-weight: bold;
                 display: block;
             }
-            
+
             /* 问题列表 - 高密度排版 */
             .issue-item {
                 border-bottom: 1px solid #e5e7eb;
                 padding: 10px 0; /* Reduced padding */
                 /* 移除 break-inside: avoid，允许问题块跨页 */
             }
-            
+
             .issue-item:last-child {
                 border-bottom: none;
             }
-            
+
             .issue-title-row {
                 display: flex;
                 justify-content: space-between;
@@ -224,7 +224,7 @@ class ReportGenerator:
                 break-inside: avoid; /* 标题行不断开 */
                 break-after: avoid; /* 标题后不断页 */
             }
-            
+
             .issue-title {
                 font-size: 10.5pt;
                 font-weight: bold;
@@ -232,7 +232,7 @@ class ReportGenerator:
                 flex: 1;
                 margin-right: 15px;
             }
-            
+
             .issue-severity {
                 font-size: 8.5pt;
                 font-weight: bold;
@@ -240,7 +240,7 @@ class ReportGenerator:
                 font-family: sans-serif;
                 white-space: nowrap;
             }
-            
+
             .issue-meta {
                 font-size: 8pt;
                 color: #555;
@@ -252,14 +252,14 @@ class ReportGenerator:
                 font-family: monospace;
                 break-after: avoid; /* 元信息后不断页 */
             }
-            
+
             .issue-desc {
                 text-align: justify;
                 margin-bottom: 8px; /* Reduced margin */
                 line-height: 1.4;
                 font-size: 9.5pt;
             }
-            
+
             /* 代码块 - 浅色主题，紧凑 */
             .code-snippet {
                 background-color: #f8f9fa;
@@ -274,7 +274,7 @@ class ReportGenerator:
                 margin: 8px 0; /* Reduced margin */
                 font-family: "Menlo", "Consolas", "Courier New", "PingFang SC", "Microsoft YaHei", monospace;
             }
-            
+
             /* 建议 - 无框风格 */
             .suggestion {
                 margin-top: 6px;
@@ -290,7 +290,7 @@ class ReportGenerator:
         {% if logo_b64 %}
         <img src="data:image/png;base64,{{ logo_b64 }}" class="running-logo" alt="Logo"/>
         {% endif %}
-        
+
         <div class="header">
             <div class="header-left">
                 <div class="title-group">
@@ -304,7 +304,7 @@ class ReportGenerator:
             </div>
         </div>
         <div class="header-line"></div>
-        
+
         <!-- 概览区域 -->
         <div class="score-box">
             <div class="score-left">
@@ -325,11 +325,11 @@ class ReportGenerator:
                 </table>
             </div>
         </div>
-        
+
         <!-- 问题详情 -->
         {% if issues %}
         <div class="section-header">审计发现明细 ({{ issues|length }})</div>
-        
+
         <div class="issue-list">
             {% for issue in issues %}
             <div class="issue-item">
@@ -337,22 +337,22 @@ class ReportGenerator:
                     <div class="issue-title">{{ loop.index }}. {{ issue.title }}</div>
                     <div class="issue-severity color-{{ issue.severity }}">[{{ issue.severity_label }}]</div>
                 </div>
-                
+
                 {% if issue.file_path or issue.line %}
                 <div class="issue-meta mono">
                     {% if issue.file_path %}FILE: {{ issue.file_path }}{% endif %}
                     {% if issue.line %}{% if issue.file_path %} | {% endif %}LINE: {{ issue.line }}{% endif %}
                 </div>
                 {% endif %}
-                
+
                 {% if issue.description %}
                 <div class="issue-desc">{{ issue.description }}</div>
                 {% endif %}
-                
+
                 {% if issue.code_snippet %}
                 <div class="code-snippet mono">{{ issue.code_snippet }}</div>
                 {% endif %}
-                
+
                 {% if issue.suggestion %}
                 <div class="suggestion">
                     <strong>建议:</strong> {{ issue.suggestion }}
@@ -367,7 +367,7 @@ class ReportGenerator:
             <p style="font-size: 9pt; color: #666; margin-top: 5px;">本次扫描未发现任何违规或潜在风险，代码质量符合标准。</p>
         </div>
         {% endif %}
-        
+
         <!-- 页脚声明 -->
         <div style="margin-top: 40px; font-size: 8pt; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
             本报告由 AI 自动生成，注意核实鉴别。

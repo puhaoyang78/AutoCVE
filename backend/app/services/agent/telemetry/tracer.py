@@ -38,7 +38,7 @@ def set_global_tracer(tracer: "Tracer") -> None:
 class Tracer:
     """
     审计追踪器
-    
+
     追踪整个审计过程，支持：
     - Agent 生命周期追踪
     - 工具执行记录

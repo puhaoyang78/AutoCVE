@@ -62,7 +62,7 @@ def run_command(user_input):
     """危险：命令注入漏洞"""
     # 直接执行用户输入
     os.system(f"echo {user_input}")
-    
+
 def execute_script(script_name):
     """危险：命令注入漏洞"""
     subprocess.call(f"bash {script_name}", shell=True)

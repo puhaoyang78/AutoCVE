@@ -39,7 +39,7 @@ def _token_text(value: Any) -> str:
 class LiteLLMAdapter(BaseLLMAdapter):
     """
     LiteLLM 统一适配器
-    
+
     支持的提供商:
     - OpenAI (openai/gpt-4o-mini)
     - Claude (anthropic/claude-3-5-sonnet-20241022)
@@ -84,7 +84,7 @@ class LiteLLMAdapter(BaseLLMAdapter):
 
     def _get_litellm_model(self) -> str:
         """获取 LiteLLM 格式的模型名称
-        
+
         对于使用第三方 OpenAI 兼容 API（如 SiliconFlow）的情况：
         - 如果用户设置了自定义 base_url，且模型名包含 / (如 Qwen/Qwen3-8B)
         - 需要将其转换为 openai/Qwen/Qwen3-8B 格式
