@@ -8,7 +8,7 @@ from fastapi import BackgroundTasks, HTTPException
 
 import app.api.v1.endpoints.agent_tasks as agent_tasks_endpoint
 from app.api.v1.endpoints.agent_tasks import (
-    _bootstrap_legacy_agent_memories,
+    _bootstrap_agent_memories,
     _mark_task_resume_restore,
     _restore_agents_from_checkpoints,
     _save_findings,
@@ -232,7 +232,7 @@ async def test_save_findings_merges_duplicate_resume_finding_instead_of_reinsert
 
 
 @pytest.mark.asyncio
-async def test_bootstrap_legacy_agent_memories_loads_shared_memories(monkeypatch):
+async def test_bootstrap_agent_memories_loads_shared_memories(monkeypatch):
     bundle = RuntimeMemoryBundle(
         instructions=[
             RuntimeMemoryRecord(
@@ -275,7 +275,7 @@ async def test_bootstrap_legacy_agent_memories_loads_shared_memories(monkeypatch
         target_vulnerabilities=['idor'],
     )
 
-    loaded = await _bootstrap_legacy_agent_memories(
+    loaded = await _bootstrap_agent_memories(
         agents=[_FakeAgent()],
         project_root='D:/demo/project',
         project_info={'name': 'Demo Project', 'languages': ['python']},
