@@ -36,10 +36,10 @@ async def test_runtime_session_checkpoint_store_persists_runtime_snapshot_into_a
         findings=[{"id": "finding-1"}],
         metadata={
             "runtime_session_ref": {
-                "session_key": "legacy:task-1:agent-1",
+                "session_key": "agent:task-1:agent-1",
                 "session_id": "agent-1",
                 "task_id": "task-1",
-                "source": "legacy",
+                "source": "agent",
             },
             "runtime_session_state": {
                 "session_id": "agent-1",
@@ -62,7 +62,7 @@ async def test_runtime_session_checkpoint_store_persists_runtime_snapshot_into_a
     assert stored.task_id == "task-1"
     assert stored.agent_id == "agent-1"
     assert stored.checkpoint_name == "runtime_session_state"
-    assert stored.checkpoint_metadata["runtime_session_ref"]["session_key"] == "legacy:task-1:agent-1"
+    assert stored.checkpoint_metadata["runtime_session_ref"]["session_key"] == "agent:task-1:agent-1"
     assert stored.checkpoint_metadata["runtime_session_state"]["permission_mode"] == "plan"
     session.commit.assert_awaited_once()
     session.refresh.assert_awaited_once()
@@ -74,10 +74,10 @@ async def test_runtime_session_checkpoint_store_restores_runtime_snapshot_back_i
         id="cp-restore-1",
         checkpoint_metadata={
             "runtime_session_ref": {
-                "session_key": "legacy:task-1:agent-1",
+                "session_key": "agent:task-1:agent-1",
                 "session_id": "agent-1",
                 "task_id": "task-1",
-                "source": "legacy",
+                "source": "agent",
             },
             "runtime_session_state": {
                 "session_id": "agent-1",
@@ -161,4 +161,4 @@ async def test_runtime_session_checkpoint_store_restores_runtime_snapshot_back_i
     assert agent_state.metadata["interaction_runtime"]["permission_rules"]["mutating_probe"]["mode"] == "ask"
     assert agent_state.metadata["tool_runtime"]["session_hooks"]["code-audit-finding"]["PostToolUse"][0]["hooks"] == ["log-post"]
     assert agent_state.metadata["memory_runtime"]["instructions"][0]["source_ref"] == "CLAUDE.md"
-    assert agent_state.metadata["runtime_session_ref"]["session_key"] == "legacy:task-1:agent-1"
+    assert agent_state.metadata["runtime_session_ref"]["session_key"] == "agent:task-1:agent-1"
