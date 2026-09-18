@@ -105,14 +105,22 @@ Finding Agent is AutoCVE's core audit capability and is designed specifically fo
 
 ## 🚀 Quick Start
 
-### ⚡ One-Line Deployment Command
+### ⚡ Docker Image Deployment
 
-No need to clone the repository. Start it with one command:
+For the first deployment, save the Compose file and create the deployment configuration:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml \
-  | docker compose -f - up -d
+mkdir -p autocve && cd autocve
+curl -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml -o docker-compose.prod.yml
+cat > .env <<EOF
+SECRET_KEY=$(openssl rand -hex 32)
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD=replace-with-a-strong-password-of-at-least-12-characters
+EOF
+docker compose -f docker-compose.prod.yml up -d
 ```
+
+The configured administrator is created on the first startup. After successful creation, `INITIAL_ADMIN_PASSWORD` can be removed from `.env`, but `SECRET_KEY` must remain unchanged.
 
 ### 🛠️ Source Deployment
 
@@ -121,6 +129,8 @@ Suitable for local development, feature debugging, or secondary development:
 ```bash
 git clone https://github.com/puhaoyang78/AutoCVE.git
 cd AutoCVE
+cp backend/env.example backend/.env
+# Edit backend/.env and set at least SECRET_KEY, INITIAL_ADMIN_EMAIL, and INITIAL_ADMIN_PASSWORD
 docker compose up -d --build
 ```
 

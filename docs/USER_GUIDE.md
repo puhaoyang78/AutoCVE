@@ -50,14 +50,18 @@ AutoCVE 是一个前后端分离的 AI 代码安全审计平台，核心服务�
 
 ### 账号说明
 
-系统初始化时会创建演示账号：
+默认情况下，系统不会创建演示账号，并且公开注册关闭。首次部署前，请在 `backend/.env` 中配置一个初始管理员：
 
-```text
-邮箱：demo@example.com
-密码：demo123
+```env
+SECRET_KEY=<使用 openssl rand -hex 32 生成>
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD=<至少 12 位的强密码>
+INITIAL_ADMIN_NAME=Administrator
 ```
 
-生产环境部署后，请及时修改默认账号密码，或删除演示账号。
+首次启动会创建该管理员。创建成功后可以从配置中移除 `INITIAL_ADMIN_PASSWORD`，但 `SECRET_KEY` 必须长期保持不变。
+
+仅在本地演示环境需要示例数据时，才设置 `ENABLE_DEMO_DATA=true`；生产环境不要开启。
 
 ## 2. 快速开始
 
@@ -80,7 +84,7 @@ cd AutoCVE
 docker compose up -d --build
 ```
 
-该命令会自动启动前端、后端、数据库、Redis、沙箱镜像和 Adminer。启动完成后，打开 `http://localhost:3000`，使用演示账号登录，再进入「系统设置 > 模型配置」填写模型信息即可。
+该命令会自动启动前端、后端、数据库、Redis、沙箱镜像和 Adminer。启动完成后，打开 `http://localhost:3000`，使用已配置的初始管理员登录，再进入「系统设置 > 模型配置」填写模型信息即可。
 
 ### 2.3 检查服务状态
 
@@ -107,11 +111,7 @@ docker compose ps
 http://localhost:3000
 ```
 
-使用演示账号登录：
-
-```text
-demo@example.com / demo123
-```
+使用 `backend/.env` 中配置的 `INITIAL_ADMIN_EMAIL` 和 `INITIAL_ADMIN_PASSWORD` 登录。首次登录成功后，建议从配置中移除 `INITIAL_ADMIN_PASSWORD`，后续密码修改通过账户设置完成。
 
 登录后建议先完成两件事：
 

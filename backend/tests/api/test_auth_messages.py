@@ -89,7 +89,8 @@ async def test_login_inactive_user_message(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_register_existing_email_message():
+async def test_register_existing_email_message(monkeypatch):
+    monkeypatch.setattr("app.api.v1.endpoints.auth.settings.PUBLIC_REGISTRATION_ENABLED", True)
     db = _FakeAsyncSession([_FakeUser(email="demo@example.com")])
 
     with pytest.raises(HTTPException) as exc_info:
@@ -112,3 +113,21 @@ async def test_root_does_not_expose_demo_credentials():
 
     assert "demo_account" not in payload
     assert "demo123" not in str(payload)
+
+
+@pytest.mark.asyncio
+async def test_register_disabled_by_default():
+    db = _FakeAsyncSession([])
+
+    with pytest.raises(HTTPException) as exc_info:
+        await register(
+            db=db,
+            user_in=RegisterRequest(
+                email="new@example.com",
+                password="password123",
+                full_name="New User",
+            ),
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == "公开注册已关闭"

@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -19,7 +19,7 @@ router = APIRouter()
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=8)
     full_name: str
 
 
@@ -51,22 +51,21 @@ async def register(
     user_in: RegisterRequest,
 ) -> Any:
     """Register a new user."""
+    if not settings.PUBLIC_REGISTRATION_ENABLED:
+        raise HTTPException(status_code=403, detail="公开注册已关闭")
+
     result = await db.execute(select(User).where(User.email == user_in.email))
     existing_user = result.scalars().first()
     if existing_user:
         raise HTTPException(status_code=400, detail="该邮箱已被注册")
-
-    count_result = await db.execute(select(User))
-    all_users = count_result.scalars().all()
-    is_first_user = len(all_users) == 0
 
     db_user = User(
         email=user_in.email,
         hashed_password=security.get_password_hash(user_in.password),
         full_name=user_in.full_name,
         is_active=True,
-        is_superuser=is_first_user,
-        role='admin' if is_first_user else 'member',
+        is_superuser=False,
+        role='member',
     )
     db.add(db_user)
     await db.commit()

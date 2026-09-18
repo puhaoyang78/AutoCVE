@@ -105,20 +105,22 @@ Finding Agent 是 AutoCVE 的核心审计能力，专为 CVE 挖掘场景设计�
 
 ## 🚀 快速开始
 
-### ⚡ 一行命令部署
+### ⚡ Docker 镜像部署
 
-无需克隆仓库，一行命令即可启动：
-
-Linux / macOS / Git Bash :
+首次部署先保存 Compose 文件并创建部署配置：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml \
-  | docker compose -f - up -d
+mkdir -p autocve && cd autocve
+curl -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml -o docker-compose.prod.yml
+cat > .env <<EOF
+SECRET_KEY=$(openssl rand -hex 32)
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD=请替换为至少12位的强密码
+EOF
+docker compose -f docker-compose.prod.yml up -d
 ```
-Windows PowerShell / CMD :
-```bash
-curl.exe -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker-compose.prod.yml | docker compose -f - up -d
-```
+
+首次启动会创建配置的管理员。创建成功后可以从 `.env` 中移除 `INITIAL_ADMIN_PASSWORD`，但不要更换 `SECRET_KEY`。
 
 ### 🛠️ 源码部署
 
@@ -127,6 +129,8 @@ curl.exe -fsSL https://raw.githubusercontent.com/puhaoyang78/AutoCVE/main/docker
 ```bash
 git clone https://github.com/puhaoyang78/AutoCVE.git
 cd AutoCVE
+cp backend/env.example backend/.env
+# 编辑 backend/.env，至少设置 SECRET_KEY、INITIAL_ADMIN_EMAIL 和 INITIAL_ADMIN_PASSWORD
 docker compose up -d --build
 ```
 

@@ -50,14 +50,18 @@ If you do not use Docker and instead run local development directly, you need:
 
 ### Account Notes
 
-The system creates a demo account during initialization:
+By default, the system does not create a demo account and public registration is disabled. Before the first deployment, configure an initial administrator in `backend/.env`:
 
-```text
-Email: demo@example.com
-Password: demo123
+```env
+SECRET_KEY=<generate with openssl rand -hex 32>
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD=<strong password with at least 12 characters>
+INITIAL_ADMIN_NAME=Administrator
 ```
 
-After deploying to production, promptly change the default account password or delete the demo account.
+The administrator is created on the first startup. After it is created successfully, `INITIAL_ADMIN_PASSWORD` can be removed from the configuration, while `SECRET_KEY` must remain stable.
+
+Set `ENABLE_DEMO_DATA=true` only for local demonstrations that need sample data. Do not enable it in production.
 
 ## 2. Quick Start
 
@@ -80,7 +84,7 @@ After entering the project root directory, execute:
 docker compose up -d --build
 ```
 
-This command automatically starts the frontend, backend, database, Redis, sandbox image, and Adminer. After startup completes, open `http://localhost:3000`, log in with the demo account, and then go to "System Settings > Model Configuration" to fill in model information.
+This command automatically starts the frontend, backend, database, Redis, sandbox image, and Adminer. After startup completes, open `http://localhost:3000`, log in with the configured initial administrator, and then go to "System Settings > Model Configuration" to fill in model information.
 
 ### 2.3 Check Service Status
 
@@ -107,11 +111,7 @@ Open:
 http://localhost:3000
 ```
 
-Log in with the demo account:
-
-```text
-demo@example.com / demo123
-```
+Log in with `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` configured in `backend/.env`. After the first successful login, it is recommended to remove `INITIAL_ADMIN_PASSWORD` from the configuration and manage later password changes through account settings.
 
 After logging in, it is recommended to complete two things first:
 

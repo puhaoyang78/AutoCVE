@@ -15,6 +15,11 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(48))
     ENABLE_DEMO_DATA: bool = False
+    PUBLIC_REGISTRATION_ENABLED: bool = False
+    INITIAL_ADMIN_EMAIL: str | None = None
+    INITIAL_ADMIN_PASSWORD: str | None = None
+    INITIAL_ADMIN_NAME: str = "Administrator"
+
     @field_validator("SECRET_KEY", mode="before")
     @classmethod
     def normalize_secret_key(cls, v: str | None) -> str:

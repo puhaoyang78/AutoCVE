@@ -24,6 +24,39 @@ DEFAULT_DEMO_PASSWORD = "demo123"
 DEFAULT_DEMO_NAME = "演示用户"
 
 
+async def create_initial_admin(db: AsyncSession) -> User | None:
+    """Create an explicitly configured administrator if it does not already exist."""
+    email = str(settings.INITIAL_ADMIN_EMAIL or "").strip()
+    password = str(settings.INITIAL_ADMIN_PASSWORD or "")
+
+    if not email and not password:
+        return None
+    if not email or not password:
+        raise RuntimeError("INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD must be configured together")
+    if len(password) < 12:
+        raise RuntimeError("INITIAL_ADMIN_PASSWORD must contain at least 12 characters")
+
+    result = await db.execute(select(User).where(User.email == email))
+    existing_user = result.scalars().first()
+    if existing_user:
+        if not existing_user.is_superuser:
+            logger.warning("Configured initial admin already exists but is not a superuser: %s", email)
+        return existing_user
+
+    admin_user = User(
+        email=email,
+        hashed_password=get_password_hash(password),
+        full_name=str(settings.INITIAL_ADMIN_NAME or "Administrator").strip() or "Administrator",
+        is_active=True,
+        is_superuser=True,
+        role="admin",
+    )
+    db.add(admin_user)
+    await db.flush()
+    logger.info("Created initial administrator: %s", email)
+    return admin_user
+
+
 async def create_demo_user(db: AsyncSession) -> User | None:
     """
     创建演示用户账户
@@ -264,6 +297,8 @@ async def create_demo_data(db: AsyncSession, user: User) -> None:
 async def init_db(db: AsyncSession) -> None:
     """初始化数据库和运行时资产。"""
     logger.info("开始初始化数据库...")
+
+    await create_initial_admin(db)
 
     if settings.ENABLE_DEMO_DATA:
         demo_user = await create_demo_user(db)
