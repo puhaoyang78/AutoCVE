@@ -39,15 +39,14 @@ INTERNAL_TOOL_NAMES = {"think", "reflect", "load_skill_body", "skill_resource_lo
 AUTO_FINALIZER_PROMPTS_ENABLED = True
 RESUME_TERMINAL_ACTION_NUDGE_LIMIT = 5
 RUNTIME_FINALIZATION_PROMPT = (
-    "你正在处理 Finding 阶段的最终提交恢复流程。\n\n"
-    "不要因为当前已经存在一个完整漏洞就直接结束。FinalizeFinding 是终点工具，调用成功后审计会立即停止。\n\n"
-    "如果审计尚未充分覆盖主要攻击面，或者仍存在需要继续验证的高价值候选，请不要调用 FinalizeFinding；"
-    "应继续调用 Read/Grep/Glob/PowerShell/Skill 等工具补齐证据。\n\n"
-    "只有在审计已经完成且以下条件满足时才调用 FinalizeFinding：\n"
-    "1. 已经完成主要攻击面覆盖；\n"
-    "2. 所有放入 findings 的漏洞都具备完整 source→sink 利用链、PoC、impact、cve_justification 和 verification_notes；\n"
-    "3. 如果 findings 数量较少，summary 明确说明已覆盖范围、被排除候选和没有更多可报告漏洞的原因。\n\n"
-    "不要输出 Markdown，不要自然语言宣布完成。继续审计就调用工具；确实完成才调用 FinalizeFinding。"
+    "Finding 审计执行阶段已结束，现在进入最多两轮的最终提交阶段。此阶段仅提供 FinalizeFinding。\n\n"
+    "请根据已经收集的证据调用 FinalizeFinding，提交符合工具 schema 的 findings、rejected_candidates 和 summary。"
+    "不要再请求 Read/Grep/Glob/PowerShell/Skill，也不要只输出 JSON 或 Markdown。\n\n"
+    "保留证据支持的漏洞及其真实验证状态，不得补造 source/sink、PoC、impact、cve_justification 或 verification_notes。"
+    "只有在审计已经完成且确实没有可报告漏洞时才提交 findings=[]；不得把未完成审计包装成无漏洞。"
+    "summary 必须如实说明覆盖范围、未完成事项和结论。"
+    "如果现有证据无法形成合法提交，请明确说明缺失项，系统将保留 incomplete 状态。"
+    "如果工具返回 schema 校验错误，请在剩余轮次内根据错误修正并再次调用 FinalizeFinding。"
 )
 FINALIZER_ELIGIBLE_STOP_REASONS = {
     RuntimeStopReason.COMPLETED,
@@ -59,7 +58,7 @@ NATIVE_TOOL_CALLING_REMINDER = (
     "当存在可用工具时，继续审计不能只用自然语言表达计划。凡是你说“继续、检查、查看、读取、搜索、追踪、"
     "验证、确认、补齐证据、分析调用链”等意思，必须在同一条 assistant 响应中实际发起原生结构化工具调用。\n\n"
     "如果还需要证据：直接调用 Read/Grep/Glob/Skill/PowerShell 等合适工具继续审计。如果还没有充分覆盖主要攻击面，也必须继续调用工具。\n"
-    "如果审计已经充分完成：调用 FinalizeFinding 提交结构化结果；或输出可解析的 {\"findings\": [...], \"summary\": \"...\"} JSON。\n"
+    "如果审计已经充分完成：调用 FinalizeFinding 提交结构化结果；不要用普通文本 JSON 代替工具提交。\n"
     "注意：发现第一个完整漏洞不等于审计完成。FinalizeFinding 调用成功后会终止 Finding 阶段，因此不要把它当作阶段性保存工具。\n"
     "禁止只回复“我将继续/让我继续/下一步我会...”而不调用工具。这样的响应会被视为未完成。\n"
     "不要输出伪工具语法，例如 Tool Call:、Action:、JSON 形式的伪调用；只能使用模型提供方原生 tool_call。"
@@ -535,7 +534,7 @@ class FindingRuntimeBridge:
             user_message=user_message,
             model_name=model_name,
         )
-        snapshot, final_payload = await self._ensure_payload(
+        snapshot, final_payload, runner_result = await self._ensure_payload(
             session_id=result["session_id"],
             model_name=model_name,
             max_turns=max_turns,
@@ -547,6 +546,7 @@ class FindingRuntimeBridge:
         )
         return {
             **result,
+            "runner_result": runner_result,
             "final_payload": final_payload,
             "turn_count": len(snapshot.turns),
             "tool_call_count": len(snapshot.tool_calls),
@@ -796,7 +796,7 @@ class FindingRuntimeBridge:
             ensure_kwargs["finalizer_tools"] = finalizer_tools
         if terminal_action_nudge_message is not None:
             ensure_kwargs["terminal_action_nudge_message"] = terminal_action_nudge_message
-        snapshot, final_payload = await self._ensure_payload(**ensure_kwargs)
+        snapshot, final_payload, runner_result = await self._ensure_payload(**ensure_kwargs)
         return {
             "session_id": session_id,
             "runner_result": runner_result,
@@ -826,37 +826,42 @@ class FindingRuntimeBridge:
         fallback_payload_builder: Callable[[Any], Any] | None = None,
         finalizer_tools: list[Any] | None = None,
         terminal_action_nudge_message: str | None = None,
-    ) -> tuple[Any, Any]:
+    ) -> tuple[Any, Any, TurnExecutionResult | dict[str, Any] | None]:
         snapshot = self._session_store.load_session_snapshot(session_id)
         runner_payload = getattr(runner_result, "final_payload", None)
-        if isinstance(runner_payload, dict):
-            return snapshot, runner_payload
-        payload = payload_extractor(snapshot)
-        if payload is not None:
-            return snapshot, payload
+        if getattr(runner_result, "completion_mode", None) is RuntimeCompletionMode.FINALIZE_TOOL:
+            payload = runner_payload if isinstance(runner_payload, dict) else payload_extractor(snapshot)
+            if payload is not None:
+                return snapshot, payload, runner_result
 
         if not finalizer_prompts:
             if fallback_payload_builder is not None:
-                return snapshot, fallback_payload_builder(snapshot)
+                return snapshot, fallback_payload_builder(snapshot), runner_result
             raise ValueError('Runtime session ended without a machine-parseable payload for the requested continuation.')
 
         if not self._should_attempt_finalizer(runner_result):
             if fallback_payload_builder is not None:
-                return snapshot, fallback_payload_builder(snapshot)
+                return snapshot, fallback_payload_builder(snapshot), runner_result
             raise ValueError('Runtime session ended without a machine-parseable payload for the requested continuation.')
 
         finalizer_registry = ToolRegistry(finalizer_tools or [FinalizeFindingTool()])
         finalizer_orchestrator = ToolOrchestrator(session_store=self._session_store, tool_registry=finalizer_registry)
         for index, prompt in enumerate(finalizer_prompts, start=1):
-            self._session_store.append_message(
-                session_id,
-                TranscriptItem(
-                    role=RuntimeMessageRole.USER,
-                    name='runtime_finalizer' if index == 1 else f'runtime_finalizer_retry_{index}',
-                    content=prompt,
-                    metadata={'kind': 'finalization_prompt', 'attempt': index},
-                ),
+            message = TranscriptItem(
+                role=RuntimeMessageRole.USER,
+                name='runtime_finalizer' if index == 1 else f'runtime_finalizer_retry_{index}',
+                content=prompt,
+                metadata={'kind': 'finalization_prompt', 'attempt': index},
             )
+            self._session_store.append_message(session_id, message)
+            # QueryLoop consumes the persisted working history, not new DB
+            # messages when that history is already populated.
+            state = self._session_store.load_query_loop_state(session_id)
+            if state.messages:
+                state.messages.append(message)
+            if index == 1:
+                state.tool_use_context.pop("missing_terminal_action_nudge_count", None)
+            self._session_store.save_query_loop_state(session_id, state)
             runner = FindingRuntimeRunner(
                 session_store=self._session_store,
                 model_client=model_client,
@@ -865,16 +870,20 @@ class FindingRuntimeBridge:
                 max_turns=2 if max_turns is None else max(1, min(2, max_turns)),
                 require_terminal_action=True,
                 terminal_action_nudge_limit=1,
-                terminal_action_nudge_message=terminal_action_nudge_message,
+                terminal_action_nudge_message=terminal_action_nudge_message or prompt,
             )
-            await runner.run_once(session_id=session_id, model_name=model_name)
+            runner_result = await runner.run_once(session_id=session_id, model_name=model_name)
             snapshot = self._session_store.load_session_snapshot(session_id)
-            payload = payload_extractor(snapshot)
-            if payload is not None:
-                return snapshot, payload
+            if (
+                runner_result.completion_mode is RuntimeCompletionMode.FINALIZE_TOOL
+                and isinstance(runner_result.final_payload, dict)
+            ):
+                return snapshot, runner_result.final_payload, runner_result
+            if not self._should_attempt_finalizer(runner_result):
+                break
 
         if fallback_payload_builder is not None:
-            return snapshot, fallback_payload_builder(snapshot)
+            return snapshot, fallback_payload_builder(snapshot), runner_result
         raise ValueError('Runtime session ended without a machine-parseable payload for the requested continuation.')
 
     def _build_tool_registry(self) -> ToolRegistry:
@@ -954,10 +963,7 @@ class FindingRuntimeBridge:
     def _default_finalizer_prompts() -> list[str]:
         if not AUTO_FINALIZER_PROMPTS_ENABLED:
             return []
-        return [
-            RUNTIME_FINALIZATION_PROMPT
-            + "\n如果仍需继续查看文件、验证调用链、补齐 source/sink/PoC/影响面，请继续调用工具，不要结束。"
-        ]
+        return [RUNTIME_FINALIZATION_PROMPT]
 
     @classmethod
     def _default_fallback_payload(cls, snapshot: Any) -> dict[str, Any]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -171,7 +172,7 @@ def test_bridge_finalizes_non_json_assistant_reply(monkeypatch):
                     "type": "done",
                     "content": '{"findings": [], "summary": "???????"}',
                     "finish_reason": "stop",
-                    "tool_calls": [],
+                    "tool_calls": [{"id": "final", "name": "FinalizeFinding", "arguments": {"findings": [], "summary": "???????"}}],
                     "usage": {},
                 }
             ]
@@ -224,8 +225,8 @@ def test_bridge_run_requires_terminal_action_for_main_audit_runner(monkeypatch):
         }
 
     async def fake_ensure_payload(self, *, session_id, model_name, max_turns, model_client, runner_result, payload_extractor, finalizer_prompts, fallback_payload_builder=None):
-        del model_name, max_turns, model_client, runner_result, payload_extractor, finalizer_prompts, fallback_payload_builder
-        return self._session_store.load_session_snapshot(session_id), {"findings": [], "summary": "stub"}
+        del model_name, max_turns, model_client, payload_extractor, finalizer_prompts, fallback_payload_builder
+        return self._session_store.load_session_snapshot(session_id), {"findings": [], "summary": "stub"}, runner_result
 
     monkeypatch.setattr(
         "app.services.finding_runtime.bridge.FindingRuntimeRunner.__init__",
@@ -384,8 +385,8 @@ def test_bridge_finalizer_prompt_does_not_force_empty_findings_for_incomplete_au
     prompt = bridge._default_finalizer_prompts()[0]
 
     assert "只有在审计已经完成" in prompt
-    assert "如果仍需继续查看文件、验证调用链、补齐 source/sink/PoC/影响面" in prompt
-    assert "证据不足" not in prompt
+    assert "此阶段仅提供 FinalizeFinding" in prompt
+    assert "不得把未完成审计包装成无漏洞" in prompt
 
 
 def test_bridge_fallback_summary_uses_last_assistant_message():
@@ -544,11 +545,11 @@ def test_bridge_skips_system_transcript_messages_when_building_model_payload():
     assert llm.calls[-1]["messages"][1] == {"role": "user", "content": "inspect"}
 
 
-def test_native_tool_calling_reminder_requires_actual_tool_call_or_terminal_json():
+def test_native_tool_calling_reminder_requires_native_terminal_tool_call():
     assert "工具调用协议" in NATIVE_TOOL_CALLING_REMINDER
     assert "必须在同一条 assistant 响应中实际发起原生结构化工具调用" in NATIVE_TOOL_CALLING_REMINDER
     assert "如果还需要证据：直接调用 Read/Grep/Glob/Skill/PowerShell" in NATIVE_TOOL_CALLING_REMINDER
-    assert '输出可解析的 {"findings": [...], "summary": "..."} JSON' in NATIVE_TOOL_CALLING_REMINDER
+    assert "不要用普通文本 JSON 代替工具提交" in NATIVE_TOOL_CALLING_REMINDER
     assert "禁止只回复“我将继续/让我继续/下一步我会...”" in NATIVE_TOOL_CALLING_REMINDER
     assert "不要输出伪工具语法" in NATIVE_TOOL_CALLING_REMINDER
 
@@ -701,8 +702,8 @@ def test_bridge_continue_session_refreshes_skill_catalog(monkeypatch):
         return {"status": "continued", "session_id": session_id, "model_name": model_name}
 
     async def fake_ensure_payload(self, *, session_id, model_name, max_turns, model_client, runner_result, payload_extractor, finalizer_prompts, fallback_payload_builder=None):
-        del model_name, max_turns, model_client, runner_result, payload_extractor, finalizer_prompts, fallback_payload_builder
-        return self._session_store.load_session_snapshot(session_id), {"findings": [], "summary": "continued"}
+        del model_name, max_turns, model_client, payload_extractor, finalizer_prompts, fallback_payload_builder
+        return self._session_store.load_session_snapshot(session_id), {"findings": [], "summary": "continued"}, runner_result
 
     monkeypatch.setattr(
         "app.services.finding_runtime.skills.RuntimeSkillCatalog.preload",
@@ -784,8 +785,8 @@ def test_bridge_continue_session_defers_report_skill_outside_report_phase(monkey
         return {"status": "continued", "session_id": session_id, "model_name": model_name}
 
     async def fake_ensure_payload(self, *, session_id, model_name, max_turns, model_client, runner_result, payload_extractor, finalizer_prompts, fallback_payload_builder=None):
-        del model_name, max_turns, model_client, runner_result, payload_extractor, finalizer_prompts, fallback_payload_builder
-        return self._session_store.load_session_snapshot(session_id), {"findings": [], "summary": "continued"}
+        del model_name, max_turns, model_client, payload_extractor, finalizer_prompts, fallback_payload_builder
+        return self._session_store.load_session_snapshot(session_id), {"findings": [], "summary": "continued"}, runner_result
 
     async def fake_get_skill_body(user_id, skill_ref, agent_type=None):
         del user_id, agent_type
@@ -1209,3 +1210,83 @@ def test_runtime_model_client_keeps_assistant_text_as_assistant_content():
 
     assert mapped == {"role": "assistant", "content": content}
 
+
+
+@pytest.mark.parametrize("first_finalizer_response", ["text", "invalid"])
+def test_finalizer_uses_working_history_and_returns_validated_tool_result(monkeypatch, first_finalizer_response):
+    from app.services.agent.agents.finding import FindingAgent
+
+    async def refresh(self, *, session_id):
+        pass
+
+    monkeypatch.setattr("app.services.finding_runtime.adapters.finding.FindingRuntimeAdapter.refresh_session_context", refresh)
+    candidate = {
+        "vulnerability_type": "ssrf", "severity": "high", "title": "Webhook SSRF",
+        "description": "User URL reaches HTTP client without host validation.",
+        "file_path": "webhook.py", "line_start": 10, "line_end": 11,
+        "code_snippet": "client.get(request.url)", "source": "request.url", "sink": "client.get",
+        "suggestion": "Validate target hosts.", "confidence": 0.9,
+        "needs_verification": True, "verdict": "candidate",
+        "exploit_chain": [{"step": 1, "location": "webhook.py:10", "description": "URL reaches client",
+                           "data_state": "attacker controlled", "bypass_reason": "No host check"}],
+        "poc": {
+            "description": "Submit loopback URL", "payload": "http://127.0.0.1/",
+            "steps": [{"step": 1, "action": "Submit webhook URL", "request": "url=http://127.0.0.1/", "expected_response": "Server contacts loopback"}],
+            "impact": "Internal service access", "cve_justification": "Network trust boundary crossed",
+        },
+        "impact": "Internal service access", "cve_justification": "Network trust boundary crossed",
+        "verification_notes": "Static chain reviewed; not dynamically verified.",
+    }
+    payload = {"findings": [candidate], "summary": "Audit complete; one static SSRF candidate."}
+    first = {"content": "Audit complete; ready to submit.", "tool_calls": []}
+    if first_finalizer_response == "invalid":
+        first = {"content": "", "tool_calls": [{"id": "invalid", "name": "FinalizeFinding", "arguments": {"findings": [{"title": "missing evidence"}], "summary": "done"}}]}
+    responses = [
+        [{"type": "done", "content": "Audit complete.", "tool_calls": []}],
+        [{"type": "done", **first}],
+        [{"type": "done", "content": "", "tool_calls": [{"id": "valid", "name": "FinalizeFinding", "arguments": payload}]}],
+    ]
+    llm = FakeLLMService(responses)
+    bridge = FindingRuntimeBridge(llm_service=llm, tools={}, session_factory=build_session_factory())
+    store = bridge._session_store
+    sid = store.create_session(project_id="project-1", system_prompt="Audit code.")
+    message = TranscriptItem(role=RuntimeMessageRole.USER, content="inspect")
+    store.append_message(sid, message)
+    state = store.load_query_loop_state(sid)
+    state.messages = [message]
+    state.tool_use_context["missing_terminal_action_nudge_count"] = 2
+    store.save_query_loop_state(sid, state)
+    result = asyncio.run(bridge.continue_session(session_id=sid))
+
+    assert len(llm.calls) == 3  # one audit turn, at most two finalization turns
+    assert any("此阶段仅提供 FinalizeFinding" in str(m) for m in llm.calls[1]["messages"])
+    assert [t["function"]["name"] for t in llm.calls[1]["tools"]] == ["FinalizeFinding"]
+    assert result["runner_result"].completion_mode is RuntimeCompletionMode.FINALIZE_TOOL
+    assert result["runner_result"].terminal_action is RuntimeTerminalAction.FINALIZE_FINDING
+    assert result["final_payload"]["findings"][0]["title"] == candidate["title"]
+    assert result["final_payload"]["findings"][0]["verdict"] == "candidate"
+    assert FindingAgent._completion_mode(result, result["final_payload"]) is RuntimeCompletionMode.FINALIZE_TOOL
+    assert store.load_session_snapshot(sid).session.state == "completed"
+
+
+def test_finalizer_never_accepts_plain_json_or_invalid_tool_payload():
+    llm = FakeLLMService([
+        [{"type": "done", "content": '{"findings": [], "summary": "unvalidated text"}', "tool_calls": []}],
+        [{"type": "done", "content": "", "tool_calls": [{"id": "bad", "name": "FinalizeFinding", "arguments": {"findings": [{"title": "unsupported"}], "summary": "bad"}}]}],
+    ])
+    bridge = FindingRuntimeBridge(llm_service=llm, tools={}, session_factory=build_session_factory())
+    sid = bridge._session_store.create_session(project_id="project-1", system_prompt="Audit code.")
+    bridge._session_store.append_message(sid, TranscriptItem(role=RuntimeMessageRole.ASSISTANT, content='{"findings": [], "summary": "not finalized"}'))
+    snapshot, payload, result = asyncio.run(bridge._ensure_payload(
+        session_id=sid, model_name="finding", max_turns=None,
+        model_client=RuntimeLLMModelClient(llm_service=llm),
+        runner_result=TurnExecutionResult(turn_id="audit", stop_reason=RuntimeStopReason.MAX_TURNS, completion_mode=RuntimeCompletionMode.INCOMPLETE),
+        payload_extractor=bridge.extract_final_payload, finalizer_prompts=bridge._default_finalizer_prompts(),
+        fallback_payload_builder=bridge._default_fallback_payload,
+    ))
+    assert len(llm.calls) == 2
+    assert result.completion_mode is RuntimeCompletionMode.INCOMPLETE
+    assert payload["runtime_completion_mode"] == "incomplete"
+    assert payload["is_final"] is False
+    assert payload["findings"] == []
+    assert snapshot.session.state == "failed"

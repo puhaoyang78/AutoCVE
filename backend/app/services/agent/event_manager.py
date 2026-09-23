@@ -16,8 +16,17 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-LOW_PRIORITY_EVENT_TYPES = {"thinking_token", "heartbeat", "debug", "progress"}
+LOW_PRIORITY_EVENT_TYPES = {
+    "thinking_token", "runtime_token", "heartbeat", "debug", "progress", "runtime_progress", "runtime_debug",
+}
 CRITICAL_EVENT_TYPES = {
+    "runtime_done",
+    "runtime_error",
+    "llm_complete",
+    "dispatch_complete",
+    "phase_complete",
+    "phase_failed",
+    "error",
     "task_complete",
     "task_error",
     "task_cancel",
@@ -329,7 +338,7 @@ class EventManager:
         }
 
         # 保存到数据库（跳过高频事件如 thinking_token）
-        skip_db_events = {"thinking_token"}
+        skip_db_events = {"thinking_token", "runtime_token"}
         if self.db_session_factory and event_type not in skip_db_events:
             try:
                 await self._save_event_to_db(event_data)
@@ -353,6 +362,8 @@ class EventManager:
                     # 每10个token记录一次
                     if sequence % 10 == 0:
                         logger.debug(f"[EventQueue] Added thinking_token #{sequence} to queue, size: {queue.qsize()}")
+            elif event_type in LOW_PRIORITY_EVENT_TYPES:
+                logger.debug(f"Event queue full for task {task_id}, dropping event: {event_type}")
             else:
                 logger.warning(f"Event queue full for task {task_id}, dropping event: {event_type}")
 
@@ -372,42 +383,43 @@ class EventManager:
     def _normalize_event_metadata(self, event_type: str, metadata: dict | None) -> dict | None:
         if not isinstance(metadata, dict):
             return metadata
-        if event_type == "thinking_token":
+        if event_type in {"thinking_token", "runtime_token"}:
             normalized = dict(metadata)
             normalized.pop("accumulated", None)
             return normalized
         return metadata
 
     def _enqueue_event(self, queue: asyncio.Queue, event_data: dict[str, Any]) -> bool:
-        try:
-            queue.put_nowait(event_data)
-            return True
-        except asyncio.QueueFull:
-            event_type = str(event_data.get("event_type") or "")
-            if event_type not in CRITICAL_EVENT_TYPES:
+        # Admission is bounded for ordinary traffic. Completion/error events
+        # must remain deliverable even when no SSE consumer is connected.
+        dropped_event = False
+        if queue.qsize() >= self.queue_max_size:
+            if event_data.get("event_type") not in CRITICAL_EVENT_TYPES:
                 return False
-
-            retained: list[dict[str, Any]] = []
-            dropped_low_priority = False
+            retained = []
             while not queue.empty():
-                queued_event = queue.get_nowait()
-                queued_type = str(queued_event.get("event_type") or "")
-                if not dropped_low_priority and queued_type in LOW_PRIORITY_EVENT_TYPES:
-                    dropped_low_priority = True
-                    continue
-                retained.append(queued_event)
-
-            for retained_event in retained:
-                queue.put_nowait(retained_event)
-
-            if not dropped_low_priority:
-                return False
-
-            try:
-                queue.put_nowait(event_data)
-                return True
-            except asyncio.QueueFull:
-                return False
+                retained.append(queue.get_nowait())
+            drop_index = next(
+                (i for i, event in enumerate(retained) if event.get("event_type") in LOW_PRIORITY_EVENT_TYPES),
+                None,
+            )
+            if drop_index is None:
+                drop_index = next(
+                    (i for i, event in enumerate(retained) if event.get("event_type") not in CRITICAL_EVENT_TYPES),
+                    None,
+                )
+            if drop_index is not None:
+                retained.pop(drop_index)
+                dropped_event = True
+            # An all-critical backlog cannot be bounded, lossless and
+            # non-blocking at once. Retain it; never admit more ordinary traffic.
+            for event in retained:
+                queue.put_nowait(event)
+                queue.task_done()
+        queue.put_nowait(event_data)
+        if dropped_event:
+            queue.task_done()
+        return True
 
     async def _save_event_to_db(self, event_data: dict):
         """保存事件到数据库"""
@@ -460,8 +472,8 @@ class EventManager:
     def create_queue(self, task_id: str) -> asyncio.Queue:
         """创建或获取事件队列"""
         if task_id not in self._event_queues:
-            # 🔥 使用较大的队列容量，缓存更多 token 事件
-            self._event_queues[task_id] = asyncio.Queue(maxsize=self.queue_max_size)
+            # _enqueue_event enforces the traffic limit while retaining critical events.
+            self._event_queues[task_id] = asyncio.Queue()
         return self._event_queues[task_id]
 
     def remove_queue(self, task_id: str):
