@@ -294,10 +294,12 @@ def test_continue_dialogue_session_syncs_resume_instruction_and_nudges_empty_res
 
     snapshot = bridge._session_store.load_session_snapshot(session_id)
     state = bridge._session_store.load_query_loop_state(session_id)
-    assert snapshot.messages[-1].name == "runtime_resume"
+    assert any(message.name == "runtime_resume" for message in snapshot.messages)
     assert any(message.name == "runtime_resume" for message in state.messages)
-    assert state.messages[-1].name == "empty_model_response_nudge"
-    assert snapshot.checkpoints[-1].state_payload["error_kind"] == "empty_model_response"
+    assert any(checkpoint.state_payload.get("error_kind") == "empty_model_response" for checkpoint in snapshot.checkpoints)
+    assert len(llm.calls) == 2
+    assert [tool["function"]["name"] for tool in llm.calls[-1]["tools"]] == ["FinalizeFinding"]
+    assert any("此阶段仅提供 FinalizeFinding" in str(message) for message in llm.calls[-1]["messages"])
 
 
 def test_agent_runtime_bridge_uses_finding_spec_without_changing_runner_contract(monkeypatch):
@@ -1290,3 +1292,74 @@ def test_finalizer_never_accepts_plain_json_or_invalid_tool_payload():
     assert payload["is_final"] is False
     assert payload["findings"] == []
     assert snapshot.session.state == "failed"
+
+
+@pytest.mark.parametrize("entrypoint", ["continue_session", "continue_dialogue_session"])
+@pytest.mark.parametrize("repair", [True, False])
+def test_rejected_submission_enters_bounded_finalizer_with_visible_errors(monkeypatch, entrypoint, repair):
+    async def refresh(self, *, session_id):
+        pass
+
+    monkeypatch.setattr("app.services.finding_runtime.adapters.finding.FindingRuntimeAdapter.refresh_session_context", refresh)
+
+    class SchemaRepairLLM(FakeLLMService):
+        async def chat_completion_stream(self, *, messages, agent_type, tools, parallel_tool_calls, max_tokens=None, retry_enabled=True):
+            if self.calls:
+                assert [tool["function"]["name"] for tool in tools] == ["FinalizeFinding"]
+                feedback = [message["content"] for message in messages if message["role"] == "tool"][-1]
+                for field in ("findings.0.vulnerability_type", "findings.0.verdict", "findings.0.remediation", "summary"):
+                    assert field in feedback
+                assert "请继续审计" not in feedback
+            self.calls.append({"messages": messages, "tools": tools})
+            payload = {"findings": [{"remediation": "Restrict target hosts"}]}
+            if repair and len(self.calls) > 1:
+                payload = {"findings": [], "summary": "Test audit completed with no reportable finding."}
+            yield {"type": "done", "content": "", "tool_calls": [{"id": f"submit-{len(self.calls)}", "name": "FinalizeFinding", "arguments": payload}]}
+
+    llm = SchemaRepairLLM([])
+    bridge = FindingRuntimeBridge(llm_service=llm, tools={"read_file": FakeAgentTool("read_file")}, session_factory=build_session_factory())
+    sid = bridge._session_store.create_session(project_id="project-1", system_prompt="Audit code.")
+    bridge._session_store.append_message(sid, TranscriptItem(role=RuntimeMessageRole.USER, content="Audit finished; submit result."))
+    result = asyncio.run(getattr(bridge, entrypoint)(session_id=sid, max_turns=10))
+    assert len(llm.calls) == (2 if repair else 3)
+    assert result["runner_result"].completion_mode is (RuntimeCompletionMode.FINALIZE_TOOL if repair else RuntimeCompletionMode.INCOMPLETE)
+    snapshot = bridge._session_store.load_session_snapshot(sid)
+    assert snapshot.turns[0].status == "finalization_rejected"
+    assert snapshot.session.state == ("completed" if repair else "failed")
+    if not repair:
+        assert result["final_payload"]["is_final"] is False
+
+
+
+def test_report_submission_rejections_use_existing_bounded_finalizer(monkeypatch):
+    from app.services.vulnerability_report_generation import VulnerabilityReportGenerationService
+
+    async def refresh(self, *, session_id):
+        pass
+
+    monkeypatch.setattr("app.services.finding_runtime.adapters.finding.FindingRuntimeAdapter.refresh_session_context", refresh)
+    bad_payload = {"managed_vulnerability_id": "managed-1", "finding_id": "finding-1", "report_slug": "report", "english": {"code_snippets": {}, "severity": {"score": 7.5}}}
+    llm = FakeLLMService([
+        [{"type": "done", "content": "", "tool_calls": [{"id": f"report-{i}", "name": "FinalizeVulnerabilityReports", "arguments": bad_payload}]}]
+        for i in range(5)
+    ])
+    bridge = FindingRuntimeBridge(llm_service=llm, tools={"read_file": FakeAgentTool("read_file")}, session_factory=build_session_factory())
+    sid = bridge._session_store.create_session(project_id="project-1", system_prompt="Write the reports.")
+    bridge._session_store.append_message(sid, TranscriptItem(role=RuntimeMessageRole.USER, content="Submit reports for the completed finding."))
+    service = VulnerabilityReportGenerationService()
+    with pytest.raises(ValueError, match="machine-parseable payload"):
+        asyncio.run(bridge.continue_session_until_report_payload(
+            session_id=sid,
+            payload_extractor=service.extract_generation_payload_from_snapshot,
+            finalizer_prompts=service.build_generation_finalizer_prompts(),
+            max_turns=None,
+        ))
+    assert len(llm.calls) == 5  # First rejection plus the existing two two-turn finalizer attempts.
+    for call in llm.calls[1:]:
+        assert [tool["function"]["name"] for tool in call["tools"]] == ["FinalizeVulnerabilityReports"]
+        feedback = [message["content"] for message in call["messages"] if message["role"] == "tool"][-1]
+        for field in ("english.code_snippets", "english.severity.score", "chinese", "cve"):
+            assert field in feedback
+    snapshot = bridge._session_store.load_session_snapshot(sid)
+    assert snapshot.session.state == "failed"
+    assert all(not call.output_payload.get("final_payload") for call in snapshot.tool_calls)

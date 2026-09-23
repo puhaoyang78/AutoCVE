@@ -381,20 +381,39 @@ async def run_audit_session_resume_job(session_id: str, resume_token: str) -> No
         try:
             from app.api.v1.endpoints.audit_sessions import continue_runtime_session
 
-            continuation_task = asyncio.create_task(
-                continue_runtime_session(session_id=session_id, content="", db=db)
-            )
-            cancel_watch_task = asyncio.create_task(
-                _watch_resume_cancellation(
-                    session_id=session_id,
-                    task_id=session.task_id,
-                    resume_token=resume_token,
-                    run_task=continuation_task,
-                    cancelled_by_user=cancelled_by_user,
+            if (session.runtime_state_json or {}).get("metadata", {}).get("report_generation_mode"):
+                # Finding has already committed. Resume report generation from
+                # its accepted terminal checkpoint, never from transcript text.
+                finalized = await db.scalar(
+                    select(AuditCheckpoint)
+                    .where(
+                        AuditCheckpoint.session_id == session_id,
+                        AuditCheckpoint.state_payload["terminal_action"].as_string() == "finalize_finding",
+                        AuditCheckpoint.state_payload["completion_mode"].as_string() == "finalize_tool",
+                    )
+                    .order_by(AuditCheckpoint.created_at.desc())
+                    .limit(1)
                 )
-            )
-            async with asyncio.timeout(settings.AUDIT_SESSION_RESUME_TIMEOUT_SECONDS):
-                continuation = await continuation_task
+                if finalized is None or not isinstance(finalized.state_payload.get("final_payload"), dict):
+                    raise RuntimeError("报告恢复缺少已成功提交的 FinalizeFinding 检查点。")
+                continuation = {"runner_result": finalized.state_payload}
+                session.state = "completed"
+                await db.commit()
+            else:
+                continuation_task = asyncio.create_task(
+                    continue_runtime_session(session_id=session_id, content="", db=db)
+                )
+                cancel_watch_task = asyncio.create_task(
+                    _watch_resume_cancellation(
+                        session_id=session_id,
+                        task_id=session.task_id,
+                        resume_token=resume_token,
+                        run_task=continuation_task,
+                        cancelled_by_user=cancelled_by_user,
+                    )
+                )
+                async with asyncio.timeout(settings.AUDIT_SESSION_RESUME_TIMEOUT_SECONDS):
+                    continuation = await continuation_task
         except asyncio.CancelledError:
             if cancelled_by_user.is_set():
                 await _mark_resume_manual_cancelled(session_id, resume_token)
@@ -439,11 +458,22 @@ async def run_audit_session_resume_job(session_id: str, resume_token: str) -> No
         if final_payload is None and isinstance(continuation, dict):
             final_payload = continuation.get("final_payload")
         if not _is_finalized_finding_result(runner_result, final_payload):
+            failure = {}
+            turn_id = runner_result.get("turn_id") if isinstance(runner_result, dict) else getattr(runner_result, "turn_id", None)
+            if turn_id:
+                checkpoint = await db.scalar(
+                    select(AuditCheckpoint)
+                    .where(AuditCheckpoint.session_id == session_id, AuditCheckpoint.turn_id == turn_id)
+                    .order_by(AuditCheckpoint.created_at.desc())
+                    .limit(1)
+                )
+                if checkpoint is not None and (checkpoint.state_payload or {}).get("error"):
+                    failure = checkpoint.state_payload
             await _mark_resume_failed(
                 session_id,
                 resume_token,
-                error_kind="incomplete_runtime",
-                message="Finding 未完成：恢复审计没有调用 FinalizeFinding 提交结构化结果。可继续同一审计会话。",
+                error_kind=failure.get("error_kind") or "incomplete_runtime",
+                message=failure.get("error") or "Finding 未完成：恢复审计尚未成功通过 FinalizeFinding 校验并提交结构化结果。可继续同一审计会话。",
             )
             return
         await _refresh_task_and_batch(db, session=session, final_payload=final_payload)

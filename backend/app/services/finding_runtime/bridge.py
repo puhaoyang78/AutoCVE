@@ -693,10 +693,20 @@ class FindingRuntimeBridge:
         # resume instruction visible in the database but invisible to the model.
         await adapter.refresh_session_context(session_id=session_id)
         runner_result = await runner.run_once(session_id=session_id, model_name=model_name)
-        snapshot = self._session_store.load_session_snapshot(session_id)
+        snapshot, final_payload, runner_result = await self._ensure_payload(
+            session_id=session_id,
+            model_name=model_name,
+            max_turns=max_turns,
+            model_client=model_client,
+            runner_result=runner_result,
+            payload_extractor=self.extract_final_payload,
+            finalizer_prompts=self._default_finalizer_prompts(),
+            fallback_payload_builder=self._default_fallback_payload,
+        )
         return {
             "session_id": session_id,
             "runner_result": runner_result,
+            "final_payload": final_payload,
             "turn_count": len(snapshot.turns),
             "tool_call_count": len(snapshot.tool_calls),
         }

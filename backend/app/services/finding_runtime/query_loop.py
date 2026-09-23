@@ -500,6 +500,33 @@ class QueryLoop:
                     final_payload=finalize_payload,
                 )
 
+            # A rejected terminal submission has already ended investigation.
+            # Hand it to the bridge's bounded finalizer instead of reopening
+            # the full audit loop. A finalizer-only runner keeps its two turns
+            # available for correcting the rejected payload.
+            if (
+                self._require_terminal_action
+                and any(
+                    record.request.name in {"FinalizeFinding", "FinalizeVulnerabilityReports"}
+                    and record.result.output_payload.get("finalization_rejected")
+                    for record in records
+                )
+                and any(tool.get("name") not in {"FinalizeFinding", "FinalizeVulnerabilityReports"} for tool in tool_definitions)
+            ):
+                return self._finalize_terminal_result(
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    state=state,
+                    messages=working_messages,
+                    stop_reason=RuntimeStopReason.COMPLETED,
+                    status="finalization_rejected",
+                    assistant_message_id=assistant_message_id,
+                    tool_call_ids=tool_call_ids,
+                    tool_result_message_ids=tool_result_message_ids,
+                    completion_mode=RuntimeCompletionMode.INCOMPLETE,
+                    checkpoint_extra={"phase": "finalization", "finalization_rejected": True},
+                )
+
             attachment_messages = build_between_turn_attachments(
                 state=state,
                 records=records,

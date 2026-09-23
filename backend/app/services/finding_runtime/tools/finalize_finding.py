@@ -70,14 +70,17 @@ class FinalizeFindingTool(RuntimeTool):
     ) -> ToolExecutionPayload:
         del context
         if isinstance(parsed_input, InvalidFinalizeFindingInput):
+            validation_errors = format_validation_errors(parsed_input.validation_error)
             return ToolExecutionPayload(
                 content=(
-                    "FinalizeFinding 已拒绝本次提交。请继续审计并补齐 Finding Flow、"
-                    "保护条件或动态验证结果后再次提交。"
+                    "FinalizeFinding 已拒绝本次提交，尚未形成最终结果。请按以下具体校验错误修正参数后再次提交。"
+                    "字段缺失或多余是提交格式错误，不代表必须重新审计或执行动态验证。"
+                    "只使用已有证据，保持真实验证状态，不得补造内容。\n"
+                    + "\n".join(error["message"] for error in validation_errors[1:] or validation_errors)
                 ),
                 output_payload={
                     "finalization_rejected": True,
-                    "validation_errors": format_validation_errors(parsed_input.validation_error),
+                    "validation_errors": validation_errors,
                     "required_finding_fields": [
                         "vulnerability_type",
                         "severity",

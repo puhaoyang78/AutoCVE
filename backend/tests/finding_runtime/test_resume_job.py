@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.api.v1.endpoints import audit_sessions as audit_sessions_endpoint
 from app.db.base import Base
 from app.models.agent_task import AgentFinding, AgentTask
-from app.models.audit_session import AuditCheckpoint, AuditSession
+from app.models.audit_session import AuditCheckpoint, AuditSession, AuditSessionTurn
 from app.models.one_click_cve import OneClickCveBatch, OneClickCveBatchProject
 from app.models.project import Project
 from app.models.user import User
@@ -17,7 +17,8 @@ from app.services.finding_runtime.models import RuntimeCompletionMode
 
 
 @pytest.mark.asyncio
-async def test_resume_job_persists_final_findings_and_refreshes_one_click_summary(monkeypatch):
+@pytest.mark.parametrize("report_phase", [False, True])
+async def test_resume_job_persists_final_findings_and_refreshes_one_click_summary(monkeypatch, report_phase):
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -87,7 +88,17 @@ async def test_resume_job_persists_final_findings_and_refreshes_one_click_summar
         "summary": "one finding",
     }
 
+    if report_phase:
+        async with session_factory() as db:
+            session = await db.get(AuditSession, "session-1")
+            session.runtime_state_json = {"metadata": {"report_generation_mode": True, "resume_job": {"token": "token-1", "status": "queued"}}}
+            db.add(AuditCheckpoint(session_id="session-1", state_payload={
+                "terminal_action": "finalize_finding", "completion_mode": "finalize_tool", "final_payload": final_payload,
+            }))
+            await db.commit()
+
     async def fake_continue_runtime_session(*, session_id, content, db):
+        assert not report_phase, "A completed Finding must not be audited again to resume reports."
         del content
         session = await db.get(AuditSession, session_id)
         session.state = "completed"
@@ -127,6 +138,7 @@ async def test_resume_job_persists_final_findings_and_refreshes_one_click_summar
 
     await engine.dispose()
 
+    assert task.error_message is None, task.error_message
     assert len(findings) == 1
     assert task.status == "completed"
     assert task.findings_count == 1
@@ -143,7 +155,8 @@ async def test_resume_job_persists_final_findings_and_refreshes_one_click_summar
 
 
 @pytest.mark.asyncio
-async def test_resume_job_marks_natural_end_without_finalize_as_resumable_failure(monkeypatch):
+@pytest.mark.parametrize("runtime_error", [None, "rate limit exceeded(TPM)"])
+async def test_resume_job_marks_natural_end_without_finalize_as_resumable_failure(monkeypatch, runtime_error):
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -181,8 +194,12 @@ async def test_resume_job_marks_natural_end_without_finalize_as_resumable_failur
         del content
         session = await db.get(AuditSession, session_id)
         session.state = "completed"
+        if runtime_error:
+            db.add(AuditSessionTurn(id="failed-turn", session_id=session_id, sequence=1, status="failed"))
+            await db.flush()
+            db.add(AuditCheckpoint(session_id=session_id, turn_id="failed-turn", state_payload={"error_kind": "quota_exhausted", "error": runtime_error}))
         await db.commit()
-        return {"runner_result": SimpleNamespace(final_payload=None, completion_mode=RuntimeCompletionMode.INCOMPLETE)}
+        return {"runner_result": SimpleNamespace(turn_id="failed-turn" if runtime_error else None, final_payload=None, completion_mode=RuntimeCompletionMode.INCOMPLETE)}
 
     monkeypatch.setattr(resume_job, "AsyncSessionLocal", session_factory)
     monkeypatch.setattr(audit_sessions_endpoint, "continue_runtime_session", fake_continue_runtime_session)
@@ -200,7 +217,10 @@ async def test_resume_job_marks_natural_end_without_finalize_as_resumable_failur
     assert task.status == "failed"
     assert project.status == "failed"
     assert session.runtime_state_json["metadata"]["resume_job"]["status"] == "resumable_failed"
-    assert session.runtime_state_json["metadata"]["resume_job"]["error_kind"] == "incomplete_runtime"
+    assert session.runtime_state_json["metadata"]["resume_job"]["error_kind"] == ("quota_exhausted" if runtime_error else "incomplete_runtime")
+    if runtime_error:
+        assert task.error_message == runtime_error
+        assert project.error_message == runtime_error
 
 
 @pytest.mark.asyncio
